@@ -6,6 +6,7 @@ members = [
     "crates/planner",
     "crates/retrieval",
     "crates/eval",
+    "crates/dsp",
     "crates/acrd",
     "crates/bridge",
     "crates/ui",

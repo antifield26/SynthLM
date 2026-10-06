@@ -11,3 +11,13 @@ thiserror = "2"
 realfft = "3.5"
 rustfft = "6.4"
 ebur128 = "0.1"
+
+[dev-dependencies]
+# TSK-206 decode-matrix spike only (integration test `tests/decode_matrix.rs`).
+# symphonia 0.6.1, MPL-2.0, https://github.com/pdeljanov/Symphonia
+# (https://crates.io/crates/symphonia/0.6.1, MSRV 1.85). License-row
+# registration in docs/LICENSES.md intentionally left to TSK-113's owner
+# per TSK-206 scope (do not edit that file here); registration text ships
+# in the TSK-206 return message. Defaults cover wav/flac/vorbis/ogg/pcm;
+# mp3 + aac + isomp4 extend the matrix to mp3/vorbis/aac.
+symphonia = { version = "0.6", features = ["mp3", "aac", "isomp4"] }
