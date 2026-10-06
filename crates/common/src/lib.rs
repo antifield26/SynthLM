@@ -5,3 +5,7 @@
 /// IPC protocol kernel: framing, handshake, error taxonomy, retry policy,
 /// audit events, and local-socket transport (DEC-023, ARCHITECTURE §5).
 pub mod ipc;
+
+/// Cloud-model configuration: API key, endpoints, consent tier, and the
+/// DEC-011 upload whitelist (DEC-010/011, ARCHITECTURE §8–§10).
+pub mod config;
