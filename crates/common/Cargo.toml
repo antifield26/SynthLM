@@ -1,0 +1,6 @@
+[package]
+name = "synthlm-common"
+version = "0.0.0"
+edition.workspace = true
+
+[dependencies]

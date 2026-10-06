@@ -1,0 +1,15 @@
+[package]
+name = "synthlm-acrd"
+version = "0.0.0"
+edition.workspace = true
+
+[[bin]]
+name = "acrd"
+path = "src/main.rs"
+
+[dependencies]
+synthlm-common = { path = "../common" }
+synthlm-profile = { path = "../profile" }
+synthlm-planner = { path = "../planner" }
+synthlm-retrieval = { path = "../retrieval" }
+synthlm-eval = { path = "../eval" }

@@ -1,0 +1,16 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/common",
+    "crates/profile",
+    "crates/planner",
+    "crates/retrieval",
+    "crates/eval",
+    "crates/acrd",
+    "crates/bridge",
+    "crates/ui",
+]
+
+[workspace.package]
+edition = "2024"
+license = "SEE LICENSE IN docs/LICENSES.md"

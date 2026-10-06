@@ -1,0 +1,11 @@
+[package]
+name = "synthlm-ui"
+version = "0.0.0"
+edition.workspace = true
+
+[[bin]]
+name = "synthlm-ui"
+path = "src/main.rs"
+
+[dependencies]
+synthlm-common = { path = "../common" }
