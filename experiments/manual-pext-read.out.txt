@@ -1,0 +1,3 @@
+selected_item=true
+pext_value=hello-manual
+take_is_midi=true

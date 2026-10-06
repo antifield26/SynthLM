@@ -1,0 +1,55 @@
+-- experiments/a04-spike04-nch-audio.lua
+local base = debug.getinfo(1, "S").source:match("@?(.*[/\\])")
+local out_path = base .. "a04-spike04-nch-audio.out.txt"
+local lines = {}
+local function log(s) lines[#lines+1] = s end
+local function flush()
+  local f = io.open(out_path, "w")
+  if f then f:write(table.concat(lines, "\n").."\n") f:close() end
+end
+reaper.PreventUIRefresh(1)
+local ntr0 = reaper.CountTracks(0)
+reaper.InsertTrackAtIndex(ntr0, false)
+local tr = reaper.GetTrack(0, ntr0)
+-- MIDI take with REAL fx add (instantiate=-1000)
+local mitem = reaper.CreateNewMIDIItemInProj(tr, 0, 2, false)
+local mtake = reaper.GetActiveTake(mitem)
+local fx1 = reaper.TakeFX_AddByName(mtake, "ReaEQ", -1000)
+log("MIDI_TakeFX_AddByName_inst_neg1000=" .. tostring(fx1)) flush()
+local fx1b = reaper.TakeFX_AddByName(mtake, "ReaEQ", 0)
+log("MIDI_TakeFX_query0=" .. tostring(fx1b)) flush()
+local n0 = reaper.GetMediaItemTakeInfo_Value(mtake, "I_TAKEFX_NCH")
+log("MIDI_nch_before=" .. tostring(n0)) flush()
+reaper.SetMediaItemTakeInfo_Value(mtake, "I_TAKEFX_NCH", 8)
+local n1 = reaper.GetMediaItemTakeInfo_Value(mtake, "I_TAKEFX_NCH")
+log("MIDI_nch_after8=" .. tostring(n1)) flush()
+local _, ch1 = reaper.GetItemStateChunk(mitem, "", false)
+log("MIDI_chunk_hasNCH=" .. tostring(ch1:find("TAKEFX_NCH") ~= nil)) flush()
+-- audio take
+local wav = base .. "spike-tone.wav"
+local apos = reaper.GetCursorPosition()
+local aitem = reaper.AddMediaItemToTrack(tr)
+local atake = reaper.AddTakeToMediaItem(aitem)
+local src = reaper.PCM_Source_CreateFromFile(wav)
+log("audio_src_ok=" .. tostring(src ~= nil)) flush()
+if src then
+  reaper.SetMediaItemTake_Source(atake, src)
+  reaper.GetSetMediaItemTakeInfo_String(atake, "P_NAME", "spike-tone", true)
+  reaper.SetMediaItemInfo_Value(aitem, "D_POSITION", 10)
+  reaper.SetMediaItemInfo_Value(aitem, "D_LENGTH", 1)
+  reaper.UpdateArrange()
+  local an0 = reaper.GetMediaItemTakeInfo_Value(atake, "I_TAKEFX_NCH")
+  log("AUDIO_nch_before=" .. tostring(an0)) flush()
+  local afx = reaper.TakeFX_AddByName(atake, "ReaEQ", -1000)
+  log("AUDIO_TakeFX_add=" .. tostring(afx)) flush()
+  reaper.SetMediaItemTakeInfo_Value(atake, "I_TAKEFX_NCH", 8)
+  local an1 = reaper.GetMediaItemTakeInfo_Value(atake, "I_TAKEFX_NCH")
+  log("AUDIO_nch_after8=" .. tostring(an1)) flush()
+  local _, ch2 = reaper.GetItemStateChunk(aitem, "", false)
+  log("AUDIO_chunk_hasNCH=" .. tostring(ch2:find("TAKEFX_NCH") ~= nil)) flush()
+  log("AUDIO_TakeIsMIDI=" .. tostring(reaper.TakeIsMIDI(atake))) flush()
+end
+reaper.DeleteTrack(tr)
+reaper.PreventUIRefresh(-1)
+reaper.UpdateArrange()
+log("done=1") flush()

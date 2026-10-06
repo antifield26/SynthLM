@@ -1,0 +1,21 @@
+STEP|setup|enter
+setup|delta=1
+STEP|setup|ok=true
+STEP|pext-write|enter
+prefind=true
+write|delta=1
+STEP|pext-write|ok=true
+STEP|pext-verify|enter
+verify|found=true pext=v1
+STEP|pext-verify|ok=true
+STEP|undo-once|enter
+undo|found=true pext=<empty>
+STEP|undo-once|ok=true
+STEP|redo-once|enter
+redo|found=true pext=v1
+STEP|redo-once|ok=true
+STEP|cleanup|enter
+cleanup|item_gone=true
+cleanup|track_deleted=1
+STEP|cleanup|ok=true
+done=1

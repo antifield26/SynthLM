@@ -1,0 +1,5 @@
+tracks0=1 items0=0
+cmd40362|undo_delta=1 items_delta=0
+cmd40601|undo_delta=0 items_delta=0
+tracks_after=0 (expect 0)
+done=1

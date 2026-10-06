@@ -1,0 +1,19 @@
+FX|ReaEQ|idx=0
+FROMIDENT|ReaEQ|:wet=17
+FROMIDENT|ReaEQ|:bypass=16
+FROMIDENT|ReaEQ|:delta=18
+IDENT0|ReaEQ=0:_Freq_Low_Shelf
+ROUNDTRIP|ReaEQ=0
+BOGUS|ReaEQ=-1
+ENV|ReaEQ|n=19 existing=0 nil=19
+FORMATNORM|ReaEQ=true
+FX|JS: General Dynamics|idx=0
+FROMIDENT|JS: General Dynamics|:wet=11
+FROMIDENT|JS: General Dynamics|:bypass=10
+FROMIDENT|JS: General Dynamics|:delta=12
+IDENT0|JS: General Dynamics=0
+ROUNDTRIP|JS: General Dynamics=0
+BOGUS|JS: General Dynamics=-1
+ENV|JS: General Dynamics|n=13 existing=0 nil=13
+FORMATNORM|JS: General Dynamics=true
+done=1

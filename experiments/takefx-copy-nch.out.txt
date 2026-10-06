@@ -1,0 +1,33 @@
+STEP|setup-track|enter
+setup|tracks_before=1 track_ok=true
+STEP|setup-track|ok=true
+STEP|src-midi-nch8|enter
+src|item_ok=true
+src|take_ok=true
+src|takefx_add_neg1000=0
+src|nch_before=2.0
+src|nch_after8=8.0
+src|chunk_hasNCH=true
+src|takefx_count=1
+STEP|src-midi-nch8|ok=true
+STEP|dest-midi-default|enter
+dest|item_ok=true
+dest|take_ok=true
+dest|nch_default=2.0
+dest|takefx_count_before=0
+STEP|dest-midi-default|ok=true
+STEP|copy|enter
+copy|dest_count_after=1
+STEP|copy|ok=true
+STEP|verify|enter
+verify|dest_nch=2.0
+verify|dest_takefx_count=1
+verify|dest_chunk_hasNCH=false
+verify|nch_carried=false
+conclusion=复制后须显式回写 NCH
+STEP|verify|ok=true
+STEP|cleanup|enter
+cleanup|track_deleted=1
+cleanup|tracks_after=1
+STEP|cleanup|ok=true
+done=1

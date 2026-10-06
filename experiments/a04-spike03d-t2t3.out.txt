@@ -1,0 +1,5 @@
+T2_fxidx=-1
+T2_nch_before=2.0
+T2_nch_after8=2.0
+T2_chunk_ok=true
+T2_hasNCH=false

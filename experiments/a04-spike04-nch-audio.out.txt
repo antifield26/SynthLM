@@ -1,0 +1,12 @@
+MIDI_TakeFX_AddByName_inst_neg1000=0
+MIDI_TakeFX_query0=0
+MIDI_nch_before=2.0
+MIDI_nch_after8=8.0
+MIDI_chunk_hasNCH=true
+audio_src_ok=true
+AUDIO_nch_before=2.0
+AUDIO_TakeFX_add=0
+AUDIO_nch_after8=8.0
+AUDIO_chunk_hasNCH=true
+AUDIO_TakeIsMIDI=false
+done=1

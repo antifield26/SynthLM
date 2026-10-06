@@ -1,0 +1,14 @@
+T3_before=v1
+validate_before=true
+undo_done=1
+validate_after_undo_take=false
+validate_after_undo_item=false
+count_items=2
+T3_after_undo_refetch=<empty>
+redo_done=1
+count_items2=3
+T3_after_redo_refetch=
+T4_40362=nil
+T4_40601=nil
+deleted_via_refetch=1
+done=1

@@ -1,0 +1,7 @@
+start=1
+tr_ok=true
+item_ok=true
+take_ok=true
+inserted=1
+setnote_ok=true err=true
+T1_delta=1

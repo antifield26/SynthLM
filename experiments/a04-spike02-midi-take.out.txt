@@ -1,0 +1,25 @@
+tracks_before=0
+undo_entries_before=1
+temp_track_created=true
+midi_item_created=true
+take_exists=true
+TakeIsMIDI=true
+undo_insert_delta=1
+note0 start=0.0 end=480.0 pitch=60 vel=100
+midi_count_raw=1
+gethash_ok=true hash_len=16
+getallevts_ok=true buf_len=36
+nullwrite_hash_same=true
+nullwrite_buf_same=true
+undo_no_dirty_delta=0 (7.82 auto-dirty 可能为1, 7.60 期望0)
+take_pext_roundtrip=spike-take
+item_pext_roundtrip=spike-item
+track_pext_roundtrip=spike-track
+take_guid_len=38
+takefx_nch_initial=2.0
+takefx_nch_after_set8=2.0
+chunk_has_TAKEFX_NCH=false
+split_right_exists=true
+count_items_after_split=2
+tracks_after_delete=0
+undo_entries_after=2

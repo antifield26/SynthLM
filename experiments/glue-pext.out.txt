@@ -1,0 +1,32 @@
+STEP|setup-track|enter
+setup|tracks_before=1 track_ok=true
+STEP|setup-track|ok=true
+STEP|audio-item|enter
+audio|item_ok=true
+audio|take_ok=true
+audio|src_ok=true
+audio|take_guid_len=38
+audio|TakeIsMIDI=false
+STEP|audio-item|ok=true
+STEP|pext-write|enter
+pext|write_verify=probe
+pext|undo0=11
+STEP|pext-write|ok=true
+STEP|glue|enter
+glue|items_before=1
+glue|undo_delta=1
+glue|items_after=1
+glue|item_ok=true
+glue|new_take_ok=true pext=<empty>
+glue|pext_kept=false
+conclusion=glue 后重写 provenance
+STEP|glue|ok=true
+STEP|undo-restore|enter
+undo|items_after_undo=1
+undo|take_ok=true pext=probe
+STEP|undo-restore|ok=true
+STEP|cleanup|enter
+cleanup|track_deleted=1
+cleanup|tracks_after=1
+STEP|cleanup|ok=true
+done=1
