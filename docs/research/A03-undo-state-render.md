@@ -44,7 +44,6 @@
 SetParam 连写 0/-1 命名；ProjExt MB 级耗时/体积；41824 vs 42230 阻塞/关窗/完成延迟；BOUNDSFLAG=5/FORMAT 往返；temp tab 焦点/undo/dirty 隔离；目标插件集 null-test 差异。
 
 ## 7 Action ID 复核补记（2026-10-06，TSK-109）
-
 | ID | 动作名 | 核验 |
 |---|---|---|
 | 40362 | Item: Glue items（ignoring time selection） | 空选点火：零 item 变化 + 1 undo 点（`experiments/action-ids-probe.out.txt`：`undo_delta=1 items_delta=0`）；空选调用须包事务或避免 |
@@ -54,3 +53,9 @@ SetParam 连写 0/-1 命名；ProjExt MB 级耗时/体积；41824 vs 42230 阻�
 | 42437 | dry-run selected items | 未点火；以 `RENDER_STATS` 文档原文为准 |
 
 native ID 跨版本稳定（schwa t=47729）；SWS/自定义须 `NamedCommandLookup`。`kbd_getTextFromCmd` 返 nil 系语义误用（该 API 取按键绑定文本，非动作名）。人工eyeball（Action list 过滤对照）待人类确认后关闭 TSK-109。
+
+## 8 渲染确定性与 M7 规则补记（2026-10-06，TSK-104）
+
+- 确定性成立（隔离条件下 3/3 逐字节一致，FNV 均为 `11d6dc2f`，`render-line-02.out.txt`）：前提是静音非相关轨 + 固定内容；首轮在用户 live 工程（有外来未静音内容）中 r1≠r2=r3，根因为外来内容污染——门禁方法（mute others + 固定 bounds）有效。离线块大小 pin 需 SWS/`set_config_var`（stock Lua 无偏好写入 API），本次未改块大小。
+- M7 完整规则（`render-m7-matrix.out.txt` 2×2）：`RENDER_SETTINGS &32` 选 item 源；`&(4<<16)` 开 → 单文件，关 → 逐项文件（后缀 `-001`/`-002`）；源为 master 时无论该位均为单文件；`RENDER_TARGETS` 以分号分隔列出全部目标，可直接计数。
+- 待定：变速切换键（1x/online 兜底的设置键）与块大小 pin，需 SWS 路径，记 TSK-104 余项。
