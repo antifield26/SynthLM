@@ -17,3 +17,7 @@ pub mod undo;
 
 /// Explicit take snapshot + one-click whole-chain rollback (DEC-004/020, TSK-103).
 pub mod snapshot;
+
+/// REAPER extension entry: version log + harmless `%TEMP%` smoke action
+/// (TSK-114). Control plane only; see module docs for the scaffold evidence.
+pub mod extension;

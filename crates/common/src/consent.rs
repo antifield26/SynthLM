@@ -8,31 +8,31 @@
 //!   sole candidate). No tier is assumed before the user chooses.
 //! - Persistence lives in the user directory (`%APPDATA%/SynthLM` on Windows,
 //!   `~/Library/Application Support/SynthLM` on macOS, `$XDG_CONFIG_HOME`
-//!   or `~/.config` on Linux; see [`user_dir`]), gated by `config_version`
-//!   migration (see [`CONFIG_VERSION`]).
+//!   or `~/.config` on Linux; see [`crate::consent::user_dir`]), gated by `config_version`
+//!   migration (see [`crate::consent::CONFIG_VERSION`]).
 //! - Fail-safe ruling (same as `config.rs` `DEFAULT_TIER` docs, 2026-10-06):
 //!   without stored consent nothing may leave the machine. A missing file, an
 //!   unreadable file, or an unknown `config_version` all load as
-//!   [`ConsentState::Undecided`] (fail-closed), and [`require_consent`]
+//!   [`crate::consent::ConsentState::Undecided`] (fail-closed), and [`crate::consent::require_consent`]
 //!   turns `Undecided` into a `consent_required` BLOCKED error. The
 //!   interactive consent dialog / settings store here is authoritative; the
 //!   model gateway must gate on it before any cloud call (AGENTS.md §8).
-//! - First-run dialog ships as text ([`first_run_prompt_text`]) because the UI
+//! - First-run dialog ships as text ([`crate::consent::first_run_prompt_text`]) because the UI
 //!   engine is undecided (graphical rendering stays in TSK-306); input
-//!   parsing ([`parse_first_run_choice`]) is a pure function so the future UI
+//!   parsing ([`crate::consent::parse_first_run_choice`]) is a pure function so the future UI
 //!   reuses the same text and the same parser.
 //!
 //! ## Secrecy rules (AGENTS.md §3.7, §8; DEC-010/011)
 //!
 //! The consent file stores only tier + timestamp + version: no keys, no PCM,
-//! no prompts, no paths. [`ConsentError`] carries no caller-supplied values
+//! no prompts, no paths. [`crate::consent::ConsentError`] carries no caller-supplied values
 //! (not even truncated input), so formatting an error can never echo secrets.
 //!
-//! Blocking contract: [`load_consent`] / [`load_from_path`] perform file I/O
-//! and [`save_consent`] / [`save_to_path`] perform file I/O plus an atomic
+//! Blocking contract: [`crate::consent::load_consent`] / [`crate::consent::load_from_path`] perform file I/O
+//! and [`crate::consent::save_consent`] / [`crate::consent::save_to_path`] perform file I/O plus an atomic
 //! rename. Never call these from an audio thread (AGENTS.md red line 2);
-//! they are startup / control-plane helpers. [`require_consent`] and
-//! [`parse_first_run_choice`] are pure and safe anywhere (still pointless on
+//! they are startup / control-plane helpers. [`crate::consent::require_consent`] and
+//! [`crate::consent::parse_first_run_choice`] are pure and safe anywhere (still pointless on
 //! an audio thread).
 
 use std::path::{Path, PathBuf};
@@ -48,8 +48,8 @@ use crate::ipc::{ConsentTier, ErrorCode};
 
 /// Current consent-file schema version (ARCHITECTURE §7 `config_version`).
 ///
-/// Files stamped with any other version load as [`ConsentState::Undecided`]
-/// (fail-closed); [`save_to_path`] always stamps this version.
+/// Files stamped with any other version load as [`crate::consent::ConsentState::Undecided`]
+/// (fail-closed); [`crate::consent::save_to_path`] always stamps this version.
 pub const CONFIG_VERSION: u32 = 1;
 
 /// Consent-file name inside the user directory.
@@ -76,14 +76,14 @@ pub struct ConsentStore {
     pub tier: ConsentTier,
     /// Unix epoch seconds when the tier was last chosen.
     pub decided_at_unix: i64,
-    /// Schema version (serialized as `config_version`; see [`CONFIG_VERSION`]).
+    /// Schema version (serialized as `config_version`; see [`crate::consent::CONFIG_VERSION`]).
     #[serde(rename = "config_version")]
     pub version: u32,
 }
 
 impl ConsentStore {
     /// Build a store for `tier`, stamped with the current time and
-    /// [`CONFIG_VERSION`].
+    /// [`crate::consent::CONFIG_VERSION`].
     pub fn new(tier: ConsentTier) -> Self {
         Self {
             tier,
@@ -93,7 +93,7 @@ impl ConsentStore {
     }
 
     /// Switch tiers (settings page / consent dialog): updates the tier and
-    /// re-stamps the decision time. The version stays at [`CONFIG_VERSION`].
+    /// re-stamps the decision time. The version stays at [`crate::consent::CONFIG_VERSION`].
     pub fn set_tier(&mut self, tier: ConsentTier) {
         self.tier = tier;
         self.decided_at_unix = now_unix();
@@ -103,14 +103,14 @@ impl ConsentStore {
 /// Load outcome: either a stored decision or the undecided first-run state.
 ///
 /// Missing files, unreadable files, and unknown `config_version` values all
-/// collapse to [`ConsentState::Undecided`] (fail-closed: no consent is ever
-/// inferred). Use [`require_consent`] to gate cloud calls on this value.
+/// collapse to [`crate::consent::ConsentState::Undecided`] (fail-closed: no consent is ever
+/// inferred). Use [`crate::consent::require_consent`] to gate cloud calls on this value.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ConsentState {
-    /// No usable stored choice yet: show [`first_run_prompt_text`] and parse
-    /// the reply with [`parse_first_run_choice`].
+    /// No usable stored choice yet: show [`crate::consent::first_run_prompt_text`] and parse
+    /// the reply with [`crate::consent::parse_first_run_choice`].
     Undecided,
-    /// A stored choice under [`CONFIG_VERSION`].
+    /// A stored choice under [`crate::consent::CONFIG_VERSION`].
     Decided(ConsentStore),
 }
 
@@ -194,7 +194,7 @@ impl ConsentError {
 /// Gate cloud calls on stored consent (fail-safe ruling, 2026-10-06).
 ///
 /// Returns the stored tier when decided; [`ConsentError::ConsentRequired`]
-/// (`consent_required` BLOCKED, never retried) when [`ConsentState::Undecided`].
+/// (`consent_required` BLOCKED, never retried) when [`crate::consent::ConsentState::Undecided`].
 /// The model gateway must call this before any cloud request.
 ///
 /// # Errors
@@ -214,7 +214,7 @@ pub fn require_consent(state: &ConsentState) -> Result<ConsentTier, ConsentError
 /// First-run consent text: the three tiers, their models and implications.
 ///
 /// Pure text (no stdin reads: the caller owns input, so the future graphical
-/// UI reuses this exact wording). Parse replies with [`parse_first_run_choice`].
+/// UI reuses this exact wording). Parse replies with [`crate::consent::parse_first_run_choice`].
 pub fn first_run_prompt_text() -> &'static str {
     "SynthLM 首次启动：请选择云端授权档（DEC-010/DEC-011）。\
      此选择保存在用户目录，可随时在设置页更改；未选择前，任何云端调用一律 BLOCKED。\n\
@@ -260,7 +260,7 @@ pub fn parse_first_run_choice(raw: &str) -> Result<ConsentTier, ConsentError> {
 ///
 /// Hand-written from environment variables (no `directories` crate, so no new
 /// dependency and no `docs/LICENSES.md` entry). Returns `None` when no base
-/// directory resolves; callers treat that as fail-closed ([`ConsentState::Undecided`]
+/// directory resolves; callers treat that as fail-closed ([`crate::consent::ConsentState::Undecided`]
 /// on load, [`ConsentError::StoreIo`] on save) and surface the guidance.
 pub fn user_dir() -> Option<PathBuf> {
     #[cfg(windows)]
@@ -293,12 +293,12 @@ fn nonempty_var_os(key: &str) -> Option<std::ffi::OsString> {
 }
 
 /// Consent-file path inside `dir` (injectable placement for tests and the
-/// portable fallback; production passes [`user_dir`]).
+/// portable fallback; production passes [`crate::consent::user_dir`]).
 pub fn consent_file_path_in(dir: &Path) -> PathBuf {
     dir.join(CONSENT_FILE_NAME)
 }
 
-/// Consent-file path inside [`user_dir`] (`None` when no base resolves).
+/// Consent-file path inside [`crate::consent::user_dir`] (`None` when no base resolves).
 pub fn consent_file_path() -> Option<PathBuf> {
     user_dir().map(|dir| consent_file_path_in(&dir))
 }
@@ -319,8 +319,8 @@ fn now_unix() -> i64 {
 /// Load consent from `path`, fail-closed.
 ///
 /// Missing files, I/O errors, malformed JSON, a missing `config_version`, an
-/// unknown tier, or any version other than [`CONFIG_VERSION`] all yield
-/// [`ConsentState::Undecided`]: consent is never inferred. Pure filesystem
+/// unknown tier, or any version other than [`crate::consent::CONFIG_VERSION`] all yield
+/// [`crate::consent::ConsentState::Undecided`]: consent is never inferred. Pure filesystem
 /// read of a secret-free file; never touches the real user directory unless
 /// the caller passes the real path.
 pub fn load_from_path(path: &Path) -> ConsentState {
@@ -340,8 +340,8 @@ pub fn load_from_path(path: &Path) -> ConsentState {
 
 /// Load consent from the real user directory ([`consent_file_path`]).
 ///
-/// Fail-closed like [`load_from_path`]: an unresolvable directory also yields
-/// [`ConsentState::Undecided`].
+/// Fail-closed like [`crate::consent::load_from_path`]: an unresolvable directory also yields
+/// [`crate::consent::ConsentState::Undecided`].
 pub fn load_consent() -> ConsentState {
     match consent_file_path() {
         Some(path) => load_from_path(&path),
@@ -352,7 +352,7 @@ pub fn load_consent() -> ConsentState {
 /// Save `store` to `path`, creating parent directories and writing atomically
 /// (temp file + rename in the same directory).
 ///
-/// The written file always stamps [`CONFIG_VERSION`], so a successful save
+/// The written file always stamps [`crate::consent::CONFIG_VERSION`], so a successful save
 /// heals files from older schemas. Never touches the real user directory
 /// unless the caller passes the real path.
 ///
@@ -384,9 +384,9 @@ pub fn save_to_path(path: &Path, store: &ConsentStore) -> Result<(), ConsentErro
 
 /// Save `store` to the real user directory ([`consent_file_path`]).
 ///
-/// This is the settings-page write path: parse with [`parse_first_run_choice`],
-/// build with [`ConsentStore::new`] (or mutate + [`save_consent`]), and the
-/// next [`load_consent`] observes the new tier.
+/// This is the settings-page write path: parse with [`crate::consent::parse_first_run_choice`],
+/// build with [`crate::consent::ConsentStore::new`] (or mutate + [`crate::consent::save_consent`]), and the
+/// next [`crate::consent::load_consent`] observes the new tier.
 ///
 /// # Errors
 ///

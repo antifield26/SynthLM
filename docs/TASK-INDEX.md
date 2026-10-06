@@ -36,14 +36,14 @@
 | TSK-111 | CopyToTake NCH 携带 + glue 后 P_EXT 保留 | 测试 | 1 | TSK-102 | P1 | S | 目标 chunk NCH 一致；glue 新 take provenance 齐全或显式重写 | A04 §M3/M6 | Done | M3：复制带 FX 不带 NCH→须显式回写；M6：glue 丢 take P_EXT→须重写（undo 可恢复）；M7 并入 TSK-104 |
 | TSK-112 | B 矩阵 20 行脚本 × 5 款插件 | 调研 | 1 | — | P0 | M | 输出解析：名/范围 100%、automatable gate 有效、空率记录 | DEC-015 | Done | stock 4 格 + VST3 3 厂商 + CLAP Vital 通过；跨格式结论：Vital VST3 2986 vs CLAP 906 参数表不可移植（B §5 补记） |
 | TSK-113 | docs/LICENSES.md 登记初版 + `buildconf` 确认 | 合规 | 1 | — | P0 | S | 每个新增依赖一行（来源/条款/结论）；FFmpeg 构建行存档 | DEC-025 | Done | cargo tree 零外部依赖 + Gyan 9.0.2 buildconf 存档（GPL 构建，不可作 LGPL fallback） |
-| TSK-114 | REAPER 扩展真机线（bridge cdylib 加载 + smoke） | 实现 | 1 | TSK-101/102/103 | P0 | M | 扩展加载零崩溃 + 容器解析/undo/快照 smoke 全绿 | DEC-001/008/020 | Todo | 待启动（Rust 层真机覆盖） |
+| TSK-114 | REAPER 扩展真机线（bridge cdylib 加载 + smoke） | 实现 | 1 | TSK-101/102/103 | P0 | M | 扩展加载零崩溃 + 容器解析/undo/快照 smoke 全绿 | DEC-001/008/020 | In-Progress | cdylib 可构建（811KB，ReaperPluginEntry 自证）+ ext-load-steps.md；待人类协同加载 smoke |
 | TSK-115 | IPC 权限用例 + 共享内存大数据通道 | 实现 | 1 | TSK-107 | P1 | M | 跨权限 ACL/Unix mode 用例绿；PCM/stem 走 shm 基准达标 | DEC-023 | Todo | D-eng-eco §2（TSK-107 拆分余项） |
 
 ## Phase 2（语义与检索评价）
 
 | ID | 标题 | 类型 | 阶段 | 依赖 | 优先级 | 规模 | 验收标准(可测) | 关联决策 | 状态 | 证据链接 |
 |---|---|---|---|---|---|---|---|---|---|---|
-| TSK-201 | Profile schema + 首批白名单（≥5 款） | 实现 | 2 | TSK-112 | P0 | M | 白名单覆盖 ≥80% 目标声设参数；ident 回查 -1 迁移单测过 | DEC-015 | Todo | B §4 |
+| TSK-201 | Profile schema + 首批白名单（≥5 款） | 实现 | 2 | TSK-112 | P0 | M | 白名单覆盖 ≥80% 目标声设参数；ident 回查 -1 迁移单测过 | DEC-015 | Done | schema+builtins 20 单测绿；7 插件各 8–16 条（Macro 4/Vital 待补测；name_regex 编译延后；13 doc 坏链已修） |
 | TSK-202 | MIR v1 链（48k/STFT/mel/CLAP/LUFS） | 实现 | 2 | TSK-104 | P0 | M | 参数变更即 golden 失配（敏感性）；固定输入评分落区间 | DEC-012/016 | Todo | C-models §4 |
 | TSK-203 | 检索后端原型二选一（10k 基准） | 实现 | 2 | TSK-202 | P0 | M | 构建 <30min、P95 <100ms；落选者归档理由 | DEC-014 | Todo | C-models §3 |
 | TSK-204 | 评价器 + `+6dB` 防作弊回归 | 测试 | 2 | TSK-202 | P0 | M | `+6dB` 用例必不涨分；三次方差门禁 | DEC-016/L5 | Todo | C-models §4 |

@@ -3,6 +3,11 @@ name = "synthlm-bridge"
 version = "0.0.0"
 edition.workspace = true
 
+# TSK-114: `cdylib` so REAPER can load the extension entry
+# (`crates/bridge/src/extension.rs`); `rlib` retained for unit tests.
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 [dependencies]
 synthlm-common = { path = "../common" }
 # TSK-101: reaper-rs via git (per its README crates.io copies are stale).
