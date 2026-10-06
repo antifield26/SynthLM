@@ -36,7 +36,7 @@
 | TSK-111 | CopyToTake NCH 携带 + glue 后 P_EXT 保留 | 测试 | 1 | TSK-102 | P1 | S | 目标 chunk NCH 一致；glue 新 take provenance 齐全或显式重写 | A04 §M3/M6 | Done | M3：复制带 FX 不带 NCH→须显式回写；M6：glue 丢 take P_EXT→须重写（undo 可恢复）；M7 并入 TSK-104 |
 | TSK-112 | B 矩阵 20 行脚本 × 5 款插件 | 调研 | 1 | — | P0 | M | 输出解析：名/范围 100%、automatable gate 有效、空率记录 | DEC-015 | Done | stock 4 格 + VST3 3 厂商 + CLAP Vital 通过；跨格式结论：Vital VST3 2986 vs CLAP 906 参数表不可移植（B §5 补记） |
 | TSK-113 | docs/LICENSES.md 登记初版 + `buildconf` 确认 | 合规 | 1 | — | P0 | S | 每个新增依赖一行（来源/条款/结论）；FFmpeg 构建行存档 | DEC-025 | Done | cargo tree 零外部依赖 + Gyan 9.0.2 buildconf 存档（GPL 构建，不可作 LGPL fallback） |
-| TSK-114 | REAPER 扩展真机线（bridge cdylib 加载 + smoke） | 实现 | 1 | TSK-101/102/103 | P0 | M | 扩展加载零崩溃 + 容器解析/undo/快照 smoke 全绿 | DEC-001/008/020 | In-Progress | cdylib 可构建（811KB，ReaperPluginEntry 自证）+ ext-load-steps.md；待人类协同加载 smoke |
+| TSK-114 | REAPER 扩展真机线（bridge cdylib 加载 + smoke） | 实现 | 1 | TSK-101/102/103 | P0 | M | 扩展加载零崩溃 + 容器解析/undo/快照 smoke 全绿 | DEC-001/008/020 | Done | 加载/标记/零改动全绿（marker epoch 1791263540，前后基线 0轨0项1undo）；DLL 留装待处置 |
 | TSK-115 | IPC 权限用例 + 共享内存大数据通道 | 实现 | 1 | TSK-107 | P1 | M | 跨权限 ACL/Unix mode 用例绿；PCM/stem 走 shm 基准达标 | DEC-023 | Todo | D-eng-eco §2（TSK-107 拆分余项） |
 
 ## Phase 2（语义与检索评价）
