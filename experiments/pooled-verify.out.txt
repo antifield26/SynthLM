@@ -1,0 +1,11 @@
+midi_takes=2
+take1|pos=0.0|buflen=60
+take2|pos=0.0|buflen=60
+shared_buffer|takes=1,2
+pooled_candidate=true
+propagate|both_changed=true
+restore|A_back=true
+derive|origA_untouched=true
+derive|origB_untouched=true
+derive|derived_item_removed=1
+done=1
