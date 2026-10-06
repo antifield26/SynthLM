@@ -7,5 +7,12 @@ edition.workspace = true
 name = "synthlm-ui"
 path = "src/main.rs"
 
+[lib]
+name = "synthlm_ui"
+path = "src/lib.rs"
+
 [dependencies]
 synthlm-common = { path = "../common" }
+eframe = "0.36"
+egui = "=0.36.2"
+anyhow = "1"
