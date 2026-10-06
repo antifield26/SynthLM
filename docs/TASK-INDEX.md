@@ -57,11 +57,11 @@
 | ID | 标题 | 类型 | 阶段 | 依赖 | 优先级 | 规模 | 验收标准(可测) | 关联决策 | 状态 | 证据链接 |
 |---|---|---|---|---|---|---|---|---|---|---|
 | TSK-301 | model-gw 三档路由 + 熔断降级链 | 实现 | 3 | TSK-105/106 | P0 | M | 故障注入：Tier1  down→Tier2→Tier3→BLOCKED 路径全覆盖；无已存 consent 即 consent_required BLOCKED（先弹窗，AGENTS §8） | DEC-010/011 | Done | model_gw.rs（14 单测绿：全降级链/401 跳云/熔断/审计脱敏）；零网络（真传输归 TSK-116） |
-| TSK-116 | model-gw 真 HTTPS 传输（responses 格式） | 实现 | 3 | TSK-301 | P1 | S | 30s hard/P95 10s 超时接线；401/429/5xx 真映射；MockTransport 回归保留 | DEC-010/011 | Todo | 待启动（reqwest 或等效 + LICENSES 登记） |
+| TSK-116 | model-gw 真 HTTPS 传输（responses 格式） | 实现 | 3 | TSK-301 | P1 | S | 30s hard/P95 10s 超时接线；401/429/5xx 真映射；MockTransport 回归保留 | DEC-010/011 | Done | HttpsTransport（blocking rustls，无 openssl；127 stub 全绿，Mock 回归全过）；responses 字段 5 处待真端点验证；webpki-roots MPL 已单列登记 |
 | TSK-302 | Patch schema 双校验 + 修复循环 | 实现 | 3 | TSK-201/301 | P0 | M | 首轮有效率 ≥95%，2 轮修复 ≥99%（fixture 集） | DEC-013 | Done | patch.rs（48 fixture：首轮 100%/修复 100%；JSFX 裸 ident 按设计拒，SELECT 枚举/add存在性留后续） |
 | TSK-303 | TPE/CMA-ES 粗搜 + NM 收尾（mock 渲染） | 实现 | 3 | TSK-204 | P1 | M | 预算公式单测：50 次≈分钟级；mock 下收敛 | DEC-018/C §5 | Done | 零依赖 TPE-lite + 手写 NM（预算/收敛全绿）；optimizer/cmaes 待真嵌入时接入；接线已收口 |
 | TSK-304 | 多样性去重 + 候选卡片 6 字段 | 实现 | 3 | TSK-302 | P1 | S | 同质 fixture 去重生效；卡片字段缺失即单测红 | DEC-018/019 | Done | candidate.rs（去重/gap 标记/6 键卡片全绿）；CLAP 距离与试听引用格式待输入形状落定；接线已收口 |
-| TSK-305 | 本地端点实测（Gemma 4 12B × 4 后端 + 音频探测） | 测试 | 3 | TSK-301 | P0 | M | vLLM/llama.cpp/MLX LM/LM Studio 逐个连通 Gemma 4 12B + 音频探测；缺音频即 BLOCKED（非静默） | DEC-010 | Todo | 人类 2026-10-06 |
+| TSK-305 | 本地端点实测（Gemma 4 12B × 4 后端 + 音频探测） | 测试 | 3 | TSK-301 | P0 | M | vLLM/llama.cpp/MLX LM/LM Studio 逐个连通 Gemma 4 12B + 音频探测；缺音频即 BLOCKED（非静默） | DEC-010 | In-Progress | llama.cpp：QAT 文件退化（空串/重复），已停测待新权重；:8080 现 serving 降级输出；其余三后端未开始 |
 | TSK-306 | UI 引擎原型二选一（波形 + 100Hz） | 实现 | 3 | — | P0 | M | 帧率/输入/HiDPI 三项达标才锁；落选归档 | DEC-002 | Todo | D §1 |
 | TSK-307 | Lua 薄面板快捷入口 | 实现 | 3 | TSK-306 | P2 | S | 面板启停 + 跳主窗链路可用 | DEC-002 | Todo | D §1 |
 
