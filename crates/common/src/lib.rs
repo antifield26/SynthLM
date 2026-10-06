@@ -9,3 +9,7 @@ pub mod ipc;
 /// Cloud-model configuration: API key, endpoints, consent tier, and the
 /// DEC-011 upload whitelist (DEC-010/011, ARCHITECTURE §8–§10).
 pub mod config;
+
+/// First-run consent store: three-tier authorization persistence, text prompt,
+/// and the settings data API (DEC-010/011, ARCHITECTURE §7).
+pub mod consent;
