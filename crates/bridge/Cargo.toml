@@ -1,0 +1,16 @@
+[package]
+name = "synthlm-bridge"
+version = "0.0.0"
+edition.workspace = true
+
+[dependencies]
+synthlm-common = { path = "../common" }
+# TSK-101: reaper-rs via git (per its README crates.io copies are stale).
+# master HEAD pinned to exact rev 2026-10-06; medium primary, low fallback (A01 §6 gaps).
+reaper-medium = { git = "https://github.com/helgoboss/reaper-rs.git", rev = "659b22bfbc34bf4a5a40902e6fdf60ccfd34ca23" }
+reaper-low = { git = "https://github.com/helgoboss/reaper-rs.git", rev = "659b22bfbc34bf4a5a40902e6fdf60ccfd34ca23" }
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+serde_json = "1"
