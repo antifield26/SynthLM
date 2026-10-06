@@ -44,7 +44,7 @@
 | ID | 标题 | 类型 | 阶段 | 依赖 | 优先级 | 规模 | 验收标准(可测) | 关联决策 | 状态 | 证据链接 |
 |---|---|---|---|---|---|---|---|---|---|---|
 | TSK-201 | Profile schema + 首批白名单（≥5 款） | 实现 | 2 | TSK-112 | P0 | M | 白名单覆盖 ≥80% 目标声设参数；ident 回查 -1 迁移单测过 | DEC-015 | Done | schema+builtins 20 单测绿；7 插件各 8–16 条（Macro 4/Vital 待补测；name_regex 编译延后；13 doc 坏链已修） |
-| TSK-202 | MIR v1 链（48k/STFT/mel/CLAP/LUFS） | 实现 | 2 | TSK-104 | P0 | M | 参数变更即 golden 失配（敏感性）；固定输入评分落区间 | DEC-012/016 | Todo | C-models §4 |
+| TSK-202 | MIR v1 链（48k/STFT/mel/CLAP/LUFS） | 实现 | 2 | TSK-104 | P0 | M | 参数变更即 golden 失配（敏感性）；固定输入评分落区间 | DEC-012/016 | Done | mir.rs+score.rs+golden（13+5 全绿；+6dB 归零 ΔLUFS=-6.021；CLAP 缝留待接入；3341 归 TSK-208） |
 | TSK-203 | 检索后端原型二选一（10k 基准） | 实现 | 2 | TSK-202 | P0 | M | 构建 <30min、P95 <100ms；落选者归档理由 | DEC-014 | Todo | C-models §3 |
 | TSK-204 | 评价器 + `+6dB` 防作弊回归 | 测试 | 2 | TSK-202 | P0 | M | `+6dB` 用例必不涨分；三次方差门禁 | DEC-016/L5 | Todo | C-models §4 |
 | TSK-205 | stem 后台队列 + 内容寻址缓存 + GC | 实现 | 2 | TSK-104 | P1 | M | 缓存命中率/水位指标上报；超 50GB 自动 GC | DEC-009 | Todo | C-dsp §5 |
