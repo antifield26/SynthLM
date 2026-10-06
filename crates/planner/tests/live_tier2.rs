@@ -8,7 +8,7 @@
 //! order. Human authorization for this exact invocation is on record;
 //! the consent dialog (TSK-105) gates all product paths.
 
-use synthlm_common::consent::{require_consent, ConsentState};
+use synthlm_common::consent::{ConsentState, require_consent};
 use synthlm_common::ipc::{ConsentTier, TimeoutConfig};
 use synthlm_planner::model_gw::{HttpsTransport, ModelRequest, Transport};
 
@@ -23,20 +23,22 @@ fn live_key() -> String {
 fn live_tier2_transport_smoke() {
     let key = live_key();
     assert!(!key.trim().is_empty(), "key must be non-blank");
-    let mut transport =
-        HttpsTransport::new(key, BASE_URL.to_owned()).expect("client builds offline");
-    let request = ModelRequest::new(
-        ConsentTier::Tier2,
-        vec!["prompt".to_owned()],
-        64,
-    )
-    .expect("whitelisted fields");
+    let mut transport = HttpsTransport::new(key, BASE_URL.to_owned())
+        .expect("client builds offline")
+        // Live-probed 2026-10-06: the Go surface requires x-opencode-session.
+        .with_session_id("synthlm-live-001".to_owned());
+    let request = ModelRequest::new(ConsentTier::Tier2, vec!["prompt".to_owned()], 64)
+        .expect("whitelisted fields");
     let response = transport
         .send(&request, &TimeoutConfig::default())
         .expect("tier2 live call succeeds");
     assert_eq!(response.tier, ConsentTier::Tier2);
     assert!(!response.model.is_empty(), "model name echoed");
-    println!("live_ok=1 model_len={} latency_ms={}", response.model.len(), response.latency_ms);
+    println!(
+        "live_ok=1 model_len={} latency_ms={}",
+        response.model.len(),
+        response.latency_ms
+    );
 }
 
 #[test]
@@ -50,11 +52,13 @@ fn live_tier2_envelope_shape() {
         .expect("client builds");
     let body = serde_json::json!({
         "model": "mimo-v2.6-flash",
-        "input": "Reply with exactly: LIVE-OK",
+        "messages": [{"role": "user", "content": "Reply with exactly: LIVE-OK"}],
+        "max_tokens": 256,
     });
     let response = client
-        .post(format!("{BASE_URL}/responses"))
+        .post(format!("{BASE_URL}/chat/completions"))
         .bearer_auth(&key)
+        .header("x-opencode-session", "synthlm-live-002")
         .timeout(std::time::Duration::from_secs(60))
         .json(&body)
         .send()

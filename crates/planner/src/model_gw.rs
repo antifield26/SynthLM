@@ -568,35 +568,69 @@ impl Transport for MockTransport {
 // Real HTTPS transport (TSK-116)
 // ---------------------------------------------------------------------------
 
-/// Path suffix appended to the DEC-010 base URL.
+/// Path suffix appended to the DEC-010 base URL (Tier1, responses API).
 ///
-/// TODO(TSK-116): 需对真端点验证 — the exact responses path on
-/// `https://opencode.ai/zen/go/v1` (trailing segments, if any) has not been
-/// probed against the live endpoint; `/responses` follows the responses-API
-/// naming only.
+/// Verified live 2026-10-06 only insofar as the Go docs table assigns it;
+/// Tier1 call itself remains unprobed (training-retained tier, no call
+/// placed without explicit human approval).
 const RESPONSES_PATH_SUFFIX: &str = "/responses";
 
-/// Build the minimal responses-format body for `request`.
+/// Path suffix for Tier2 (chat-completions API).
 ///
-/// Sends `model` plus a synthetic `input` string naming the whitelisted
-/// fields and the body byte count. [`crate::model_gw::ModelRequest`] carries no prompt
+/// Verified live 2026-10-06: `POST {base}/chat/completions` with
+/// `{model, messages, max_tokens}` returns 2xx for `mimo-v2.6-flash`
+/// **iff** the [`OPENCODE_SESSION_HEADER`] header is present (absent →
+/// systematic 400; see `docs/research/C-live-endpoint.md`).
+const CHAT_COMPLETIONS_PATH_SUFFIX: &str = "/chat/completions";
+
+/// Session header required by the Go surface (abuse monitoring + routing).
+///
+/// Docs (`https://opencode.ai/docs/go/`, 2026-10-06): send a stable session
+/// ID per conversation. A custom `User-Agent` correlated with 401s in two
+/// live probes, so this client keeps the default UA and sends only this
+/// header (see `docs/research/C-live-endpoint.md`).
+pub const OPENCODE_SESSION_HEADER: &str = "x-opencode-session";
+
+/// Cloud path suffix for `tier` (Go docs per-model endpoint table,
+/// 2026-10-06; Tier3 never reaches a cloud transport).
+fn cloud_path_suffix(tier: ConsentTier) -> &'static str {
+    match tier {
+        ConsentTier::Tier1 => RESPONSES_PATH_SUFFIX,
+        ConsentTier::Tier2 => CHAT_COMPLETIONS_PATH_SUFFIX,
+        ConsentTier::Tier3 => RESPONSES_PATH_SUFFIX,
+    }
+}
+
+/// Build the minimal request body for `request` (tier-aware wire shape).
+///
+/// Tier1 sends `model` plus a synthetic `input` string naming the whitelisted
+/// fields and the body byte count. Tier2 sends the same synthetic content as
+/// a single `messages[0]` user turn plus `max_tokens` (shape verified live
+/// 2026-10-06). [`crate::model_gw::ModelRequest`] carries no prompt
 /// text, PCM, paths, or key material, so the wire body is secret-free by
 /// construction; real prompt/MIR payload wiring lands with the caller that
 /// owns that content.
 ///
-/// TODO(TSK-116): 需对真端点验证 — exact OpenCode Go responses field names
-/// and extras (`messages` vs `input`, sampling knobs, `stream`,
-/// `max_tokens`, response `output` shape) are unprobed; only `model` is
-/// asserted against DEC-010 presets.
-fn responses_body(request: &ModelRequest) -> serde_json::Value {
-    serde_json::json!({
-        "model": request.model,
-        "input": format!(
-            "synthetic fields=[{}] bytes={}",
-            request.fields.join(","),
-            request.byte_count,
-        ),
-    })
+/// TODO: Tier1 responses extras (sampling knobs, `stream`, response
+/// `output` shape) remain unprobed — no Tier1 call placed
+/// (training-retained tier; requires explicit human approval).
+fn request_body(request: &ModelRequest) -> serde_json::Value {
+    let synthetic = format!(
+        "synthetic fields=[{}] bytes={}",
+        request.fields.join(","),
+        request.byte_count,
+    );
+    match request.tier {
+        ConsentTier::Tier2 => serde_json::json!({
+            "model": request.model,
+            "messages": [{"role": "user", "content": synthetic}],
+            "max_tokens": 256,
+        }),
+        _ => serde_json::json!({
+            "model": request.model,
+            "input": synthetic,
+        }),
+    }
 }
 
 /// Map an HTTP status to its [`crate::model_gw::TransportKind`].
@@ -651,6 +685,9 @@ pub struct HttpsTransport {
     api_key: String,
     /// DEC-010 base URL (overridable for loopback stub tests).
     base_url: String,
+    /// Stable conversation session ID for [`OPENCODE_SESSION_HEADER`];
+    /// `None` sends no session header (loopback stubs, Tier3-adjacent paths).
+    session_id: Option<String>,
     /// Blocking HTTP client (rustls TLS, no global timeout; per-request
     /// budgets come from [`synthlm_common::ipc::TimeoutConfig`]).
     client: reqwest::blocking::Client,
@@ -681,8 +718,18 @@ impl HttpsTransport {
         Ok(Self {
             api_key,
             base_url,
+            session_id: None,
             client,
         })
+    }
+
+    /// Attach the stable conversation session ID sent as
+    /// [`OPENCODE_SESSION_HEADER`] (required by the Go surface; absent →
+    /// systematic 400 as probed 2026-10-06).
+    #[must_use]
+    pub fn with_session_id(mut self, session_id: String) -> Self {
+        self.session_id = Some(session_id);
+        self
     }
 
     /// Base URL this transport posts to.
@@ -690,13 +737,13 @@ impl HttpsTransport {
         &self.base_url
     }
 
-    /// Full responses endpoint URL (trailing slashes on the base are
-    /// tolerated).
-    fn responses_url(&self) -> String {
+    /// Full endpoint URL for `tier` (trailing slashes on the base are
+    /// tolerated; path is tier-aware per [`cloud_path_suffix`]).
+    fn endpoint_url(&self, tier: ConsentTier) -> String {
         format!(
             "{}{}",
             self.base_url.trim_end_matches('/'),
-            RESPONSES_PATH_SUFFIX
+            cloud_path_suffix(tier)
         )
     }
 }
@@ -720,13 +767,16 @@ impl Transport for HttpsTransport {
         }
         let hard_ms = timeout.cloud_hard_ms.max(1);
         let started = Instant::now();
-        let outcome = self
+        let mut post = self
             .client
-            .post(self.responses_url())
+            .post(self.endpoint_url(request.tier))
             .bearer_auth(&self.api_key)
             .timeout(Duration::from_millis(hard_ms))
-            .json(&responses_body(request))
-            .send();
+            .json(&request_body(request));
+        if let Some(session_id) = self.session_id.as_deref() {
+            post = post.header(OPENCODE_SESSION_HEADER, session_id);
+        }
+        let outcome = post.send();
         let latency_ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
         match outcome {
             Err(err) if err.is_timeout() => Err(TransportError::new(TransportKind::Timeout)),
@@ -736,8 +786,8 @@ impl Transport for HttpsTransport {
                 if status.is_success() {
                     // Require a JSON body so shape drift surfaces as a
                     // retryable failure instead of silent success.
-                    // TODO(TSK-116): 需对真端点验证 — decode the real
-                    // responses `output` envelope once probed.
+                    // Tier2 chat envelope verified live 2026-10-06
+                    // (choices/message/content + reasoning_content ext).
                     match response.json::<serde_json::Value>() {
                         Ok(_) => Ok(ModelResponse {
                             tier: request.tier,
@@ -1463,6 +1513,7 @@ mod tests {
         path: String,
         auth: String,
         content_type: String,
+        session: String,
         body: String,
     }
 
@@ -1513,6 +1564,7 @@ mod tests {
             let mut content_length = 0usize;
             let mut auth = String::new();
             let mut content_type = String::new();
+            let mut session = String::new();
             for line in lines {
                 if let Some((name, value)) = line.split_once(':') {
                     match name.trim().to_ascii_lowercase().as_str() {
@@ -1524,6 +1576,9 @@ mod tests {
                         }
                         "content-type" => {
                             content_type = value.trim().to_owned();
+                        }
+                        "x-opencode-session" => {
+                            session = value.trim().to_owned();
                         }
                         _ => {}
                     }
@@ -1559,6 +1614,7 @@ mod tests {
                 path,
                 auth,
                 content_type,
+                session,
                 body: String::from_utf8_lossy(&body).into_owned(),
             });
         });
@@ -1623,6 +1679,40 @@ mod tests {
         assert!(
             !captured.body.contains(STUB_KEY),
             "key material must never appear in the body"
+        );
+        assert!(
+            captured.session.is_empty(),
+            "no session header unless explicitly attached"
+        );
+    }
+
+    #[test]
+    fn https_tier2_posts_chat_path_with_session_header() {
+        let (base, rx) = serve_once(StubReply::status(
+            200,
+            r#"{"id":"chatcmpl-stub","object":"chat.completion","choices":[]}"#,
+        ));
+        let mut transport = stub_transport(base).with_session_id("stub-session-1".to_owned());
+        let request = ModelRequest::new(ConsentTier::Tier2, vec!["prompt".to_owned()], 64)
+            .expect("whitelisted fields build");
+        transport
+            .send(&request, &TimeoutConfig::default())
+            .expect("stub 200 serves");
+        let captured = recv_captured(rx);
+        assert_eq!(captured.path, "/chat/completions");
+        assert_eq!(captured.session, "stub-session-1");
+        let wire: serde_json::Value =
+            serde_json::from_str(&captured.body).expect("request body is JSON");
+        assert_eq!(
+            wire.get("model").and_then(|model| model.as_str()),
+            Some(DEFAULT_TIER2_MODEL),
+            "DEC-010 Tier2 preset model must ride the wire"
+        );
+        assert!(
+            wire.get("messages")
+                .and_then(|messages| messages.as_array())
+                .is_some(),
+            "Tier2 wire shape must carry messages"
         );
     }
 
@@ -1772,15 +1862,19 @@ mod tests {
     }
 
     #[test]
-    fn https_responses_url_tolerates_trailing_slashes() {
+    fn https_endpoint_url_tolerates_trailing_slashes() {
         let transport = HttpsTransport::new(
             STUB_KEY.to_owned(),
             "https://opencode.ai/zen/go/v1/".to_owned(),
         )
         .expect("transport builds");
         assert_eq!(
-            transport.responses_url(),
+            transport.endpoint_url(ConsentTier::Tier1),
             "https://opencode.ai/zen/go/v1/responses"
+        );
+        assert_eq!(
+            transport.endpoint_url(ConsentTier::Tier2),
+            "https://opencode.ai/zen/go/v1/chat/completions"
         );
     }
 }
