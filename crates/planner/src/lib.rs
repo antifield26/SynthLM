@@ -1,17 +1,17 @@
 //! SynthLM planning layer: Patch Plan generation and validation.
 //!
-//! Ships the three-tier model gateway ([`model_gw`], TSK-301, DEC-010/011):
-//! consent-gated routing with Tier1→Tier2→Tier3 failover, retry, per-tier
-//! circuit breaking, and per-call audit. No real network I/O lives here —
-//! the only transport is the [`model_gw::Transport`] trait plus the
-//! [`model_gw::MockTransport`] fault-injection double. A real HTTPS client
-//! (and its `docs/LICENSES.md` entry) is a follow-up task.
+//! Ships the three-tier model gateway ([`model_gw`], TSK-301/TSK-116,
+//! DEC-010/011): consent-gated routing with Tier1→Tier2→Tier3 failover,
+//! retry, per-tier circuit breaking, and per-call audit. Transports are the
+//! [`model_gw::Transport`] trait plus the [`model_gw::MockTransport`]
+//! fault-injection double (no network) and the real blocking
+//! [`model_gw::HttpsTransport`] responses client (cloud tiers only).
 
 /// Candidate assembly: distance dedup with direction coverage plus the
 /// six-field candidate card (TSK-304, DEC-018/019).
 pub mod candidate;
-/// Three-tier model gateway (TSK-301): tier resolution, failover routing,
-/// mock transport, and audit (DEC-010/011).
+/// Three-tier model gateway (TSK-301/TSK-116): tier resolution, failover
+/// routing, mock + real HTTPS transports, and audit (DEC-010/011).
 pub mod model_gw;
 /// JSON Patch plan schema with two-phase validation and repair (TSK-302):
 /// ident-shaped paths, profile-linked semantics, and a pure repair loop

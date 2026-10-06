@@ -44,21 +44,26 @@
 //!   recorded with exactly time / model / tier / field list / byte count and
 //!   no key/PCM material.
 //!
-//! ## No-network rule (this task)
+//! ## Transports (TSK-301 mock + TSK-116 real client)
 //!
-//! This module performs **no real network I/O** and introduces **no HTTP
-//! client dependency**: the only transport is the [`crate::model_gw::Transport`] trait plus
-//! the programmable [`crate::model_gw::MockTransport`] fault-injection double. Wiring a real
-//! HTTPS client (reqwest or equivalent, with its `docs/LICENSES.md` entry)
-//! is explicitly left to a follow-up task (see the crate docs note in
-//! `lib.rs`).
+//! Two [`crate::model_gw::Transport`] implementations ship here:
+//!
+//! - [`crate::model_gw::MockTransport`]: programmable fault-injection double.
+//!   Performs no network I/O; used by the gateway failover tests and any
+//!   caller that must stay offline.
+//! - [`crate::model_gw::HttpsTransport`]: real blocking HTTPS client (TSK-116,
+//!   DEC-010/011) posting the responses-format body to
+//!   `{base_url}/responses`. Only this transport touches the network, and
+//!   only for cloud tiers ([`crate::model_gw::Endpoint::Cloud`]); a
+//!   [`crate::model_gw::Endpoint::Local`] request is refused with
+//!   [`crate::model_gw::TransportKind::LocalDown`] before any I/O.
 //!
 //! Blocking contract: [`crate::model_gw::Gateway::route`] drives a synchronous transport and
-//! may block the calling thread on future real transports. Never call it
+//! may block the calling thread on real transports. Never call it
 //! from an audio thread (AGENTS.md red line 2); it is a control-plane helper.
 
 use std::collections::VecDeque;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use thiserror::Error;
 
@@ -379,6 +384,11 @@ impl TransportKind {
 }
 
 /// Transport failure: kind only, no bodies, no headers, no key material.
+///
+/// `retry_after_ms` carries an observed `Retry-After` delay (HTTP 429 only);
+/// every other failure leaves it `None`. The gateway reports
+/// [`synthlm_common::ipc::RetryPolicy`] backoff delays and never sleeps, so this
+/// is observation-only in this task.
 #[derive(Debug, Error, Clone, Copy, PartialEq, Eq)]
 #[error("model transport failed: {kind:?} (code {code:?}; see DEC-011)")]
 pub struct TransportError {
@@ -386,6 +396,9 @@ pub struct TransportError {
     pub kind: TransportKind,
     /// Taxonomy code derived from [`TransportKind::code`].
     pub code: ErrorCode,
+    /// Observed `Retry-After` in milliseconds (HTTP 429 only, `None` when the
+    /// header is absent or unparsable).
+    pub retry_after_ms: Option<u64>,
 }
 
 impl TransportError {
@@ -394,6 +407,16 @@ impl TransportError {
         Self {
             kind,
             code: kind.code(),
+            retry_after_ms: None,
+        }
+    }
+
+    /// Build from a [`TransportKind`] with an observed `Retry-After` delay.
+    pub fn with_retry_after(kind: TransportKind, retry_after_ms: Option<u64>) -> Self {
+        Self {
+            kind,
+            code: kind.code(),
+            retry_after_ms,
         }
     }
 
@@ -537,6 +560,204 @@ impl Transport for MockTransport {
                 latency_ms,
             }),
             MockOutcome::Fail(kind) => Err(TransportError::new(kind)),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Real HTTPS transport (TSK-116)
+// ---------------------------------------------------------------------------
+
+/// Path suffix appended to the DEC-010 base URL.
+///
+/// TODO(TSK-116): 需对真端点验证 — the exact responses path on
+/// `https://opencode.ai/zen/go/v1` (trailing segments, if any) has not been
+/// probed against the live endpoint; `/responses` follows the responses-API
+/// naming only.
+const RESPONSES_PATH_SUFFIX: &str = "/responses";
+
+/// Build the minimal responses-format body for `request`.
+///
+/// Sends `model` plus a synthetic `input` string naming the whitelisted
+/// fields and the body byte count. [`crate::model_gw::ModelRequest`] carries no prompt
+/// text, PCM, paths, or key material, so the wire body is secret-free by
+/// construction; real prompt/MIR payload wiring lands with the caller that
+/// owns that content.
+///
+/// TODO(TSK-116): 需对真端点验证 — exact OpenCode Go responses field names
+/// and extras (`messages` vs `input`, sampling knobs, `stream`,
+/// `max_tokens`, response `output` shape) are unprobed; only `model` is
+/// asserted against DEC-010 presets.
+fn responses_body(request: &ModelRequest) -> serde_json::Value {
+    serde_json::json!({
+        "model": request.model,
+        "input": format!(
+            "synthetic fields=[{}] bytes={}",
+            request.fields.join(","),
+            request.byte_count,
+        ),
+    })
+}
+
+/// Map an HTTP status to its [`crate::model_gw::TransportKind`].
+///
+/// 401 is terminal (shared-key poisoning is handled by
+/// [`crate::model_gw::Gateway::route`]); 429 and any other non-2xx are
+/// retryable (TODO(TSK-116): 需对真端点验证 — 4xx beyond 401/429, e.g.
+/// 400/404, may deserve a terminal class).
+fn status_kind(status: reqwest::StatusCode) -> TransportKind {
+    if status == reqwest::StatusCode::UNAUTHORIZED {
+        TransportKind::Unauthorized
+    } else if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+        TransportKind::RateLimited
+    } else {
+        TransportKind::ServerError
+    }
+}
+
+/// Parse a `Retry-After` header value into milliseconds.
+///
+/// Accepts the delta-seconds form; the HTTP-date form is unhandled and yields
+/// `None` (TODO(TSK-116): 需对真端点验证 — which form the live endpoint
+/// emits).
+fn parse_retry_after_ms(headers: &reqwest::header::HeaderMap) -> Option<u64> {
+    let raw = headers.get(reqwest::header::RETRY_AFTER)?;
+    let text = raw.to_str().ok()?;
+    let secs: u64 = text.trim().parse().ok()?;
+    secs.checked_mul(1000)
+}
+
+/// Real blocking HTTPS transport for cloud tiers (TSK-116, DEC-010/011).
+///
+/// Client choice: `reqwest::blocking` matches the synchronous
+/// [`crate::model_gw::Transport`] contract directly, so no async runtime is
+/// introduced and [`crate::model_gw::Gateway::route`] keeps its call-thread-blocking
+/// semantics. TLS comes from rustls (static, no system OpenSSL dependency).
+///
+/// Key custody: the API key arrives as an already-loaded caller value in
+/// [`crate::model_gw::HttpsTransport::new`]. This module never reads process
+/// environment, `.env` files, or any other key source; an empty key is
+/// refused with [`crate::model_gw::TransportKind::Unauthorized`] before any I/O. The key is
+/// redacted from [`std::fmt::Debug`], errors, and audit events.
+///
+/// Timeouts: each [`crate::model_gw::Transport::send`] applies
+/// `timeout.cloud_hard_ms` (default 30 s per DEC-011) as the total request
+/// budget; `timeout.cloud_p95_ms` (default 10 s) stays the observable foil
+/// target surfaced via [`crate::model_gw::ModelResponse::latency_ms`]. Both knobs
+/// remain configurable through [`synthlm_common::ipc::TimeoutConfig`].
+#[derive(Clone)]
+pub struct HttpsTransport {
+    /// Bearer credential (caller-loaded; never logged).
+    api_key: String,
+    /// DEC-010 base URL (overridable for loopback stub tests).
+    base_url: String,
+    /// Blocking HTTP client (rustls TLS, no global timeout; per-request
+    /// budgets come from [`synthlm_common::ipc::TimeoutConfig`]).
+    client: reqwest::blocking::Client,
+}
+
+impl std::fmt::Debug for HttpsTransport {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("HttpsTransport")
+            .field("base_url", &self.base_url)
+            .field("api_key", &"[redacted]")
+            .finish()
+    }
+}
+
+impl HttpsTransport {
+    /// Build a cloud transport: `api_key` is the caller-loaded credential
+    /// (never read from environment or files here), `base_url` is the
+    /// DEC-010 base URL (a loopback URL keeps tests hermetic).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TransportKind::ConnectionFailed`] when the HTTP client
+    /// cannot be constructed.
+    pub fn new(api_key: String, base_url: String) -> Result<Self, TransportError> {
+        let client = reqwest::blocking::Client::builder()
+            .build()
+            .map_err(|_| TransportError::new(TransportKind::ConnectionFailed))?;
+        Ok(Self {
+            api_key,
+            base_url,
+            client,
+        })
+    }
+
+    /// Base URL this transport posts to.
+    pub fn base_url(&self) -> &str {
+        &self.base_url
+    }
+
+    /// Full responses endpoint URL (trailing slashes on the base are
+    /// tolerated).
+    fn responses_url(&self) -> String {
+        format!(
+            "{}{}",
+            self.base_url.trim_end_matches('/'),
+            RESPONSES_PATH_SUFFIX
+        )
+    }
+}
+
+impl Transport for HttpsTransport {
+    fn send(
+        &mut self,
+        request: &ModelRequest,
+        timeout: &TimeoutConfig,
+    ) -> Result<ModelResponse, TransportError> {
+        // Cloud-only guard: local tiers never touch this transport.
+        if matches!(request.endpoint, Endpoint::Local) {
+            return Err(TransportError::new(TransportKind::LocalDown));
+        }
+        // Empty caller key is a poisoned credential: refuse before any I/O.
+        if request.model.is_empty() || self.api_key.is_empty() {
+            return Err(TransportError::new(TransportKind::Unauthorized));
+        }
+        if self.base_url.trim().is_empty() {
+            return Err(TransportError::new(TransportKind::ConnectionFailed));
+        }
+        let hard_ms = timeout.cloud_hard_ms.max(1);
+        let started = Instant::now();
+        let outcome = self
+            .client
+            .post(self.responses_url())
+            .bearer_auth(&self.api_key)
+            .timeout(Duration::from_millis(hard_ms))
+            .json(&responses_body(request))
+            .send();
+        let latency_ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
+        match outcome {
+            Err(err) if err.is_timeout() => Err(TransportError::new(TransportKind::Timeout)),
+            Err(_) => Err(TransportError::new(TransportKind::ConnectionFailed)),
+            Ok(response) => {
+                let status = response.status();
+                if status.is_success() {
+                    // Require a JSON body so shape drift surfaces as a
+                    // retryable failure instead of silent success.
+                    // TODO(TSK-116): 需对真端点验证 — decode the real
+                    // responses `output` envelope once probed.
+                    match response.json::<serde_json::Value>() {
+                        Ok(_) => Ok(ModelResponse {
+                            tier: request.tier,
+                            model: request.model.to_owned(),
+                            latency_ms,
+                        }),
+                        Err(_) => Err(TransportError::new(TransportKind::ServerError)),
+                    }
+                } else {
+                    let retry_after_ms = if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+                        parse_retry_after_ms(response.headers())
+                    } else {
+                        None
+                    };
+                    Err(TransportError::with_retry_after(
+                        status_kind(status),
+                        retry_after_ms,
+                    ))
+                }
+            }
         }
     }
 }
@@ -1203,5 +1424,363 @@ mod tests {
             code: ErrorCode::AuthDenied,
         };
         assert!(terminal.blocked());
+    }
+
+    // ------------------------------------------------------------------
+    // HttpsTransport loopback stub tests (TSK-116).
+    //
+    // Hermetic by construction: every stub binds `127.0.0.1` with an
+    // ephemeral port, the credential is synthetic, and bodies carry field
+    // names plus byte counts only (never prompt text, PCM, or key
+    // material).
+    // ------------------------------------------------------------------
+
+    /// Synthetic credential for stub tests (never a real key).
+    const STUB_KEY: &str = "synthetic-test-key-116";
+
+    /// Canned stub reply for one accepted loopback connection.
+    struct StubReply {
+        status: u16,
+        body: String,
+        retry_after_secs: Option<u64>,
+        delay_ms: u64,
+    }
+
+    impl StubReply {
+        fn status(status: u16, body: &str) -> Self {
+            Self {
+                status,
+                body: body.to_owned(),
+                retry_after_secs: None,
+                delay_ms: 0,
+            }
+        }
+    }
+
+    /// Captured wire request (loopback only).
+    struct CapturedRequest {
+        method: String,
+        path: String,
+        auth: String,
+        content_type: String,
+        body: String,
+    }
+
+    fn reason_for(status: u16) -> &'static str {
+        match status {
+            200 => "OK",
+            401 => "Unauthorized",
+            429 => "Too Many Requests",
+            500 => "Internal Server Error",
+            _ => "Error",
+        }
+    }
+
+    /// Serve exactly one connection on loopback with `reply`.
+    ///
+    /// Returns the base URL (with a trailing slash, pinning slash-tolerant
+    /// joining) and the captured request.
+    fn serve_once(reply: StubReply) -> (String, std::sync::mpsc::Receiver<CapturedRequest>) {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("stub binds loopback");
+        let port = listener.local_addr().expect("stub reads its port").port();
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("stub accepts");
+            // Read the head until CRLF CRLF (body may already be buffered).
+            let mut raw = Vec::new();
+            let mut chunk = [0u8; 1024];
+            loop {
+                let n = stream.read(&mut chunk).expect("stub reads head");
+                if n == 0 {
+                    break;
+                }
+                raw.extend_from_slice(&chunk[..n]);
+                if raw.windows(4).any(|w| w == b"\r\n\r\n") {
+                    break;
+                }
+            }
+            let head_end = raw
+                .windows(4)
+                .position(|w| w == b"\r\n\r\n")
+                .expect("stub parses head");
+            let head = String::from_utf8_lossy(&raw[..head_end]).into_owned();
+            let mut lines = head.lines();
+            let request_line = lines.next().expect("stub reads request line").to_owned();
+            let mut parts = request_line.split_whitespace();
+            let method = parts.next().expect("stub reads method").to_owned();
+            let path = parts.next().expect("stub reads path").to_owned();
+            let mut content_length = 0usize;
+            let mut auth = String::new();
+            let mut content_type = String::new();
+            for line in lines {
+                if let Some((name, value)) = line.split_once(':') {
+                    match name.trim().to_ascii_lowercase().as_str() {
+                        "content-length" => {
+                            content_length = value.trim().parse().expect("stub content-length");
+                        }
+                        "authorization" => {
+                            auth = value.trim().to_owned();
+                        }
+                        "content-type" => {
+                            content_type = value.trim().to_owned();
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            let mut body = raw[head_end + 4..].to_vec();
+            while body.len() < content_length {
+                let n = stream.read(&mut chunk).expect("stub reads body");
+                if n == 0 {
+                    break;
+                }
+                body.extend_from_slice(&chunk[..n]);
+            }
+            body.truncate(content_length);
+            if reply.delay_ms > 0 {
+                std::thread::sleep(Duration::from_millis(reply.delay_ms));
+            }
+            let mut response = format!(
+                "HTTP/1.1 {} {}\r\nContent-Type: application/json\r\nContent-Length: {}\r\n",
+                reply.status,
+                reason_for(reply.status),
+                reply.body.len(),
+            );
+            if let Some(secs) = reply.retry_after_secs {
+                response.push_str(&format!("Retry-After: {secs}\r\n"));
+            }
+            response.push_str("Connection: close\r\n\r\n");
+            response.push_str(&reply.body);
+            // The client may have timed out already; a failed write is fine.
+            let _ = stream.write_all(response.as_bytes());
+            let _ = tx.send(CapturedRequest {
+                method,
+                path,
+                auth,
+                content_type,
+                body: String::from_utf8_lossy(&body).into_owned(),
+            });
+        });
+        (format!("http://127.0.0.1:{port}/"), rx)
+    }
+
+    fn cloud_request() -> ModelRequest {
+        ModelRequest::new(
+            ConsentTier::Tier1,
+            vec!["prompt".to_owned(), "mir".to_owned()],
+            64,
+        )
+        .expect("whitelisted fields build")
+    }
+
+    fn stub_transport(base_url: String) -> HttpsTransport {
+        HttpsTransport::new(STUB_KEY.to_owned(), base_url).expect("stub transport builds")
+    }
+
+    fn recv_captured(rx: std::sync::mpsc::Receiver<CapturedRequest>) -> CapturedRequest {
+        rx.recv_timeout(Duration::from_secs(10))
+            .expect("stub captures the request")
+    }
+
+    #[test]
+    fn https_posts_responses_shape_with_model_and_fields() {
+        let (base, rx) = serve_once(StubReply::status(
+            200,
+            r#"{"id":"resp_stub","model":"muse-spark-1.3-contributor","output":[]}"#,
+        ));
+        let mut transport = stub_transport(base);
+        let response = transport
+            .send(&cloud_request(), &TimeoutConfig::default())
+            .expect("stub 200 serves");
+        assert_eq!(response.tier, ConsentTier::Tier1);
+        assert_eq!(response.model, DEFAULT_TIER1_MODEL);
+
+        let captured = recv_captured(rx);
+        assert_eq!(captured.method, "POST");
+        assert_eq!(captured.path, "/responses");
+        assert_eq!(captured.auth, format!("Bearer {STUB_KEY}"));
+        assert!(
+            captured.content_type.starts_with("application/json"),
+            "unexpected content type: {}",
+            captured.content_type
+        );
+        let wire: serde_json::Value =
+            serde_json::from_str(&captured.body).expect("request body is JSON");
+        assert_eq!(
+            wire.get("model").and_then(|model| model.as_str()),
+            Some(DEFAULT_TIER1_MODEL),
+            "DEC-010 preset model must ride the wire"
+        );
+        let input = wire
+            .get("input")
+            .and_then(|input| input.as_str())
+            .expect("responses input field");
+        assert!(
+            input.contains("prompt") && input.contains("mir"),
+            "whitelisted fields must ride the wire: {input}"
+        );
+        assert!(
+            !captured.body.contains(STUB_KEY),
+            "key material must never appear in the body"
+        );
+    }
+
+    #[test]
+    fn https_maps_401_to_terminal_auth_denied() {
+        let (base, _) = serve_once(StubReply::status(401, r#"{"error":"unauthorized"}"#));
+        let mut transport = stub_transport(base);
+        let err = transport
+            .send(&cloud_request(), &TimeoutConfig::default())
+            .expect_err("401 must fail");
+        assert_eq!(err.kind, TransportKind::Unauthorized);
+        assert_eq!(err.code, ErrorCode::AuthDenied);
+        assert!(!err.retryable());
+        assert_eq!(err.retry_after_ms, None);
+    }
+
+    #[test]
+    fn https_maps_429_with_and_without_retry_after() {
+        let with_header = StubReply {
+            retry_after_secs: Some(2),
+            ..StubReply::status(429, r#"{"error":"rate limited"}"#)
+        };
+        let (base, _) = serve_once(with_header);
+        let mut transport = stub_transport(base);
+        let err = transport
+            .send(&cloud_request(), &TimeoutConfig::default())
+            .expect_err("429 must fail");
+        assert_eq!(err.kind, TransportKind::RateLimited);
+        assert_eq!(err.code, ErrorCode::CloudUnavailable);
+        assert!(err.retryable());
+        assert_eq!(err.retry_after_ms, Some(2000));
+
+        let (bare_base, _) = serve_once(StubReply::status(429, r#"{"error":"rate limited"}"#));
+        let mut bare = stub_transport(bare_base);
+        let bare_err = bare
+            .send(&cloud_request(), &TimeoutConfig::default())
+            .expect_err("bare 429 must fail");
+        assert_eq!(bare_err.kind, TransportKind::RateLimited);
+        assert!(bare_err.retryable());
+        assert_eq!(bare_err.retry_after_ms, None);
+    }
+
+    #[test]
+    fn https_maps_500_to_retryable_server_error() {
+        let (base, _) = serve_once(StubReply::status(500, r#"{"error":"boom"}"#));
+        let mut transport = stub_transport(base);
+        let err = transport
+            .send(&cloud_request(), &TimeoutConfig::default())
+            .expect_err("500 must fail");
+        assert_eq!(err.kind, TransportKind::ServerError);
+        assert_eq!(err.code, ErrorCode::CloudUnavailable);
+        assert!(err.retryable());
+    }
+
+    #[test]
+    fn https_rejects_non_json_success_as_server_error() {
+        let (base, _) = serve_once(StubReply::status(200, "not json"));
+        let mut transport = stub_transport(base);
+        let err = transport
+            .send(&cloud_request(), &TimeoutConfig::default())
+            .expect_err("non-JSON 200 must fail");
+        assert_eq!(err.kind, TransportKind::ServerError);
+        assert!(err.retryable());
+    }
+
+    #[test]
+    fn https_timeout_uses_per_call_hard_budget() {
+        let delayed = StubReply {
+            delay_ms: 1500,
+            ..StubReply::status(200, r#"{"id":"resp_slow"}"#)
+        };
+        let (base, _) = serve_once(delayed);
+        let mut transport = stub_transport(base);
+        let timeout = TimeoutConfig::default().with_cloud_hard_ms(150);
+        let err = transport
+            .send(&cloud_request(), &timeout)
+            .expect_err("stub delay past the hard budget must time out");
+        assert_eq!(err.kind, TransportKind::Timeout);
+        assert_eq!(err.code, ErrorCode::Timeout);
+        assert!(err.retryable());
+    }
+
+    #[test]
+    fn https_connection_refused_maps_to_retryable() {
+        // Reserve then release a loopback port so nothing listens on it.
+        let probe = std::net::TcpListener::bind("127.0.0.1:0").expect("probe binds loopback");
+        let port = probe.local_addr().expect("probe reads its port").port();
+        drop(probe);
+        let mut transport = stub_transport(format!("http://127.0.0.1:{port}/"));
+        let err = transport
+            .send(&cloud_request(), &TimeoutConfig::default())
+            .expect_err("refused connection must fail");
+        assert_eq!(err.kind, TransportKind::ConnectionFailed);
+        assert_eq!(err.code, ErrorCode::TransportClosed);
+        assert!(err.retryable());
+    }
+
+    #[test]
+    fn https_refuses_local_tier_and_empty_key_without_io() {
+        // Local tiers never touch this transport: no stub, no I/O.
+        let mut transport =
+            HttpsTransport::new(STUB_KEY.to_owned(), "http://127.0.0.1:9/".to_owned())
+                .expect("transport builds");
+        let local = ModelRequest::new(ConsentTier::Tier3, vec!["mir".to_owned()], 32)
+            .expect("local request builds");
+        let err = transport
+            .send(&local, &TimeoutConfig::default())
+            .expect_err("local must not use the cloud transport");
+        assert_eq!(err.kind, TransportKind::LocalDown);
+
+        // Empty caller keys are refused before any I/O (nothing listens).
+        let mut keyless = HttpsTransport::new(String::new(), "http://127.0.0.1:9/".to_owned())
+            .expect("transport builds");
+        let key_err = keyless
+            .send(&cloud_request(), &TimeoutConfig::default())
+            .expect_err("empty key is refused");
+        assert_eq!(key_err.kind, TransportKind::Unauthorized);
+        assert!(!key_err.retryable());
+
+        // Debug redacts the credential while keeping the endpoint visible.
+        let rendered = format!("{transport:?}");
+        assert!(rendered.contains("127.0.0.1"));
+        assert!(
+            !rendered.contains(STUB_KEY),
+            "debug must redact the key: {rendered}"
+        );
+    }
+
+    #[test]
+    fn https_retry_after_parsing_covers_header_forms() {
+        assert_eq!(
+            parse_retry_after_ms(&reqwest::header::HeaderMap::new()),
+            None
+        );
+        let mut seconds = reqwest::header::HeaderMap::new();
+        seconds.insert(
+            reqwest::header::RETRY_AFTER,
+            reqwest::header::HeaderValue::from_static("2"),
+        );
+        assert_eq!(parse_retry_after_ms(&seconds), Some(2000));
+        let mut garbage = reqwest::header::HeaderMap::new();
+        garbage.insert(
+            reqwest::header::RETRY_AFTER,
+            reqwest::header::HeaderValue::from_static("not-a-number"),
+        );
+        assert_eq!(parse_retry_after_ms(&garbage), None);
+    }
+
+    #[test]
+    fn https_responses_url_tolerates_trailing_slashes() {
+        let transport = HttpsTransport::new(
+            STUB_KEY.to_owned(),
+            "https://opencode.ai/zen/go/v1/".to_owned(),
+        )
+        .expect("transport builds");
+        assert_eq!(
+            transport.responses_url(),
+            "https://opencode.ai/zen/go/v1/responses"
+        );
     }
 }

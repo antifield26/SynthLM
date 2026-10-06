@@ -9,3 +9,7 @@ synthlm-profile = { path = "../profile" }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
 thiserror = "2.0.21"
+# TSK-116: real HTTPS transport (blocking client matches the synchronous
+# Transport trait, so no async runtime is introduced; rustls keeps TLS
+# static with no system OpenSSL dependency).
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
