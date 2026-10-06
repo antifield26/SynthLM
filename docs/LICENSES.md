@@ -21,6 +21,9 @@
 | ebur128-stream 0.2.0（`synthlm-eval` dev-only，TSK-208 交叉验证；生产 metering 仍用 `ebur128`） | MIT OR Apache-2.0 | <https://github.com/vanjamodrinjak21/ebur128-stream>（crates.io；纯 Rust `forbid(unsafe_code)`；2026-10-06 核验） | 仅内部非商业运行，不进运行时 | 2026-10-06 |
 | reqwest 0.12（`synthlm-planner` 直接依赖，TSK-116 真传输；`default-features=false` + `blocking,json,rustls-tls`，无 native-tls/openssl） | MIT OR Apache-2.0 | crates.io（2026-10-06 核验） | 仅内部非商业运行 | 2026-10-06 |
 | webpki-roots 1.0.9（reqwest 经 rustls 传递依赖） | **MPL-2.0（文件级）** | crates.io（2026-10-06 核验） | 内部运行合规（DEC-025）；修改其文件须开源该文件；随 reqwest 链复核 | 2026-10-06 |
+| eframe 0.36.2 / egui =0.36.2（`synthlm-ui` 直接依赖，TSK-119 主窗） | MIT OR Apache-2.0 | crates.io（2026-10-06 核验） | 仅内部非商业运行 | 2026-10-06 |
+| anyhow 1.0.104（`synthlm-ui` 直接依赖，应用层错误） | MIT OR Apache-2.0 | crates.io（2026-10-06 核验） | 仅内部非商业运行 | 2026-10-06 |
+| Noto Sans SC（`crates/ui/assets/` 子集 149KB，SIL OFL 1.1，OFL 文本随包） | SIL OFL 1.1 | google/fonts `NotoSansSC[wght].ttf` v2.004（Regular 400 实例化；2026-10-06 核验） | 内部使用合规（署名与许可文本随包）；上游变更需重跑子集化 | 2026-10-06 |
 | ReaImGui 0.10.0.5（二进制扩展，用户侧安装，非仓库分发） | LGPL-3.0（另有 GPL-3.0 文本；仓库已归档并迁 codeberg） | <https://github.com/cfillion/reaimgui>（COPYING/COPYING.LESSER；2026-10-06 核验；sha256 800b216e… pin） | 用户机直装（ReaPack 默认仓亦有）；本仓库不分发该二进制 | 2026-10-06 |
 | realfft 3.5.0（`synthlm-eval` 直接依赖，MIR v1 STFT 实数 FFT） | MIT | crates.io/crates/realfft（registry 缓存 manifest 核验） | 可用，仅内部非商业运行；传递依赖 rustfft（MIT OR Apache-2.0）以 Cargo.lock 为准 | 2026-10-06 |
 | rustfft 6.4.1（`synthlm-eval` 直接依赖，`Complex` 类型 + realfft 后端） | MIT OR Apache-2.0 | crates.io/crates/rustfft（registry 缓存 manifest 核验） | 可用，仅内部非商业运行；传递依赖（num-complex/num-traits/num-integer/primal-check/transpose/strength_reduce，均为 MIT OR Apache-2.0）以 Cargo.lock 为准 | 2026-10-06 |

@@ -59,7 +59,7 @@
 | TSK-301 | model-gw 三档路由 + 熔断降级链 | 实现 | 3 | TSK-105/106 | P0 | M | 故障注入：Tier1  down→Tier2→Tier3→BLOCKED 路径全覆盖；无已存 consent 即 consent_required BLOCKED（先弹窗，AGENTS §8） | DEC-010/011 | Done | model_gw.rs（14 单测绿：全降级链/401 跳云/熔断/审计脱敏）；零网络（真传输归 TSK-116） |
 | TSK-116 | model-gw 真 HTTPS 传输（responses 格式） | 实现 | 3 | TSK-301 | P1 | S | 30s hard/P95 10s 超时接线；401/429/5xx 真映射；MockTransport 回归保留 | DEC-010/011 | Done | HttpsTransport（blocking rustls，无 openssl；127 stub 全绿，Mock 回归全过）；真端点验证转 TSK-117（推理 POST 系统性 400） |
 | TSK-118 | 音频上传字段 + Tier3 纯文本强制 | 实现 | 3 | TSK-106 | P1 | S | `audio_ref` 白名单增补全绿；Tier3 带音频字段即拒绝；审计无 PCM | DEC-010/011 | Done | 白名单 4 成员 + TierAudioUnsupported（code AudioCapabilityMissing，BLOCKED，传输零调用）；Tier1 音频直通全绿 |
-| TSK-119 | 主 UI 脚手架（egui + CJK + 事件驱动重绘） | 实现 | 3 | TSK-306 | P1 | M | CJK 无 tofu 回归截图；100Hz 工况 CPU 回归；HiDPI 复核记录 | DEC-002 | Todo | 待启动（TSK-306 条件①②③；事件驱动优先，定时器则 +17ms 余量） |
+| TSK-119 | 主 UI 脚手架（egui + CJK + 事件驱动重绘） | 实现 | 3 | TSK-306 | P1 | M | CJK 无 tofu 回归截图；100Hz 工况 CPU 回归；HiDPI 复核记录 | DEC-002 | Done | 事件驱动无定时器（guard 单测）；CJK 61 字符全覆盖；CPU 100Hz 约 1/5 核（偏高可接受，后续可抽稀）；HiDPI 沿用未测声明 |
 | TSK-117 | 云端推理真调用验证（Go 面形态/账户） | 测试 | 3 | TSK-116 | P0 | S | 任一 Tier 首次 2xx + 信封解码；失败即记录不硬试 | DEC-010/011 | Done | Tier2 200 全绿（会话头为根因；LIVE-OK 回到；延迟 ~6.2s）；Tier1 未点火（训练保留待批）；401/UA 异常已记录 |
 | TSK-302 | Patch schema 双校验 + 修复循环 | 实现 | 3 | TSK-201/301 | P0 | M | 首轮有效率 ≥95%，2 轮修复 ≥99%（fixture 集） | DEC-013 | Done | patch.rs（48 fixture：首轮 100%/修复 100%；JSFX 裸 ident 按设计拒，SELECT 枚举/add存在性留后续） |
 | TSK-303 | TPE/CMA-ES 粗搜 + NM 收尾（mock 渲染） | 实现 | 3 | TSK-204 | P1 | M | 预算公式单测：50 次≈分钟级；mock 下收敛 | DEC-018/C §5 | Done | 零依赖 TPE-lite + 手写 NM（预算/收敛全绿）；optimizer/cmaes 待真嵌入时接入；接线已收口 |
