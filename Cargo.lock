@@ -945,6 +945,7 @@ version = "0.0.0"
 dependencies = [
  "synthlm-common",
  "synthlm-profile",
+ "thiserror",
 ]
 
 [[package]]

@@ -6,3 +6,4 @@ edition.workspace = true
 [dependencies]
 synthlm-common = { path = "../common" }
 synthlm-profile = { path = "../profile" }
+thiserror = "2.0.21"
