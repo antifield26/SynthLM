@@ -64,7 +64,7 @@
 | TSK-304 | 多样性去重 + 候选卡片 6 字段 | 实现 | 3 | TSK-302 | P1 | S | 同质 fixture 去重生效；卡片字段缺失即单测红 | DEC-018/019 | Done | candidate.rs（去重/gap 标记/6 键卡片全绿）；CLAP 距离与试听引用格式待输入形状落定；接线已收口 |
 | TSK-305 | 本地端点实测（Gemma 4 12B × 4 后端 + 音频探测） | 测试 | 3 | TSK-301 | P0 | M | vLLM/llama.cpp/MLX LM/LM Studio 逐个连通 Gemma 4 12B + 音频探测；缺音频即 BLOCKED（非静默） | DEC-010 | In-Progress | llama.cpp：QAT 文件退化（空串/重复），已停测待新权重；:8080 现 serving 降级输出；其余三后端未开始 |
 | TSK-306 | UI 引擎原型二选一（波形 + 100Hz） | 实现 | 3 | — | P0 | M | 帧率/输入/HiDPI 三项达标才锁；落选归档 | DEC-002 | In-Progress | 子会话执行中（repo 外 scratch 双原型 + 指标对照） |
-| TSK-307 | Lua 薄面板快捷入口 | 实现 | 3 | TSK-306 | P2 | S | 面板启停 + 跳主窗链路可用 | DEC-002 | Blocked | 阻塞原因：本机无 ReaPack/ReaImGui（UserPlugins 空、Scripts 仅 Cockos）；解除条件：装 ReaPack 扩展 → 导 ReaImGui 仓库 → 装包 → 重启（多步需人机协同） |
+| TSK-307 | Lua 薄面板快捷入口 | 实现 | 3 | TSK-306 | P2 | S | 面板启停 + 跳主窗链路可用 | DEC-002 | Done | 直装 ReaImGui 0.10.0.5（sha pin，API 1.92.1）；面板 92 帧干净退出；主窗链路为 stub（待 TSK-306 落定后接线） |
 
 ## Phase 4（加固与标定）
 

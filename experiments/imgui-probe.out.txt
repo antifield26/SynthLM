@@ -1,0 +1,10 @@
+APIExists(ImGui_GetVersion)=true
+APIExists(ImGui_CreateContext)=true
+APIExists(ImGui_DestroyContext)=false
+APIExists(ImGui_Begin)=true
+APIExists(ImGui_End)=true
+APIExists(ImGui_Text)=true
+APIExists(ImGui_Button)=true
+APIExists(ImGui_CreateFont)=true
+APIExists(ImGui_Attach)=true
+GetVersion_ok=true val=1.92.1
