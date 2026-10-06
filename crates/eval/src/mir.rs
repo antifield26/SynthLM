@@ -301,6 +301,84 @@ pub fn strip_codec_padding(samples: &[f32], trim_head: usize, target_len: usize)
     &samples[start..end]
 }
 
+/// Gain mono samples to [`MirParams::target_lufs`] (TSK-402 blind stimuli).
+///
+/// Measures integrated LUFS with the same `ebur128` meter as
+/// [`crate::mir::analyze`], then applies the constant ΔLUFS gain
+/// (`target − measured`). The returned signal re-measures at `target` up to
+/// meter tolerance; silence/ungated inputs fail with
+/// [`EvalError::SilenceOrTooQuiet`](crate::EvalError) or
+/// [`EvalError::Loudness`](crate::EvalError) instead of producing a
+/// non-finite gain. Deterministic: identical inputs give bit-identical
+/// outputs for a fixed `ebur128` version.
+pub fn normalize_to_target(samples: &[f32], params: &MirParams) -> Result<Vec<f32>, EvalError> {
+    let (integrated, _) = measure_loudness(samples, params.sample_rate)?;
+    let gain_db = params.target_lufs - integrated;
+    let factor = 10.0_f64.powf(gain_db / 20.0);
+    if !factor.is_finite() {
+        return Err(EvalError::Loudness(format!(
+            "non-finite normalisation gain from {integrated} LUFS"
+        )));
+    }
+    let mut out = Vec::with_capacity(samples.len());
+    for s in samples {
+        let v = f64::from(*s) * factor;
+        if !v.is_finite() {
+            return Err(EvalError::InvalidSamples(
+                "normalised sample is not finite (input out of range)".to_string(),
+            ));
+        }
+        out.push(v as f32);
+    }
+    Ok(out)
+}
+
+/// Per-frame linear-magnitude spectral centroid in Hz (TSK-402 brightness).
+///
+/// Computed from a primary-resolution magnitude spectrogram as
+/// `Σ(freq_k · mag_k) / Σ(mag_k)` with `freq_k = k · sample_rate / window`.
+/// Zero-energy frames (silent) report `0.0` instead of dividing by zero.
+/// Reuses the [`crate::mir::stft_magnitude`] output grid; no new transform is
+/// introduced. Deterministic: identical inputs give bit-identical outputs.
+pub fn spectral_centroid(magnitude: &[Vec<f32>], sample_rate: u32, window: usize) -> Vec<f32> {
+    let rate = f64::from(sample_rate);
+    let win = window as f64;
+    magnitude
+        .iter()
+        .map(|frame| {
+            let mut num = 0.0_f64;
+            let mut den = 0.0_f64;
+            for (k, &m) in frame.iter().enumerate() {
+                let mag = f64::from(m);
+                num += (k as f64 * rate / win) * mag;
+                den += mag;
+            }
+            if den > 0.0 && den.is_finite() && num.is_finite() {
+                (num / den) as f32
+            } else {
+                0.0
+            }
+        })
+        .collect()
+}
+
+/// Mean spectral centroid in Hz over all frames (TSK-402 brightness rank).
+///
+/// Arithmetic mean of [`crate::mir::spectral_centroid`]; empty input reports
+/// `0.0`. Brighter (less low-passed) stimuli score higher; the TSK-402 B
+/// series ground truth is centroid-monotonic in cutoff order.
+pub fn mean_spectral_centroid(magnitude: &[Vec<f32>], sample_rate: u32, window: usize) -> f32 {
+    let per = spectral_centroid(magnitude, sample_rate, window);
+    if per.is_empty() {
+        return 0.0;
+    }
+    let mut acc = 0.0_f64;
+    for v in &per {
+        acc += f64::from(*v);
+    }
+    (acc / per.len() as f64) as f32
+}
+
 /// Integrated LUFS plus true-peak dBTP of mono f32 samples at `sample_rate`.
 ///
 /// Uses `ebur128` in `I | TRUE_PEAK` mode (EBU R128 / TECH 3341). Signals
