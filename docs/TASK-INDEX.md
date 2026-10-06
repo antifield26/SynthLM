@@ -27,8 +27,8 @@
 | TSK-102 | undo 事务封装 + 写后指针重取 | 实现 | 1 | TSK-002 | P0 | S | spike03c/f 复现：T1_delta=1、undo 后 ValidatePtr2=false→重取成功 | DEC-008 | In-Progress | undo.rs（RAII guard + dirty 去重 + GUID 重取，8 单测绿，主干零 unwrap，unsafe×2 均有论证）；medium/low 选用已定；真机 live-fire 待定 |
 | TSK-103 | 显式快照 + 一键整体回滚 | 实现 | 1 | TSK-102 | P0 | M | 故障注入 100 次应用/回滚零残留（计数器归零） | DEC-004/020 | In-Progress | snapshot.rs（9 单测绿：往返/单 undo 块/迁移移除/NCH 回写/fail-closed；真机 live-fire 待定） |
 | TSK-104 | 42230 渲染线 + null-test 门禁 + 兜底链 | 实现 | 1 | TSK-103 | P0 | M | 同参三次渲染方差 <阈值；全速失败自动进小块→1x→online；M7（BOUNDSFLAG=4 + 单文件开关）文件清单验证 | DEC-005 | Todo | A03 |
-| TSK-105 | 三档 consent 弹窗 + 设置页 + 档位持久化 | 实现 | 1 | TSK-002 | P0 | S | 三档切换单测全过；缺授权调用即 `consent_required` BLOCKED | DEC-010/011 | Todo | DEC-010 |
-| TSK-106 | 上传字段白名单审计单测 | 测试 | 1 | TSK-105 | P0 | S | PCM 越界用例必红，白名单用例全绿；审计日志无 Key/PCM | DEC-011/026 | Todo | 待产出 |
+| TSK-105 | 三档 consent 弹窗 + 设置页 + 档位持久化 | 实现 | 1 | TSK-002 | P0 | S | 三档切换单测全过；缺授权调用即 `consent_required` BLOCKED | DEC-010/011 | Done | consent.rs（11 单测绿：fail-closed/原子写/文本 prompt；零新依赖；图形渲染留 TSK-306） |
+| TSK-106 | 上传字段白名单审计单测 | 测试 | 1 | TSK-105 | P0 | S | PCM 越界用例必红，白名单用例全绿；审计日志无 Key/PCM | DEC-011/026 | Done | upload_audit.rs（12 单测绿，复用 canonical 无第二套；裁决：精确匹配 fail-closed 保留，tier 门禁归调用方 TSK-301） |
 | TSK-107 | IPC hello/帧 + 超时重连（三 OS） | 实现 | 1 | TSK-002 | P0 | M | Win/macOS/Linux 建连/断线/权限用例全绿 | DEC-023 | In-Progress | 帧/握手/错误分类/审计脱敏/Windows 回环全绿（15 单测 + interprocess 2.4.4）；Linux/macOS 留 CI；权限/shm 后续 |
 | TSK-108 | `.env` Key 读取 + 缺失 BLOCKED | 实现 | 1 | TSK-105 | P0 | S | 无 `.env` 启动即 BLOCKED + 指引；grep 证明 Key 不进日志/快照 | DEC-010/026 | Done | config.rs（33 单测绿，全注入式零 unsafe；Debug 全 redacted；零新依赖）；fail-safe 裁决：无已存 consent 不得出网（TSK-105/301 落实门禁） |
 | TSK-109 | Action ID 人工复核（40362/40601/渲染系） | 调研 | 1 | — | P1 | S | Action list 截图/导出对照表落盘 | A04 §7 | Done | A03 §7 对照表 + probe 证据；人类 2026-10-06 eyeball 确认 |
