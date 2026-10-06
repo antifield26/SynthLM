@@ -64,7 +64,7 @@
 | TSK-302 | Patch schema 双校验 + 修复循环 | 实现 | 3 | TSK-201/301 | P0 | M | 首轮有效率 ≥95%，2 轮修复 ≥99%（fixture 集） | DEC-013 | Done | patch.rs（48 fixture：首轮 100%/修复 100%；JSFX 裸 ident 按设计拒，SELECT 枚举/add存在性留后续） |
 | TSK-303 | TPE/CMA-ES 粗搜 + NM 收尾（mock 渲染） | 实现 | 3 | TSK-204 | P1 | M | 预算公式单测：50 次≈分钟级；mock 下收敛 | DEC-018/C §5 | Done | 零依赖 TPE-lite + 手写 NM（预算/收敛全绿）；optimizer/cmaes 待真嵌入时接入；接线已收口 |
 | TSK-304 | 多样性去重 + 候选卡片 6 字段 | 实现 | 3 | TSK-302 | P1 | S | 同质 fixture 去重生效；卡片字段缺失即单测红 | DEC-018/019 | Done | candidate.rs（去重/gap 标记/6 键卡片全绿）；CLAP 距离与试听引用格式待输入形状落定；接线已收口 |
-| TSK-305 | 本地端点实测（Gemma 4 12B llama.cpp + 音频探测） | 测试 | 3 | TSK-301 | P0 | M | llama.cpp 连通 + 音频探测；缺音频即 BLOCKED（非静默） | DEC-010 | In-Progress | 后端收束 llama only（vLLM/MLX/LMStudio 出范围）；b11438 + `-ub 2048` 复测：文本健康，多模态 loader 不可用；Tier3 音频 BLOCKED |
+| TSK-305 | 本地端点实测（Bonsai-2-27B llama.cpp + 音频探测） | 测试 | 3 | TSK-301 | P0 | M | llama.cpp 连通 + 音频探测；缺音频即 BLOCKED（非静默） | DEC-010 | Done | Gemma 时代结论归档（QAT 报废/IQ4 文本健康/loader 不可用）；现 Tier3=Bonsai-2-27B 服务中（text+image only）；Tier3 音频 BLOCKED 维持 |
 | TSK-306 | UI 引擎原型二选一（波形 + 100Hz） | 实现 | 3 | — | P0 | M | 帧率/输入/HiDPI 三项达标才锁；落选归档 | DEC-002 | Done | 锁定 egui（即时模式扇出最短；359Hz 余量；条件：CJK 子集+事件驱动重绘+HiDPI 复核转 TSK-119）；iced 归档（Elm 多一跳）；证据 %TEMP%/synthlm-ui-proto/TSK-306-results.md |
 | TSK-307 | Lua 薄面板快捷入口 | 实现 | 3 | TSK-306 | P2 | S | 面板启停 + 跳主窗链路可用 | DEC-002 | Done | 直装 ReaImGui 0.10.0.5（sha pin，API 1.92.1）；面板 92 帧干净退出；主窗链路为 stub（待 TSK-306 落定后接线） |
 

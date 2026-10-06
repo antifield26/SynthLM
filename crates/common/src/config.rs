@@ -79,7 +79,7 @@ pub const DEFAULT_TIER1_MODEL: &str = "muse-spark-1.3-contributor";
 pub const DEFAULT_TIER2_MODEL: &str = "mimo-v2.6-flash";
 
 /// DEC-010 Tier3 preset model (local-only, sole candidate).
-pub const DEFAULT_TIER3_MODEL: &str = "Gemma 4 12B";
+pub const DEFAULT_TIER3_MODEL: &str = "Bonsai-2-27B";
 
 /// Default consent tier when [`CONSENT_TIER_ENV`] is unset.
 ///

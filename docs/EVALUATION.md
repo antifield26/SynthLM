@@ -20,7 +20,7 @@
 
 - REAPER 集成：可行（有条件）。链/参数/预设/发送 API 全存在（A01/A02/A05 高置信）；容器可编排但地址脆弱，须地址重算层 + GUID 锚定 + 展平回退（A02）。残留风险 RSK-001/002。
 - 参数语义：可行（有条件）。元数据可枚举但单位/默认值/step/分组稀疏（B 高置信）；声设识别靠 automatable gate + 分组 + 白名单宏，不靠关键词硬过滤；Kontakt/Serum 矩阵类标 `preset-only`。残留 RSK-003/004。
-- 模型栈：云端 OpenCode Go（`https://opencode.ai/zen/go/v1`，Tier1 `muse-spark-1.3-contributor` / Tier2 `mimo-v2.6-flash` ZDR，Key 仅 `.env`）为主，Tier3 本地唯一候选 `Gemma 4 12B`（兼容 vLLM/llama.cpp/MLX LM/LM Studio，无量化档限制，实现阶段实测；其他本地规划候选已移除）。CLAP 保留作音频嵌入（检索/评价），非规划候选。残留风险：连通性/有效率/延迟均 ⚠️需实测（RSK-005/006；条款与计费已由人类确认）。
+- 模型栈：云端 OpenCode Go（`https://opencode.ai/zen/go/v1`，Tier1 `muse-spark-1.3-contributor` / Tier2 `mimo-v2.6-flash` ZDR，Key 仅 `.env`）为主，Tier3 本地唯一候选 `Bonsai-2-27B`（llama.cpp，纯文本；2026-10-06 接替已废弃 Gemma 4 12B）。CLAP 保留作音频嵌入（检索/评价），非规划候选。残留风险：连通性/有效率/延迟均 ⚠️需实测（RSK-005/006；条款与计费已由人类确认）。
 - 评价器：可行。Rust 链完整（ruststft + ebur128/stream + CLAP cosine），纪律是 decode→48k→固定 STFT→LUFS 归一→多指标；陷阱是响度作弊与窗/跳不一致（C-models §4，L5）。残留 RSK-007。
 - 音频 DSP：可行（有条件）。symphonia 主力 + FFmpeg 兜底；rubato 无风险；响度三 crate 无风险；Rubber Band 不购证则内部 GPL 运行或切 timestretch（不分发即不触发传染，但仍登记）；Demucs 官方权重仅科研，内部非商业可用，产品化另议（DEC-025）。残留 RSK-008/009。
 - GUI：可行。独立 egui 主窗 + Lua 薄面板（D）；FX 嵌入否决；egui/iced 二选一待原型。残留 RSK-010。
@@ -87,7 +87,7 @@
 
 - 开发工时（量级）：Phase 0 剩余（DEC→ARCH→ROADMAP→TASK→AGENTS→骨架）S；Phase 1 桥接 + 快照 + 渲染线 M；Phase 2 语义层 + 检索 + 评价 L；Phase 3 搜索 + UX M；Phase 4 加固 + 标定 M。具体拆分见 ROADMAP/TASK-INDEX。
 - 推理算力：主路径云端按次计费（单价/限额未核验，⚠️需实测首账单；审计字节数即成本 proxy）；本地回退零边际（CLAP ort CPU 可忽略；llama-server 按需起停）。
-- 存储：CLAP 按需（<1GB）；Tier3 Gemma 4 12B 体积以实现阶段实测为准（TSK-305）；Demucs ONNX 166MB–1.26GB 懒下载；索引（10k 预设 × 512维 ≈ 20MB 级 + 载荷）；产物缓存设 50GB 水位 + GC。
+- 存储：CLAP 按需（<1GB）；Tier3 Bonsai-2-27B 服务中（llama.cpp :8080）；Demucs ONNX 166MB–1.26GB 懒下载；索引（10k 预设 × 512维 ≈ 20MB 级 + 载荷）；产物缓存设 50GB 水位 + GC。
 
 ## 8 未决问题清单
 

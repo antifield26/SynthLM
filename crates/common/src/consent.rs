@@ -4,7 +4,7 @@
 //!
 //! - Three authorization tiers ([`crate::ipc::ConsentTier`]): Tier1 cloud with
 //!   training-data retention (`muse-spark-1.3-contributor`), Tier2 cloud
-//!   upload-only ZDR (`mimo-v2.6-flash`), Tier3 local-only (`Gemma 4 12B`,
+//!   upload-only ZDR (`mimo-v2.6-flash`), Tier3 local-only (`Bonsai-2-27B`,
 //!   sole candidate). No tier is assumed before the user chooses.
 //! - Persistence lives in the user directory (`%APPDATA%/SynthLM` on Windows,
 //!   `~/Library/Application Support/SynthLM` on macOS, `$XDG_CONFIG_HOME`
@@ -226,9 +226,9 @@ pub fn first_run_prompt_text() -> &'static str {
      模型：mimo-v2.6-flash。不接受训练保留，仅为本次推理上传必要字段。\n\
      \n\
      3) Tier3 —— 不上传（本地）\n\
-     模型：Gemma 4 12B（本地端点）。一切不出网；需要本地模型端点可用。\n\
+     模型：Bonsai-2-27B（本地端点，仅文本）。一切不出网；需要本地模型端点可用。\n\
      \n\
-     默认不出网：原始音频默认不出网；可上传字段仅限白名单 [prompt, mir, meta]（DEC-011）。\n\
+     默认不出网：原始音频默认不出网；可上传字段仅限白名单 [prompt, mir, meta, audio_ref]（DEC-011；audio_ref 仅 Tier1/Tier2，Tier3 纯文本）。\n\
      \n\
      请输入 1 / 2 / 3（设置页与 SYNTHLM_CONSENT_TIER 亦接受 tier1/tier2/tier3 写法）。"
 }
@@ -555,7 +555,7 @@ mod tests {
         for needle in [
             "muse-spark-1.3-contributor",
             "mimo-v2.6-flash",
-            "Gemma 4 12B",
+            "Bonsai-2-27B",
             "prompt",
             "mir",
             "meta",

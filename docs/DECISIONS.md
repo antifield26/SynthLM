@@ -2,7 +2,7 @@
 
 - 目的：基于 Research Pass（A/B/C/D）定稿 ≥25 条决策，每条给具体默认值与反转条件，供 ARCHITECTURE/ROADMAP/TASK-INDEX 约束实现。
 - 适用范围：SynthLM 全工程；约束条件：非商业、无分发、不上传、不购买许可；目标最低 REAPER v7.60，实测基线 v7.82。
-- 状态：Accepted（人类 2026-10-06 全部确认；DEC-010 Tier3 本地模型定为 Gemma 4 12B 唯一候选）
+- 状态：Accepted（人类 2026-10-06 全部确认；DEC-010 Tier3 本地模型于 2026-10-06 由 Gemma 4 12B 更换为 Bonsai-2-27B，Gemma 废弃）
 - 最后核验日期：2026-10-06
 - 依赖文档：docs/research/A01–A06、B-plugin-semantics、C-models-retrieval-eval、C-dsp-toolchain、D-eng-eco。
 
@@ -99,8 +99,8 @@ DEC-010：模型选型（云端 OpenCode Go 为主 + 本地端点保留）
 状态：Proposed
 背景：2026-10-06 人类决策覆盖此前本地主路径：在性能与资源占用权衡下弃用本地模型为主路径，但保留本地端点支持。L3 反转条件（用户明确接受上传）被本次决策触发，仅限模型推理链。
 选项：A 云端主路径（OpenCode Go 预设）+ 本地 OpenAI 兼容端点保留为可切换后端；B 纯本地（否决，人类已否决为主路径）；C 云端唯一无回退（否决，无降级）。
-推荐：A。云端预设：Base URL `https://opencode.ai/zen/go/v1`，Tier1 Model `muse-spark-1.3-contributor`（Muse Spark 1.3 Contributor，responses 格式，条款含保留数据训练模型，人类已确认）；Tier2 Model `mimo-v2.6-flash`（MiMo-V2.6-Flash，ZDR 协议，用于不接受训练保留但接受上传）；Tier3 本地模型定为 `Gemma 4 12B`（唯一候选；后端收束为 llama.cpp only，vLLM/MLX/LM Studio 不再覆盖，2026-10-06）。Tier3 仅文本（llama.cpp 端点多模态输入实测不可用，TSK-305）；参考音频的语义理解只走 Tier1/Tier2（见 DEC-011 音频字段规则）。授权三档：首次启动弹窗三选一（接受训练保留 / 仅接受上传 / 不上传），设置页可改；不接受保留→Tier2，不接受上传→Tier3。API Key 只从 `.env` 读取，禁止进代码/日志/快照；不声明计费。本地端点启动时做音频输入能力探测，不支持即报错（BLOCKED + 指引），不静默降级为纯文本。上传内容默认仅提示词 + MIR 特征/候选元数据，原始音频默认不出网（见 DEC-011/017）。
-反转条件：云端连通性实测连续失败率 >20%、或延迟 P95 >10s、或用户撤回上传授权，则切 Tier3（Gemma 4 12B 本地）为主；Tier3 本地模型更换须人类另行拍板（当前唯一候选）。
+推荐：A。云端预设：Base URL `https://opencode.ai/zen/go/v1`，Tier1 Model `muse-spark-1.3-contributor`（Muse Spark 1.3 Contributor，responses 格式，条款含保留数据训练模型，人类已确认）；Tier2 Model `mimo-v2.6-flash`（MiMo-V2.6-Flash，ZDR 协议，用于不接受训练保留但接受上传）；Tier3 本地模型定为 `Bonsai-2-27B`（唯一候选，2026-10-06 接替已废弃的 Gemma 4 12B；后端收束为 llama.cpp only，vLLM/MLX/LM Studio 不再覆盖，2026-10-06）。Tier3 仅文本（Bonsai-2 仅 text+image 输入；llama.cpp 端点多模态输入实测不可用，TSK-305）；参考音频的语义理解只走 Tier1/Tier2（见 DEC-011 音频字段规则）。授权三档：首次启动弹窗三选一（接受训练保留 / 仅接受上传 / 不上传），设置页可改；不接受保留→Tier2，不接受上传→Tier3。API Key 只从 `.env` 读取，禁止进代码/日志/快照；不声明计费。本地端点启动时做音频输入能力探测，不支持即报错（BLOCKED + 指引），不静默降级为纯文本。上传内容默认仅提示词 + MIR 特征/候选元数据，原始音频默认不出网（见 DEC-011/017）。
+反转条件：云端连通性实测连续失败率 >20%、或延迟 P95 >10s、或用户撤回上传授权，则切 Tier3（Bonsai-2-27B 本地）为主；Tier3 本地模型更换须人类另行拍板（当前唯一候选）。
 影响面：DEC-011/013/017、L3、TSK-model-harness。
 核验依据：人类 2026-10-06 决策（用户给定预设，置信度高）；连通性与 responses 格式 ⚠️需实测；C-models-retrieval-eval §1-2（本地档保留依据）。
 
