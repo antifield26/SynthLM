@@ -1,0 +1,7 @@
+A|progress|25|bad=0
+A|progress|50|bad=0
+B|progress|25|bad=0
+B|progress|50|bad=0
+summary|badA=0/50 badB=0/50
+tracks_after=0 expect=0
+done=1

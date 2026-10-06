@@ -49,7 +49,7 @@
 | TSK-204 | 评价器 + `+6dB` 防作弊回归 | 测试 | 2 | TSK-202 | P0 | M | `+6dB` 用例必不涨分；三次方差门禁 | DEC-016/L5 | Done | golden 5→9（低频作弊/削波告警/位一致/多分辨率 ordering）；权重 0.30/0.45/0.25 初值，标定归 TSK-402 |
 | TSK-205 | stem 后台队列 + 内容寻址缓存 + GC | 实现 | 2 | TSK-104 | P1 | M | 缓存命中率/水位指标上报；超 50GB 自动 GC | DEC-009 | Done | dsp 新 crate（23 单测绿：状态机/寻址/GC/指针；零新外部依赖）；WAL/journal 与 DEC-027 迁移留后续 |
 | TSK-206 | symphonia/FFmpeg fallback 阈值实测 | 测试 | 2 | TSK-202 | P1 | S | 破损/异形格式矩阵：触发 fallback 的条件清单 | C-dsp §1 | Done | 8 格式矩阵全绿（唯一触发：截断 wav；AAC 46080 帧须 priming 修齐，转消费侧）；symphonia 已登记 |
-| TSK-207 | 时变 AB（timestretch vs RB 内部运行） | 测试 | 2 | TSK-202 | P2 | S | AB 报告落盘；RB 仅内部运行记录（不购证） | DEC-025 | In-Progress | 纯 Rust 侧 G1-G3 全过 + G4 门禁已定；RB 侧 BLOCKED（缺 CLI/Clang/库；FFmpeg 本体在位，系 agent 壳过期误报）；harness 在 repo 外 scratch |
+| TSK-207 | 时变 AB（timestretch vs RB 内部运行） | 测试 | 2 | TSK-202 | P2 | S | AB 报告落盘；RB 仅内部运行记录（不购证） | DEC-025 | Blocked | 阻塞原因：RB 侧缺 CLI/Clang/C++ 库（已实证无 arguable 项）；纯 Rust 侧 G1-G3 全过 + G4 门禁已定。解除条件：提供三者之一或接受纯 Rust 路线关闭 |
 | TSK-208 | 响度 calibration/交叉验证复跑 | 测试 | 2 | TSK-202 | P1 | S | 3341 14/14 + 与 ebur128 ±0.5 LU | C-dsp §4 | Done | 双实现 Δ=0.000 LU（远优）；AAC priming 规则落地（strip 1024，修齐 mel 0.276）；dBTP 告警函数 + 边界单测；权重/残留归 TSK-402 |
 
 ## Phase 3（搜索与 UX 闭环）
@@ -70,7 +70,7 @@
 
 | ID | 标题 | 类型 | 阶段 | 依赖 | 优先级 | 规模 | 验收标准(可测) | 关联决策 | 状态 | 证据链接 |
 |---|---|---|---|---|---|---|---|---|---|---|
-| TSK-401 | 100× 故障注入（pooled/容器/takeFX） | 测试 | 4 | TSK-103 | P0 | M | 零残留；任一残留即 K3 冻结 | H6/K3 | Todo | A04 |
+| TSK-401 | 100× 故障注入（pooled/容器/takeFX） | 测试 | 4 | TSK-103 | P0 | M | 零残留；任一残留即 K3 冻结 | H6/K3 | In-Progress | 容器 50/0 + takeFX 50/0（含 undo 值比对）；pooled 腿待人工 ghost 对（派生写不碰源 take 的对照） |
 | TSK-402 | 盲听标定（排序相关 + 权重调） | 测试 | 4 | TSK-204 | P1 | M | Spearman ≥0.5；权重变更走 DEC-016 反转记录 | DEC-016 | Todo | C-models §4 |
 | TSK-403 | 性能预算（500 参数/撤销延迟） | 测试 | 4 | TSK-102 | P1 | S | 单块 500 参数 <1s；撤销 <500ms，否则分片 | DEC-007/008 | Done | Pro-Q 4 VST3 实测：写 500 参数 3.0ms、撤销 4.0ms、重做 2.0ms（预算内两个量级，无需分片；单机单插件，跨机以 CI/目标机为准） |
 | TSK-404 | 终验演示 M4 + 阶段报告 | 文档 | 4 | 全 | P0 | S | M4 脚本一次通过 + 五节报告 | ROADMAP M4 | Todo | 待产出 |
