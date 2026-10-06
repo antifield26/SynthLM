@@ -30,7 +30,7 @@
 
 ## 4 代码规范
 
-- Rust Edition 2024 统一（人类 2026-10-06 拍板），`clippy -D warnings` + `rustfmt` 零警告；公共 API 必备 rustdoc。
+- Rust Edition 2024 统一（人类 2026-10-06 拍板），`clippy -D warnings` + `rustfmt` 零警告；公共 API 必备 rustdoc；intra-doc 链接一律用全路径（本 crate 用 `crate::mod::Item`、外部用 `extern_crate_name::mod::Item`，禁裸 `[`Item`]`，`#[cfg]` 门控项不建链接），`cargo doc` 零警告是门禁一部分。
 - 错误类型：库边界 `thiserror`，应用/脚本层 `anyhow`；`unwrap/expect` 禁止进主干（测试/spike 除外）。
 - `unsafe` 许可制：仅 `bridge` 内 low 封装可用，必须逐处注释安全论证（前置条件/不变量/调用方义务）。例外（人类 2026-10-06 批准，仅此两处）：`common/shm.rs` 内 `shared_memory 0.12.4` 最小访问面 2 处（创建后独占映射读/冻结发布者有界拷贝，均 SAFETY 注释 + 单测覆盖 + 非音频/DAW 路径）；新增例外须人类另行批准。
 - 命名：裸 FX 索引永不持久化，持久化用 ident/GUID/容器路径；`TakeFX_AddByName` 新建必须 `instantiate<0`（`0` 仅查询）；`I_TAKEFX_NCH` 先建实例再设；`I_MIXFLAG` 等版本 gated API 必 `APIExists` 守卫。
