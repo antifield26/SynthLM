@@ -62,7 +62,7 @@
 | TSK-302 | Patch schema 双校验 + 修复循环 | 实现 | 3 | TSK-201/301 | P0 | M | 首轮有效率 ≥95%，2 轮修复 ≥99%（fixture 集） | DEC-013 | Done | patch.rs（48 fixture：首轮 100%/修复 100%；JSFX 裸 ident 按设计拒，SELECT 枚举/add存在性留后续） |
 | TSK-303 | TPE/CMA-ES 粗搜 + NM 收尾（mock 渲染） | 实现 | 3 | TSK-204 | P1 | M | 预算公式单测：50 次≈分钟级；mock 下收敛 | DEC-018/C §5 | Done | 零依赖 TPE-lite + 手写 NM（预算/收敛全绿）；optimizer/cmaes 待真嵌入时接入；接线已收口 |
 | TSK-304 | 多样性去重 + 候选卡片 6 字段 | 实现 | 3 | TSK-302 | P1 | S | 同质 fixture 去重生效；卡片字段缺失即单测红 | DEC-018/019 | Done | candidate.rs（去重/gap 标记/6 键卡片全绿）；CLAP 距离与试听引用格式待输入形状落定；接线已收口 |
-| TSK-305 | 本地端点实测（Gemma 4 12B × 4 后端 + 音频探测） | 测试 | 3 | TSK-301 | P0 | M | vLLM/llama.cpp/MLX LM/LM Studio 逐个连通 Gemma 4 12B + 音频探测；缺音频即 BLOCKED（非静默） | DEC-010 | In-Progress | llama.cpp：新 IQ4_XS 文本健康；音频复核结论：`input_audio` 被静默丢弃，改 `image_url` 传音频得 200 但模型称未收到声音，有效 64x64 PNG 同样报 loader 失败——系服务端 media loader 不可用（非探针形态问题）；Tier3 多模态输入 BLOCKED；vLLM/MLX/LMStudio 未开始 |
+| TSK-305 | 本地端点实测（Gemma 4 12B × 4 后端 + 音频探测） | 测试 | 3 | TSK-301 | P0 | M | vLLM/llama.cpp/MLX LM/LM Studio 逐个连通 Gemma 4 12B + 音频探测；缺音频即 BLOCKED（非静默） | DEC-010 | In-Progress | b11438 复测：文本健康；音频 input_audio 静默丢弃、image_url 传音频模型称未收到、64 PNG 报 loader 失败——服务端 media loader 不可用；mtmd-cli 后端可建 vision 上下文（缺 -ub 配额告警），server -ub 仅 128 待放大验证；vLLM/MLX/LMStudio 未开始 |
 | TSK-306 | UI 引擎原型二选一（波形 + 100Hz） | 实现 | 3 | — | P0 | M | 帧率/输入/HiDPI 三项达标才锁；落选归档 | DEC-002 | In-Progress | 子会话执行中（repo 外 scratch 双原型 + 指标对照） |
 | TSK-307 | Lua 薄面板快捷入口 | 实现 | 3 | TSK-306 | P2 | S | 面板启停 + 跳主窗链路可用 | DEC-002 | Done | 直装 ReaImGui 0.10.0.5（sha pin，API 1.92.1）；面板 92 帧干净退出；主窗链路为 stub（待 TSK-306 落定后接线） |
 
