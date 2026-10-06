@@ -49,7 +49,7 @@
 | TSK-204 | 评价器 + `+6dB` 防作弊回归 | 测试 | 2 | TSK-202 | P0 | M | `+6dB` 用例必不涨分；三次方差门禁 | DEC-016/L5 | Done | golden 5→9（低频作弊/削波告警/位一致/多分辨率 ordering）；权重 0.30/0.45/0.25 初值，标定归 TSK-402 |
 | TSK-205 | stem 后台队列 + 内容寻址缓存 + GC | 实现 | 2 | TSK-104 | P1 | M | 缓存命中率/水位指标上报；超 50GB 自动 GC | DEC-009 | Done | dsp 新 crate（23 单测绿：状态机/寻址/GC/指针；零新外部依赖）；WAL/journal 与 DEC-027 迁移留后续 |
 | TSK-206 | symphonia/FFmpeg fallback 阈值实测 | 测试 | 2 | TSK-202 | P1 | S | 破损/异形格式矩阵：触发 fallback 的条件清单 | C-dsp §1 | Done | 8 格式矩阵全绿（唯一触发：截断 wav；AAC 46080 帧须 priming 修齐，转消费侧）；symphonia 已登记 |
-| TSK-207 | 时变 AB（timestretch vs RB 内部运行） | 测试 | 2 | TSK-202 | P2 | S | AB 报告落盘；RB 仅内部运行记录（不购证） | DEC-025 | Blocked | 阻塞原因：RB 侧缺 CLI/Clang/C++ 库（已实证无 arguable 项）；纯 Rust 侧 G1-G3 全过 + G4 门禁已定。解除条件：提供三者之一或接受纯 Rust 路线关闭 |
+| TSK-207 | 时变 AB（timestretch vs RB 内部运行） | 测试 | 2 | TSK-202 | P2 | S | AB 报告落盘；RB 仅内部运行记录（不购证） | DEC-025 | Done | 人类 2026-10-06 拍板采用 Rust 路线（timestretch，G1-G3 过 + G4 门禁）；RB 工具链不再搭建，采购项永久关闭（TSK-901 范围） |
 | TSK-208 | 响度 calibration/交叉验证复跑 | 测试 | 2 | TSK-202 | P1 | S | 3341 14/14 + 与 ebur128 ±0.5 LU | C-dsp §4 | Done | 双实现 Δ=0.000 LU（远优）；AAC priming 规则落地（strip 1024，修齐 mel 0.276）；dBTP 告警函数 + 边界单测；权重/残留归 TSK-402 |
 
 ## Phase 3（搜索与 UX 闭环）

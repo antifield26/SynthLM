@@ -21,6 +21,7 @@
 - Rust 绑定 `rubberband/rubberband-sys` 经 bindgen 编 C++（需 Clang≥9），绑定不改变 GPL 传染。来源：https://docs.rs/crate/rubberband/latest ，高。
 - R2 Faster（默认）vs R3 Finer（CPU 高）；Offline 双遍 vs RealTime 单遍。来源：https://breakfastquay.com/rubberband/integration.html ，高。
 - 结论：闭源内嵌/链接必须买商业；独立进程 pipe 不能洗白 GPL（用户自装调用另议，体验差，须法务确认）。替代 `timestretch` 0.15.0（纯 Rust，CI 对标 RB CLI）泛化不如 R3，⚠️需 AB。来源：https://docs.rs/crate/timestretch/latest ，中。
+- 决策（2026-10-06，人类拍板，TSK-207）：采用 Rust 路线——时变统一用 `timestretch`（G1-G3 全过 + G4 门禁已定，`experiments/timestretch-ab.out.txt`）；不采购 RB 商业许可、不搭建 RB 工具链；未来时变集成点为 `dsp` crate（消费者出现时接入）。
 
 ## 4 响度 BS.1770（三者皆 permissive）
 
