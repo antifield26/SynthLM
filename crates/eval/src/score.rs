@@ -50,6 +50,14 @@ pub const MEL_W_MID: f32 = 0.45;
 /// calibrates.
 pub const MEL_W_HIGH: f32 = 0.25;
 
+/// Downstream-limiting alarm threshold in dBTP (DEC-016, TSK-208).
+///
+/// A candidate whose post-normalisation true peak exceeds −1 dBTP needs a
+/// limiter downstream; [`Score::true_peak_alarm`] reports exactly the
+/// `true_peak > −1` condition. The boundary itself (−1.0) does not alarm —
+/// only a strict overshoot does.
+pub const TRUE_PEAK_ALARM_DBTP: f64 = -1.0;
+
 /// Low/mid/high mel-band weights with a tunable interface (TSK-204).
 ///
 /// [`BandWeights::defaults`] returns the [`MEL_W_LOW`]/[`MEL_W_MID`]/
@@ -155,6 +163,16 @@ impl Score {
     /// [`BandWeights::defaults`].
     pub fn mel_weighted_with(&self, weights: &BandWeights) -> f32 {
         weights.apply(self.mel_low, self.mel_mid, self.mel_high)
+    }
+
+    /// Downstream-limiting alarm (DEC-016, TSK-208).
+    ///
+    /// True when the candidate's post-normalisation true peak strictly
+    /// exceeds [`TRUE_PEAK_ALARM_DBTP`] (−1 dBTP). Exactly −1.0 does not
+    /// alarm; anything above does, including the +6 dBTP-class peaks of
+    /// hard-clipped material gained back up by normalisation.
+    pub fn true_peak_alarm(&self) -> bool {
+        self.true_peak > TRUE_PEAK_ALARM_DBTP
     }
 }
 
@@ -460,6 +478,61 @@ mod tests {
         assert_eq!(
             score.mel_weighted,
             score.mel_weighted_with(&BandWeights::defaults())
+        );
+        Ok(())
+    }
+
+    fn score_with_peak(peak_dbtp: f64) -> Score {
+        Score {
+            spec_l1: 0.0,
+            mel_l1: 0.0,
+            mel_low: 0.0,
+            mel_mid: 0.0,
+            mel_high: 0.0,
+            mel_weighted: 0.0,
+            clap_cos: None,
+            transient_f1: 1.0,
+            lufs_i: -14.0,
+            true_peak: peak_dbtp,
+            delta_lufs: 0.0,
+        }
+    }
+
+    #[test]
+    fn true_peak_alarm_boundary() {
+        assert_eq!(TRUE_PEAK_ALARM_DBTP, -1.0);
+        // Exactly −1.0 does not alarm; only a strict overshoot does.
+        assert!(!score_with_peak(-1.0).true_peak_alarm());
+        assert!(!score_with_peak(-1.001).true_peak_alarm());
+        assert!(!score_with_peak(-8.819).true_peak_alarm());
+        // Slightly over, full scale, and clipped-hot peaks alarm.
+        assert!(score_with_peak(-0.999).true_peak_alarm());
+        assert!(score_with_peak(0.0).true_peak_alarm());
+        assert!(score_with_peak(6.355).true_peak_alarm());
+    }
+
+    #[test]
+    fn true_peak_alarm_fires_on_clipped_signal() -> Result<(), EvalError> {
+        // End-to-end: hard-clipped material gained back up by loudness
+        // normalisation must trip the alarm (mirrors the clipped golden
+        // pin in `tests/golden_mir.rs`), while the honest bed stays quiet.
+        let params = MirParams::v1();
+        let bed = sine(48_000, 440.0, 0.1);
+        let reference = analyze(&bed, &params)?;
+        let mut hot = bed;
+        for &pos in &[12_000, 24_000, 36_000] {
+            hot[pos] += 1.2;
+        }
+        let clipped: Vec<f32> = hot.iter().map(|s| s.clamp(-1.0, 1.0)).collect();
+        let candidate = analyze(&clipped, &params)?;
+        let score = compare(&reference, &candidate)?;
+        assert!(score.true_peak > -1.0, "clipped dbtp={}", score.true_peak);
+        assert!(score.true_peak_alarm());
+        let calm = compare(&reference, &reference.clone())?;
+        assert!(
+            !calm.true_peak_alarm(),
+            "honest bed must not alarm: dbtp={}",
+            calm.true_peak
         );
         Ok(())
     }

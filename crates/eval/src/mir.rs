@@ -269,6 +269,38 @@ pub fn analyze(samples: &[f32], params: &MirParams) -> Result<MirFeatures, EvalE
     })
 }
 
+/// AAC encoder delay (priming) in samples, consumer-side assumption.
+///
+/// FFmpeg-native AAC prepends 1024 priming samples and pads the tail to a
+/// 1024-sample codec-frame multiple: the TSK-206 matrix decoded 44100 source
+/// frames as 46080 (`44100 + 1024 + 956`, see
+/// `experiments/decode-matrix.out.txt`), and symphonia surfaces the priming
+/// instead of stripping it, so the consumer must trim before `analyze`.
+/// Encoders with a different delay (e.g. 2112) need their own `trim_head`.
+pub const AAC_PRIMING_SAMPLES: usize = 1024;
+
+/// AAC codec frame multiple in samples (tail padding granularity).
+pub const AAC_FRAME_SAMPLES: usize = 1024;
+
+/// Consumer-side codec priming/padding trim (TSK-208).
+///
+/// Returns the window starting `trim_head` samples in and holding at most
+/// `target_len` samples (the source frame count): drop the head, then
+/// truncate the tail. Out-of-range inputs clamp instead of panicking — a
+/// `trim_head` past the end yields an empty slice, and a `target_len` past
+/// the available tail yields what remains. Deterministic: identical inputs
+/// give identical outputs.
+///
+/// The AAC rule is `strip_codec_padding(decoded, AAC_PRIMING_SAMPLES,
+/// source_len)`; after the trim the samples must be bit-identical to the
+/// source (lossless-wav simulation) or lossy-close (real AAC), which
+/// `tests/loudness_xcheck.rs` asserts through `compare`.
+pub fn strip_codec_padding(samples: &[f32], trim_head: usize, target_len: usize) -> &[f32] {
+    let start = trim_head.min(samples.len());
+    let end = start.saturating_add(target_len).min(samples.len());
+    &samples[start..end]
+}
+
 /// Integrated LUFS plus true-peak dBTP of mono f32 samples at `sample_rate`.
 ///
 /// Uses `ebur128` in `I | TRUE_PEAK` mode (EBU R128 / TECH 3341). Signals
@@ -761,6 +793,42 @@ mod tests {
             Err(EvalError::TooShort { .. })
         ));
         assert!(matches!(analyze(&[], &p), Err(EvalError::TooShort { .. })));
+    }
+
+    #[test]
+    fn strip_codec_padding_trims_head_and_tail() {
+        let samples: Vec<f32> = (0..5000).map(|i| i as f32).collect();
+        let trimmed = strip_codec_padding(&samples, 1024, 2048);
+        assert_eq!(trimmed.len(), 2048);
+        assert_eq!(trimmed[0], 1024.0);
+        assert_eq!(trimmed[2047], 3071.0);
+    }
+
+    #[test]
+    fn strip_codec_padding_clamps_out_of_range() {
+        let samples: Vec<f32> = (0..100).map(|i| i as f32).collect();
+        // Head past the end yields empty, never a panic.
+        assert!(strip_codec_padding(&samples, 100, 50).is_empty());
+        assert!(strip_codec_padding(&samples, 10_000, 50).is_empty());
+        // Tail past the available samples yields what remains.
+        let tail = strip_codec_padding(&samples, 90, 5000);
+        assert_eq!(tail.len(), 10);
+        assert_eq!(tail[0], 90.0);
+        // Zero trim of the full length is the identity window.
+        assert_eq!(strip_codec_padding(&samples, 0, 100), samples.as_slice());
+        assert!(strip_codec_padding(&[], 1024, 44100).is_empty());
+    }
+
+    #[test]
+    fn strip_codec_padding_covers_aac_matrix_shape() {
+        // TSK-206 matrix shape: 44100 source frames decode as 46080
+        // (1024 priming + 956 tail padding); the AAC rule recovers the
+        // source window exactly.
+        let decoded = vec![0.25_f32; 46_080];
+        let trimmed = strip_codec_padding(&decoded, AAC_PRIMING_SAMPLES, 44_100);
+        assert_eq!(AAC_PRIMING_SAMPLES, 1024);
+        assert_eq!(AAC_FRAME_SAMPLES, 1024);
+        assert_eq!(trimmed.len(), 44_100);
     }
 
     #[test]

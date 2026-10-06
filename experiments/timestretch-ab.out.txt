@@ -1,0 +1,121 @@
+TSK-207 时变 AB：timestretch 纯 Rust vs Rubber Band（内部运行）
+================================================================
+task: TSK-207 (S) | date: 2026-10-06 | status: PARTIAL-BLOCKED
+(RB 侧 BLOCKED/见§2；纯 Rust 侧完成/见§3；AB 门禁设计完成/见§4)
+boundary: 内部运行、不购证、不分发。未购买、未安装任何商业软件。
+provenance: fixture 仅只读 experiments/spike-tone.wav；除本文件外未改仓库；
+harness 为 %TEMP%\tsk207\tsab scratch crate（非仓库代码，不进主干）。
+
+§1 结论摘要
+-----------
+1) R2 vs R3 × offline vs realtime 矩阵：BLOCKED（本机无 RB 工具链，
+   见§2 精确环境需求清单）。未硬凑数据。
+2) 纯 Rust 侧：timestretch =0.15.0（MIT，forbid(unsafe_code)）对
+   spike-tone（mono/16-bit/44.1kHz/1.000s）在 tempo t=1.0/0.8/1.25
+   下 G1–G3 全 PASS（见§3）。语义：stretch ratio r = 1/t。
+3) AB 门禁 G1–G4 设计完成；G4（vs RB 谱相似度）阈值已定、待工具链
+   就绪后执行（见§4）。
+
+§2 BLOCKED：RB 侧矩阵无法运行
+------------------------------
+目标矩阵（均未运行）：
+| engine | mode     | CPU 时间 | vs 对手谱距离 | 状态    |
+| R2 Faster | offline  | —        | —             | BLOCKED |
+| R2 Faster | realtime | —        | —             | BLOCKED |
+| R3 Finer  | offline  | —        | —             | BLOCKED |
+| R3 Finer  | realtime | —        | —             | BLOCKED |
+注：上游 timestretch CI 以 "RB CLI reference + 谱相似度" 为外部质量锚
+（docs.rs/timestretch 0.15.0，2026-10-06 核验）；本机缺 RB 端即无锚。
+
+精确的环境需求清单（任选其一；均不涉及购买/商业许可）：
+ A. Rubber Band CLI（GPL-2-or-later，仅内部运行、不分发）：
+    - rubberband 可执行文件（上游 breakfastquay/rubberband，自行构建
+      或可信第三方构建），`rubberband --version` 可用；
+    - 用途：离线渲染 spike-tone 在 r=1.25/0.8 的参考输出
+      （R2/R3 × offline/realtime 四格）；
+    - 许可边界：GPL-2-or-later；仅本机内部运行比对，不链接、不内嵌、
+      不随产品分发（DEC-025；出现分发物即冻结走 TSK-901）。
+ B. rust `rubberband`/`rubberband-sys` crate 构建（同样仅内部运行）：
+    - Clang ≥ 9（bindgen 必需）：本机缺失（clang 不在 PATH，
+      C:\Program Files\LLVM 不存在，全盘常见位无 libclang*.dll）；
+    - C++ 工具链：本机有 MSVC BuildTools
+     （C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools，
+      vswhere 确认），但无 libclang 仍无法跑 bindgen；
+    - 另需 librubberband C++ 库（源码/预建）+ LIBCLANG_PATH 配置。
+ C. Gyan FFmpeg 系替代（CLI 比对口径，不改变 GPL 边界）：
+    - 历史证据 experiments/ffmpeg-buildconf-9.0.2.txt 含
+      --enable-librubberband，但该二进制已不在本机
+      （C:\tools\ffmpeg\… 不存在，PATH 无 ffmpeg/ffprobe）；
+    - 若恢复：需 GPL 构建 + `ffmpeg -filters | rubberband` 确认
+      rubberband 滤镜存在；同样仅内部运行（Gyan essentials 系
+      --enable-gpl，不可分发；DEC-025）。
+解除条件：A/B/C 任一就绪 → 按§4-G4 执行四格渲染 + 谱距离比对。
+
+§3 纯 Rust 侧实测（timestretch 0.15.0，batch stretch()）
+------------------------------------------------------
+fixture: spike-tone.wav → mono, 44100 frames @44100Hz = 1.000s
+input: rms=0.353529, centroid=444.2Hz, 主峰 430.7Hz
+  （次峰 mag≤0.003，可忽略；STFT Hann 2048/hop 512，自研 radix-2 FFT）
+harness: cargo run --release（opt-level 2），输出电平按 DEC-016 精神
+  先 RMS 归一再比谱形（unit-sum 谱 L1∈[0,1]，0=同形）。
+
+| tempo t | ratio r=1/t | out_len | 期望 | 时长门禁G1(±2%) | CPU  | centroid | 质心门禁G2(±5%) | 谱L1 | 自洽G3 | 结论 |
+| 1.00 | 1.00 | 44100 | 44100 | PASS | 0.1ms | 444.2Hz | PASS | 0.0000 | PASS(≤0.05) | PASS |
+| 0.80 | 1.25 | 55125 | 55125 | PASS | 37.1ms | 443.9Hz | PASS | 0.0051 | n/a | PASS |
+| 1.25 | 0.80 | 35280 | 35280 | PASS | 43.7ms | 443.1Hz | PASS | 0.0020 | n/a | PASS |
+
+解读：三档输出长度逐采样精确（exact by construction，与上游宣称一致）；
+变速后音高保持（质心漂移≤1.1Hz/0.25%）；归一化谱形几乎不变
+（L1≤0.0051，远低于门禁）；1s 单声道 batch <50ms，离线吞吐无压力。
+实时 profile（Engine/Keylock 12.7ms 档）不在本次 S 规模内，未测。
+
+§4 AB 门禁设计（G1–G4；G4 待执行）
+----------------------------------
+G1 时长精度：|out_len − round(in_len·r)| / (in_len·r) ≤ 0.02。
+  （本次：三档误差 = 0，通过。）
+G2 音高保持：|centroid_out − centroid_in| / centroid_in ≤ 0.05
+  （r=1.25/0.8；本次 ≤0.0025，通过）。
+G3 自洽（r=1.0）：RMS 归一后 unit-sum 谱 L1 ≤ 0.05
+  （本次 = 0.0000，通过；另建议 RMS 比值∈[0.99,1.01]）。
+G4 vs RB 谱相似度（SKIPPED，待§2 解除后执行）：
+  - 对手：RB CLI R3-offline 同比渲染（主锚），R2-realtime 为次锚；
+  - 口径：双方统一 48k？否——统一 fixture 原生 44.1kHz，不做重采样；
+    同 STFT 网格（Hann 2048/hop 512）平均幅度谱，双方 RMS 归一；
+  - 阈值（初定，待首轮 RB 数据回填校准）：timestretch vs R3-offline
+    谱 L1 ≤ 0.10 判相当；0.10–0.20 判可接受偏差（记录频段分布）；
+    >0.20 判泛化不及 R3（与 C-dsp-toolchain §3“泛化不如 R3，需 AB”
+    判断衔接）；单轮通过后固定为回归门禁。
+  - 上游参照：timestretch 自带 rubberband_comparison harness
+    （env 传双 wav + ratio）；工具链就绪后优先复用其口径，
+    本 G4 阈值与之对齐。
+
+§5 新依赖许可清单（仅返回中列出；未改 docs/LICENSES.md）
+--------------------------------------------------------
+timestretch 0.15.0 = MIT（crates.io API 核验 2026-10-06；
+  #![forbid(unsafe_code)]）；传递依赖经 cargo metadata 全量核验，
+  均为 permissive：arc-swap/serde/serde_json/rustfft/num-*/dasp_* /
+  smallvec/primal-check/transpose/strength_reduce/autocfg/itoa/
+  proc-macro2/quote/syn/rustversion/serde_derive/serde_core/zmij
+  = MIT OR Apache-2.0（bitflags 表述为 MIT/Apache-2.0；memchr =
+  Unlicense OR MIT；unicode-ident = (MIT OR Apache-2.0) AND
+  Unicode-3.0；ebur128 = MIT）。无 copyleft/NC 触线。
+  仓库 Cargo.toml/lock 未动；LICENSES 登记留给主会话（TSK-license-register）。
+
+§6 质量门（scratch crate %TEMP%\tsk207\tsab）
+----------------------------------------------
+cargo test --release：6/6 通过（含 FFT 正弦峰位/冲激平坦、L1 恒等与
+  电平不变性、G1/G2  helper 正反例）。cargo clippy --release
+  --all-targets -- -D warnings：0 警告。cargo fmt --check：清洁。
+  仓库 CI（clippy/test/fmt/doc）未触及（仓库代码零改动）。
+
+§7 未决问题（登记候选，不猜测）
+--------------------------------
+Q1（BLOCKED 主因）：RB 工具链三选一（§2 A/B/C）由谁在何时提供？
+  候选：人类确认内部运行口径后由主会话安排（A 最轻：仅 CLI 二进制）。
+Q2：G4 阈值 0.10/0.20 为初定，需首轮 RB 数据回填校准（登记 TSK 候选）。
+Q3：实时 Engine profile（Keylock 12.7ms）与 R2-realtime 的 callback
+  预算对比未测（S 规模外；上游有 engine_wcet 门禁可参照）。
+Q4：timestretch 传递依赖 ebur128 crate 与 C-dsp §4 响度选型同名，
+  是否同源复用，留给 dsp crate 选型会话确认。
+Q5：若人类后续打破“无分发”前提，RB 相关全部冻结走法务重审
+  （DEC-025 反转条件；TSK-901）。

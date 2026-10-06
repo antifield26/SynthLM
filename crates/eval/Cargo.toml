@@ -21,3 +21,13 @@ ebur128 = "0.1"
 # in the TSK-206 return message. Defaults cover wav/flac/vorbis/ogg/pcm;
 # mp3 + aac + isomp4 extend the matrix to mp3/vorbis/aac.
 symphonia = { version = "0.6", features = ["mp3", "aac", "isomp4"] }
+# TSK-208 loudness cross-validation only (integration test
+# `tests/loudness_xcheck.rs`): independent BS.1770-4 implementation used to
+# check `ebur128` integrated LUFS within +/-0.5 LU on synthetic signals.
+# ebur128-stream 0.2.0, MIT OR Apache-2.0,
+# https://github.com/vanjamodrinjak21/ebur128-stream
+# (https://crates.io/crates/ebur128-stream/0.2.0, MSRV 1.85, pure Rust,
+# `#![forbid(unsafe_code)]`). License-row registration in docs/LICENSES.md
+# intentionally left to its owner per TSK-208 scope (do not edit that file
+# here); registration text ships in the TSK-208 return message.
+ebur128-stream = "0.2"

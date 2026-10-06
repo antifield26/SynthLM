@@ -128,6 +128,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "ebur128-stream"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "66e026ac32fee8397cdbaafee0030443af608d6c4832e590905b16c9450b7536"
+dependencies = [
+ "bitflags 2.13.2",
+ "libm",
+]
+
+[[package]]
 name = "enumflags2"
 version = "0.7.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -280,6 +290,12 @@ dependencies = [
  "cfg-if",
  "winapi",
 ]
+
+[[package]]
+name = "libm"
+version = "0.2.16"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6d2cec3eae94f9f509c767b45932f1ada8350c4bdb85af2fcab4a3c14807981"
 
 [[package]]
 name = "log"
@@ -915,6 +931,7 @@ name = "synthlm-eval"
 version = "0.0.0"
 dependencies = [
  "ebur128",
+ "ebur128-stream",
  "realfft",
  "rustfft",
  "symphonia",
