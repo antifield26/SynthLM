@@ -13,3 +13,7 @@ synthlm-profile = { path = "../profile" }
 synthlm-planner = { path = "../planner" }
 synthlm-retrieval = { path = "../retrieval" }
 synthlm-eval = { path = "../eval" }
+# TSK-405 demo harness only: JSON plan artifact. Already in the workspace
+# lockfile and registered in docs/LICENSES.md (MIT OR Apache-2.0); no new
+# external crate is introduced by this line.
+serde_json = "1.0.151"

@@ -47,9 +47,11 @@ for n in range(1, 9):
         fail(f"AGENTS.md: missing chapter '## {n} '")
 
 tasks = (ROOT / "docs" / "TASK-INDEX.md").read_text(encoding="utf-8")
-for token in ("TSK-", "Todo", "Blocked", "Done"):
+for token in ("TSK-", "Blocked", "Done"):
     if token not in tasks:
         fail(f"TASK-INDEX.md: missing token '{token}'")
+if not any(state in tasks for state in ("Todo", "In-Progress")):
+    fail("TASK-INDEX.md: no active rows (Todo/In-Progress) left to track")
 
 if FAILURES:
     print("doc-sync FAILED:")

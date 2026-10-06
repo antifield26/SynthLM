@@ -3950,6 +3950,7 @@ dependencies = [
 name = "synthlm-acrd"
 version = "0.0.0"
 dependencies = [
+ "serde_json",
  "synthlm-common",
  "synthlm-eval",
  "synthlm-planner",
