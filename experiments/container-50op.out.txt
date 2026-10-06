@@ -1,0 +1,54 @@
+setup|container_idx=1
+setup|target_guid=found
+R|1|del-top-skip|formula=true param=true
+R|2|add-top|formula=true param=true
+R|3|churn|formula=true param=true
+R|4|move-out-skip|formula=true param=true
+R|5|move-out-skip|formula=true param=true
+R|6|churn|formula=true param=true
+R|7|move-in|formula=true param=true
+R|8|move-out|formula=true param=true
+R|9|move-in|formula=true param=true
+R|10|churn|formula=true param=true
+R|11|move-in-skip|formula=true param=true
+R|12|move-in-skip|formula=true param=true
+R|13|del-top-skip|formula=true param=true
+R|14|move-out|formula=true param=true
+R|15|del-top|formula=true param=true
+R|16|add-top|formula=true param=true
+R|17|del-top|formula=true param=true
+R|18|add-top|formula=true param=true
+R|19|churn|formula=true param=true
+R|20|move-out-skip|formula=true param=true
+R|21|add-top|formula=true param=true
+R|22|move-in|formula=true param=true
+R|23|del-top|formula=true param=true
+R|24|churn|formula=true param=true
+R|25|add-top|formula=true param=true
+R|26|add-top|formula=true param=true
+R|27|move-out|formula=true param=true
+R|28|move-out-skip|formula=true param=true
+R|29|del-top|formula=true param=true
+R|30|churn|formula=true param=true
+R|31|move-in|formula=true param=true
+R|32|del-top|formula=true param=true
+R|33|move-in-skip|formula=true param=true
+R|34|del-top-skip|formula=true param=true
+R|35|del-top-skip|formula=true param=true
+R|36|churn|formula=true param=true
+R|37|move-in-skip|formula=true param=true
+R|38|churn|formula=true param=true
+R|39|move-in-skip|formula=true param=true
+R|40|del-top-skip|formula=true param=true
+R|41|add-top|formula=true param=true
+R|42|move-in|formula=true param=true
+R|43|move-out|formula=true param=true
+R|44|move-in|formula=true param=true
+R|45|move-in-skip|formula=true param=true
+R|46|move-in-skip|formula=true param=true
+R|47|add-top|formula=true param=true
+R|48|del-top|formula=true param=true
+R|49|move-out|formula=true param=true
+R|50|add-top|formula=true param=true
+summary|success=50/50
+done=1

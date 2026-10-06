@@ -1,0 +1,10 @@
+count=2 cidx=1
+container_count ok=true v=0
+dest=33554437
+count_after=1
+top0_container_count ok=true v=1
+top|0|guid=Y|name=容器
+container_item.0 ok=true v=33554435
+inner|guid=Y|name=VST: ReaEQ (Cockos)
+top0_parent ok=false v=
+done=1
