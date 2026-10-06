@@ -64,7 +64,7 @@
 | TSK-304 | 多样性去重 + 候选卡片 6 字段 | 实现 | 3 | TSK-302 | P1 | S | 同质 fixture 去重生效；卡片字段缺失即单测红 | DEC-018/019 | Done | candidate.rs（去重/gap 标记/6 键卡片全绿）；CLAP 距离与试听引用格式待输入形状落定；接线已收口 |
 | TSK-305 | 本地端点实测（Gemma 4 12B × 4 后端 + 音频探测） | 测试 | 3 | TSK-301 | P0 | M | vLLM/llama.cpp/MLX LM/LM Studio 逐个连通 Gemma 4 12B + 音频探测；缺音频即 BLOCKED（非静默） | DEC-010 | In-Progress | llama.cpp：QAT 文件退化（空串/重复），已停测待新权重；:8080 现 serving 降级输出；其余三后端未开始 |
 | TSK-306 | UI 引擎原型二选一（波形 + 100Hz） | 实现 | 3 | — | P0 | M | 帧率/输入/HiDPI 三项达标才锁；落选归档 | DEC-002 | In-Progress | 子会话执行中（repo 外 scratch 双原型 + 指标对照） |
-| TSK-307 | Lua 薄面板快捷入口 | 实现 | 3 | TSK-306 | P2 | S | 面板启停 + 跳主窗链路可用 | DEC-002 | Todo | D §1 |
+| TSK-307 | Lua 薄面板快捷入口 | 实现 | 3 | TSK-306 | P2 | S | 面板启停 + 跳主窗链路可用 | DEC-002 | Blocked | 阻塞原因：本机无 ReaPack/ReaImGui（UserPlugins 空、Scripts 仅 Cockos）；解除条件：装 ReaPack 扩展 → 导 ReaImGui 仓库 → 装包 → 重启（多步需人机协同） |
 
 ## Phase 4（加固与标定）
 
@@ -72,7 +72,7 @@
 |---|---|---|---|---|---|---|---|---|---|---|
 | TSK-401 | 100× 故障注入（pooled/容器/takeFX） | 测试 | 4 | TSK-103 | P0 | M | 零残留；任一残留即 K3 冻结 | H6/K3 | Todo | A04 |
 | TSK-402 | 盲听标定（排序相关 + 权重调） | 测试 | 4 | TSK-204 | P1 | M | Spearman ≥0.5；权重变更走 DEC-016 反转记录 | DEC-016 | Todo | C-models §4 |
-| TSK-403 | 性能预算（500 参数/撤销延迟） | 测试 | 4 | TSK-102 | P1 | S | 单块 500 参数 <1s；撤销 <500ms，否则分片 | DEC-007/008 | Todo | A06 |
+| TSK-403 | 性能预算（500 参数/撤销延迟） | 测试 | 4 | TSK-102 | P1 | S | 单块 500 参数 <1s；撤销 <500ms，否则分片 | DEC-007/008 | Done | Pro-Q 4 VST3 实测：写 500 参数 3.0ms、撤销 4.0ms、重做 2.0ms（预算内两个量级，无需分片；单机单插件，跨机以 CI/目标机为准） |
 | TSK-404 | 终验演示 M4 + 阶段报告 | 文档 | 4 | 全 | P0 | S | M4 脚本一次通过 + 五节报告 | ROADMAP M4 | Todo | 待产出 |
 
 ## 冻结/阻塞（原因 + 解除条件）

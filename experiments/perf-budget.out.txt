@@ -1,0 +1,5 @@
+fx_idx=0 numparams=740
+write500_ms=3.0
+undo_ms=4.0
+redo_ms=2.0
+done=1
