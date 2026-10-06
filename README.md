@@ -10,8 +10,8 @@
 
 | 档 | 模型 | 条件 |
 |---|---|---|
-| Tier1 | `muse-spark-1.3-contributor`（训练保留） | 首次弹窗接受 |
-| Tier2 | `mimo-v2.6-flash`（ZDR） | 仅接受上传 |
+| Tier1 | `Muse Spark 1.3 Contributor`（训练保留） | 接受训练保留 |
+| Tier2 | `MiMo V2.6 Flash`（ZDR） | 仅接受上传 |
 | Tier3 | 本地 `Bonsai-2-27B`（纯文本，llama.cpp `:8080`） | 不上传 |
 
 API Key 只读仓库根 `.env`（已 gitignore，永不提交）；原始音频默认不出网。
