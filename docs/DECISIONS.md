@@ -108,7 +108,7 @@ DEC-011：云端后端协议与降级（OpenCode Go responses + 本地回退）
 状态：Proposed
 背景：2026-10-06 人类启用云端为主（覆盖此前默认关闭）；L3 要求显式开关 + 明示上传内容 + 可审计仍然有效。
 选项：A HTTPS POST 到 Base URL（responses 格式，`model=muse-spark-1.3-contributor`），超时/重试/熔断 + 失败降级到本地端点 → 缓存 → BLOCKED；B 云端无降级（否决）；C 静默上传原始音频（红线否决）。
-推荐：A。HTTPS POST 到 Base URL（responses 格式，Tier 按授权档选模型），超时/重试/熔断 + 失败降级链 Tier1→Tier2→Tier3（本地）→缓存→BLOCKED；授权档存设置（首次弹窗 + 设置页可改），每次云端调用记审计日志（时间/模型/授权档/上传字段清单/字节数，不记 Key 与音频 PCM）；上传字段白名单配可执行审计单测（允许 prompt/MIR/元数据，PCM 默认禁，越界即测试失败）；`.env` 缺 Key 即 BLOCKED 并指引，不猜测。原始音频默认不出网，几何/特征级上传需在调用前明示。
+推荐：A。HTTPS POST 到 Go 面按模型端点（Tier1 `{base}/responses` / Tier2 `{base}/chat/completions`，2026-10-06 实测），必带稳定 `x-opencode-session` 会话头（缺失即系统性 400；自定义 UA 曾两次相关 401，故保持默认 UA），超时/重试/熔断 + 失败降级链 Tier1→Tier2→Tier3（本地）→缓存→BLOCKED；授权档存设置（首次弹窗 + 设置页可改），每次云端调用记审计日志（时间/模型/授权档/上传字段清单/字节数，不记 Key 与音频 PCM）；上传字段白名单配可执行审计单测（允许 prompt/MIR/元数据，PCM 默认禁，越界即测试失败）；`.env` 缺 Key 即 BLOCKED 并指引，不猜测。原始音频默认不出网，几何/特征级上传需在调用前明示。
 反转条件：用户撤回上传授权或审计发现超范围字段上传，即刻切断云端并转本地。
 影响面：DEC-010/013/017/026、L3、TSK-cloud-stub。
 核验依据：人类 2026-10-06 预设（URL/模型名原文引用）；连通性 ⚠️需实测（含 401/超时/重试路径）。
