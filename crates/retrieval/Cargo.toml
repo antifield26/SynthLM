@@ -5,3 +5,18 @@ edition.workspace = true
 
 [dependencies]
 synthlm-common = { path = "../common" }
+thiserror = "2.0.21"
+
+[features]
+## Backend selection (TSK-203, DEC-014).
+##
+## Each backend is a pure-Rust pattern prototype behind its own feature so an
+## either-or build stays possible (`--no-default-features --features
+## <name>-backend`). The features deliberately reserve the slots where the
+## real-crate bindings will land (`usearch 2.26.4`, `lancedb 0.39.0`, both
+## Apache-2.0; real-crate wiring is ⚠️需实测, see `src/usearch_backend.rs`
+## and `src/lancedb_backend.rs`). No heavy native dependency is pulled by the
+## default build.
+default = ["usearch-backend", "lancedb-backend"]
+usearch-backend = []
+lancedb-backend = []
