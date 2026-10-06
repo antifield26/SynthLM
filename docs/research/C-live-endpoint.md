@@ -25,6 +25,7 @@
 
 - 根因：缺 `x-opencode-session` 会话头（官方 Go 文档“Where can I use it”节要求；无头即系统性 400）。附带发现：自定义 UA（`synthlm/0.0.0`）两次与 401 相关——本客户端保持默认 UA，只发会话头。
 - 验证：Tier2 `chat/completions` 200，标准信封 + `reasoning_content` 扩展；`finish=stop` 且 `LIVE-OK` 回到；延迟 ~6.2s；`live_tier2.rs`（`#[ignore]`）3 项全过。
+- 验证（人类 2026-10-06 批准）：Tier1 `responses` 200，信封顶键含 `output/usage/...`，`output` 长 2 且含 `LIVE-OK`；用量 14/131（含 117 reasoning）；训练保留属性不变（调用即产生训练数据，仅批准用途可调）。
 - 代码已落实：按 Tier 分路径（Tier1 `/responses` / Tier2 `/chat/completions`）、`with_session_id` 构造器、stub 会话头捕获；Tier1 路径未点火（训练保留，需另行批准）。
 
 ## BLOCKED（TSK-117）→ 已关闭，见上节

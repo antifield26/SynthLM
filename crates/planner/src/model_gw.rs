@@ -611,9 +611,9 @@ fn cloud_path_suffix(tier: ConsentTier) -> &'static str {
 /// construction; real prompt/MIR payload wiring lands with the caller that
 /// owns that content.
 ///
-/// TODO: Tier1 responses extras (sampling knobs, `stream`, response
-/// `output` shape) remain unprobed — no Tier1 call placed
-/// (training-retained tier; requires explicit human approval).
+/// Tier1 responses extras verified live 2026-10-06 (human-approved call):
+/// 2xx + `output[]` envelope with the marker text back (131 output tokens
+/// incl. reasoning). Sampling knobs/`stream` remain at server defaults.
 fn request_body(request: &ModelRequest) -> serde_json::Value {
     let synthetic = format!(
         "synthetic fields=[{}] bytes={}",
