@@ -99,7 +99,7 @@ DEC-010：模型选型（云端 OpenCode Go 为主 + 本地端点保留）
 状态：Proposed
 背景：2026-10-06 人类决策覆盖此前本地主路径：在性能与资源占用权衡下弃用本地模型为主路径，但保留本地端点支持。L3 反转条件（用户明确接受上传）被本次决策触发，仅限模型推理链。
 选项：A 云端主路径（OpenCode Go 预设）+ 本地 OpenAI 兼容端点保留为可切换后端；B 纯本地（否决，人类已否决为主路径）；C 云端唯一无回退（否决，无降级）。
-推荐：A。云端预设：Base URL `https://opencode.ai/zen/go/v1`，Tier1 Model `muse-spark-1.3-contributor`（Muse Spark 1.3 Contributor，responses 格式，条款含保留数据训练模型，人类已确认）；Tier2 Model `mimo-v2.6-flash`（MiMo-V2.6-Flash，ZDR 协议，用于不接受训练保留但接受上传）；Tier3 本地模型定为 `Gemma 4 12B`（唯一候选，其他本地规划候选已移除；兼容 vLLM / llama.cpp / MLX LM / LM Studio，无量化档限制）。授权三档：首次启动弹窗三选一（接受训练保留 / 仅接受上传 / 不上传），设置页可改；不接受保留→Tier2，不接受上传→Tier3。API Key 只从 `.env` 读取，禁止进代码/日志/快照；不声明计费。本地端点启动时做音频输入能力探测，不支持即报错（BLOCKED + 指引），不静默降级为纯文本。上传内容默认仅提示词 + MIR 特征/候选元数据，原始音频默认不出网（见 DEC-011/017）。
+推荐：A。云端预设：Base URL `https://opencode.ai/zen/go/v1`，Tier1 Model `muse-spark-1.3-contributor`（Muse Spark 1.3 Contributor，responses 格式，条款含保留数据训练模型，人类已确认）；Tier2 Model `mimo-v2.6-flash`（MiMo-V2.6-Flash，ZDR 协议，用于不接受训练保留但接受上传）；Tier3 本地模型定为 `Gemma 4 12B`（唯一候选；后端收束为 llama.cpp only，vLLM/MLX/LM Studio 不再覆盖，2026-10-06）。Tier3 仅文本（llama.cpp 端点多模态输入实测不可用，TSK-305）；参考音频的语义理解只走 Tier1/Tier2（见 DEC-011 音频字段规则）。授权三档：首次启动弹窗三选一（接受训练保留 / 仅接受上传 / 不上传），设置页可改；不接受保留→Tier2，不接受上传→Tier3。API Key 只从 `.env` 读取，禁止进代码/日志/快照；不声明计费。本地端点启动时做音频输入能力探测，不支持即报错（BLOCKED + 指引），不静默降级为纯文本。上传内容默认仅提示词 + MIR 特征/候选元数据，原始音频默认不出网（见 DEC-011/017）。
 反转条件：云端连通性实测连续失败率 >20%、或延迟 P95 >10s、或用户撤回上传授权，则切 Tier3（Gemma 4 12B 本地）为主；Tier3 本地模型更换须人类另行拍板（当前唯一候选）。
 影响面：DEC-011/013/017、L3、TSK-model-harness。
 核验依据：人类 2026-10-06 决策（用户给定预设，置信度高）；连通性与 responses 格式 ⚠️需实测；C-models-retrieval-eval §1-2（本地档保留依据）。
@@ -108,7 +108,7 @@ DEC-011：云端后端协议与降级（OpenCode Go responses + 本地回退）
 状态：Proposed
 背景：2026-10-06 人类启用云端为主（覆盖此前默认关闭）；L3 要求显式开关 + 明示上传内容 + 可审计仍然有效。
 选项：A HTTPS POST 到 Base URL（responses 格式，`model=muse-spark-1.3-contributor`），超时/重试/熔断 + 失败降级到本地端点 → 缓存 → BLOCKED；B 云端无降级（否决）；C 静默上传原始音频（红线否决）。
-推荐：A。HTTPS POST 到 Go 面按模型端点（Tier1 `{base}/responses` / Tier2 `{base}/chat/completions`，2026-10-06 实测），必带稳定 `x-opencode-session` 会话头（缺失即系统性 400；自定义 UA 曾两次相关 401，故保持默认 UA），超时/重试/熔断 + 失败降级链 Tier1→Tier2→Tier3（本地）→缓存→BLOCKED；授权档存设置（首次弹窗 + 设置页可改），每次云端调用记审计日志（时间/模型/授权档/上传字段清单/字节数，不记 Key 与音频 PCM）；上传字段白名单配可执行审计单测（允许 prompt/MIR/元数据，PCM 默认禁，越界即测试失败）；`.env` 缺 Key 即 BLOCKED 并指引，不猜测。原始音频默认不出网，几何/特征级上传需在调用前明示。
+推荐：A。HTTPS POST 到 Go 面按模型端点（Tier1 `{base}/responses` / Tier2 `{base}/chat/completions`，2026-10-06 实测），必带稳定 `x-opencode-session` 会话头（缺失即系统性 400；自定义 UA 曾两次相关 401，故保持默认 UA），超时/重试/熔断 + 失败降级链 Tier1→Tier2→Tier3（本地）→缓存→BLOCKED；授权档存设置（首次弹窗 + 设置页可改），每次云端调用记审计日志（时间/模型/授权档/上传字段清单/字节数，不记 Key 与音频 PCM）；上传字段白名单配可执行审计单测（允许 prompt/MIR/元数据/音频摘要字段 `audio_ref`（仅 Tier1/Tier2，单次摘录，随调用审计），PCM 原始文件默认禁，越界即测试失败）；Tier3 永不上传音频（本地文本规划 only）；`.env` 缺 Key 即 BLOCKED 并指引，不猜测。原始音频默认不出网，几何/特征级上传需在调用前明示。
 反转条件：用户撤回上传授权或审计发现超范围字段上传，即刻切断云端并转本地。
 影响面：DEC-010/013/017/026、L3、TSK-cloud-stub。
 核验依据：人类 2026-10-06 预设（URL/模型名原文引用）；连通性 ⚠️需实测（含 401/超时/重试路径）。

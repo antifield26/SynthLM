@@ -58,11 +58,12 @@
 |---|---|---|---|---|---|---|---|---|---|---|
 | TSK-301 | model-gw 三档路由 + 熔断降级链 | 实现 | 3 | TSK-105/106 | P0 | M | 故障注入：Tier1  down→Tier2→Tier3→BLOCKED 路径全覆盖；无已存 consent 即 consent_required BLOCKED（先弹窗，AGENTS §8） | DEC-010/011 | Done | model_gw.rs（14 单测绿：全降级链/401 跳云/熔断/审计脱敏）；零网络（真传输归 TSK-116） |
 | TSK-116 | model-gw 真 HTTPS 传输（responses 格式） | 实现 | 3 | TSK-301 | P1 | S | 30s hard/P95 10s 超时接线；401/429/5xx 真映射；MockTransport 回归保留 | DEC-010/011 | Done | HttpsTransport（blocking rustls，无 openssl；127 stub 全绿，Mock 回归全过）；真端点验证转 TSK-117（推理 POST 系统性 400） |
+| TSK-118 | 音频上传字段 + Tier3 纯文本强制 | 实现 | 3 | TSK-106 | P1 | S | `audio_ref` 白名单增补全绿；Tier3 带音频字段即拒绝；审计无 PCM | DEC-010/011 | Done | 白名单 4 成员 + TierAudioUnsupported（code AudioCapabilityMissing，BLOCKED，传输零调用）；Tier1 音频直通全绿 |
 | TSK-117 | 云端推理真调用验证（Go 面形态/账户） | 测试 | 3 | TSK-116 | P0 | S | 任一 Tier 首次 2xx + 信封解码；失败即记录不硬试 | DEC-010/011 | Done | Tier2 200 全绿（会话头为根因；LIVE-OK 回到；延迟 ~6.2s）；Tier1 未点火（训练保留待批）；401/UA 异常已记录 |
 | TSK-302 | Patch schema 双校验 + 修复循环 | 实现 | 3 | TSK-201/301 | P0 | M | 首轮有效率 ≥95%，2 轮修复 ≥99%（fixture 集） | DEC-013 | Done | patch.rs（48 fixture：首轮 100%/修复 100%；JSFX 裸 ident 按设计拒，SELECT 枚举/add存在性留后续） |
 | TSK-303 | TPE/CMA-ES 粗搜 + NM 收尾（mock 渲染） | 实现 | 3 | TSK-204 | P1 | M | 预算公式单测：50 次≈分钟级；mock 下收敛 | DEC-018/C §5 | Done | 零依赖 TPE-lite + 手写 NM（预算/收敛全绿）；optimizer/cmaes 待真嵌入时接入；接线已收口 |
 | TSK-304 | 多样性去重 + 候选卡片 6 字段 | 实现 | 3 | TSK-302 | P1 | S | 同质 fixture 去重生效；卡片字段缺失即单测红 | DEC-018/019 | Done | candidate.rs（去重/gap 标记/6 键卡片全绿）；CLAP 距离与试听引用格式待输入形状落定；接线已收口 |
-| TSK-305 | 本地端点实测（Gemma 4 12B × 4 后端 + 音频探测） | 测试 | 3 | TSK-301 | P0 | M | vLLM/llama.cpp/MLX LM/LM Studio 逐个连通 Gemma 4 12B + 音频探测；缺音频即 BLOCKED（非静默） | DEC-010 | In-Progress | b11438 + `-ub 2048` 后复测：视觉 loader 仍失败（非配额问题，系 loader 本体）；音频 input_audio 仍静默丢弃；Tier3 多模态 BLOCKED 维持；文本健康；vLLM/MLX/LMStudio 未开始 |
+| TSK-305 | 本地端点实测（Gemma 4 12B llama.cpp + 音频探测） | 测试 | 3 | TSK-301 | P0 | M | llama.cpp 连通 + 音频探测；缺音频即 BLOCKED（非静默） | DEC-010 | In-Progress | 后端收束 llama only（vLLM/MLX/LMStudio 出范围）；b11438 + `-ub 2048` 复测：文本健康，多模态 loader 不可用；Tier3 音频 BLOCKED |
 | TSK-306 | UI 引擎原型二选一（波形 + 100Hz） | 实现 | 3 | — | P0 | M | 帧率/输入/HiDPI 三项达标才锁；落选归档 | DEC-002 | In-Progress | 子会话执行中（repo 外 scratch 双原型 + 指标对照） |
 | TSK-307 | Lua 薄面板快捷入口 | 实现 | 3 | TSK-306 | P2 | S | 面板启停 + 跳主窗链路可用 | DEC-002 | Done | 直装 ReaImGui 0.10.0.5（sha pin，API 1.92.1）；面板 92 帧干净退出；主窗链路为 stub（待 TSK-306 落定后接线） |
 
