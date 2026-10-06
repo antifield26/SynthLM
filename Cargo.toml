@@ -13,4 +13,4 @@ members = [
 
 [workspace.package]
 edition = "2024"
-license = "SEE LICENSE IN docs/LICENSES.md"
+license = "MIT"
