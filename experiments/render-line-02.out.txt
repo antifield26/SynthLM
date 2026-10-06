@@ -1,0 +1,11 @@
+backup|dither=0.0
+tempitem|pos=0.0|len=1.0
+tempitem|pos=2.0|len=1.0
+tempitems=2
+iso|r1|fnv=11d6dc2f
+iso|r2|fnv=11d6dc2f
+iso|r3|fnv=11d6dc2f
+iso|all_equal=true
+m7|targets_multi=C:\Users\25371\AppData\Local\Temp\synthlm-m7-multi.wav
+restore|ok=1
+done=1

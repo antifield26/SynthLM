@@ -1,0 +1,5 @@
+s0b0|settings=0.0|targets=C:\Users\25371\AppData\Local\Temp\synthlm-m7-s0b0.wav
+s0b1|settings=262144.0|targets=C:\Users\25371\AppData\Local\Temp\synthlm-m7-s0b1.wav
+s32b0|settings=32.0|targets=C:\Users\25371\AppData\Local\Temp\synthlm-m7-s32b0-001.wav;C:\Users\25371\AppData\Local\Temp\synthlm-m7-s32b0-002.wav
+s32b1|settings=262176.0|targets=C:\Users\25371\AppData\Local\Temp\synthlm-m7-s32b1.wav
+done=1
