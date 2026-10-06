@@ -11,3 +11,6 @@
 
 /// Container address recompute layer: encode/decode, GUID anchors, flatten stub.
 pub mod container_addr;
+
+/// Undo transaction guard + dirty marking + take refetch (DEC-008, TSK-102).
+pub mod undo;
