@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "fx_ident_match": "ReaControlMIDI",
+  "groups": ["MIDI", "Scale", "Master"],
+  "params": [
+    {"ident": "0:_Bank_MSB", "name_regex": "Bank MSB", "role": "program", "ui": "select", "scale": "indexed", "group": "MIDI"},
+    {"ident": "1:_Bank_LSB", "name_regex": "Bank LSB", "role": "program", "ui": "select", "scale": "indexed", "group": "MIDI"},
+    {"ident": "2:_Program", "name_regex": "Program", "role": "program", "ui": "select", "scale": "indexed", "group": "MIDI"},
+    {"ident": "3:_音量", "name_regex": "音量", "role": "volume", "ui": "slider", "scale": "linear", "group": "MIDI"},
+    {"ident": "4:_声像", "name_regex": "声像", "role": "pan", "ui": "slider", "scale": "linear", "group": "MIDI"},
+    {"ident": "8:_通道", "name_regex": "通道", "role": "channel", "ui": "select", "scale": "indexed", "group": "MIDI"},
+    {"ident": "9:_Transpose", "name_regex": "Transpose", "role": "macro", "ui": "select", "scale": "indexed", "group": "MIDI"},
+    {"ident": "10:_Snap_to_Scale", "name_regex": "Snap to Scale", "role": "enable", "ui": "toggle", "scale": "indexed", "group": "Scale"},
+    {"ident": "11:_Scale_Root", "name_regex": "Scale Root", "role": "scale", "ui": "select", "scale": "indexed", "group": "Scale"},
+    {"ident": "12:_Scale_Type", "name_regex": "Scale Type", "role": "scale", "ui": "select", "scale": "indexed", "group": "Scale"},
+    {"ident": "16:wet", "name_regex": "Wet", "role": "wet", "ui": "slider", "scale": "linear", "group": "Master"},
+    {"ident": "15:bypass", "name_regex": "旁通|Bypass", "role": "bypass", "ui": "toggle", "scale": "indexed", "group": "Master"}
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "fx_ident_match": "OTT",
+  "groups": ["Master", "Thresholds", "Dynamics"],
+  "params": [
+    {"ident": "0:0", "name_regex": "Depth", "role": "macro", "ui": "knob", "scale": "linear", "group": "Master"},
+    {"ident": "1:1", "name_regex": "Time", "role": "env", "ui": "knob", "scale": "linear", "group": "Master"},
+    {"ident": "2:2", "name_regex": "In Gain", "role": "gain", "ui": "knob", "scale": "linear", "group": "Master"},
+    {"ident": "3:3", "name_regex": "Out Gain", "role": "gain", "ui": "knob", "scale": "linear", "group": "Master"},
+    {"ident": "5:5", "name_regex": "Thresh L", "role": "threshold", "ui": "slider", "scale": "linear", "group": "Thresholds"},
+    {"ident": "6:6", "name_regex": "Thresh M", "role": "threshold", "ui": "slider", "scale": "linear", "group": "Thresholds"},
+    {"ident": "7:7", "name_regex": "Thresh H", "role": "threshold", "ui": "slider", "scale": "linear", "group": "Thresholds"},
+    {"ident": "8:8", "name_regex": "Gain L", "role": "gain", "ui": "slider", "scale": "linear", "group": "Dynamics"},
+    {"ident": "17:17", "name_regex": "Upwd Strgth", "role": "dynamics", "ui": "knob", "scale": "linear", "group": "Dynamics"},
+    {"ident": "18:18", "name_regex": "Dnwd Strgth", "role": "dynamics", "ui": "knob", "scale": "linear", "group": "Dynamics"}
+  ]
+}

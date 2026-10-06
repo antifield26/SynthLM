@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "fx_ident_match": "ReaEQ",
+  "groups": ["Low Shelf", "Band 2", "Band 3", "High Shelf", "High Pass", "Master"],
+  "params": [
+    {"ident": "0:_Freq_Low_Shelf", "name_regex": "Freq-Low Shelf", "role": "frequency", "ui": "slider", "scale": "log", "group": "Low Shelf"},
+    {"ident": "1:_Gain_Low_Shelf", "name_regex": "Gain-Low Shelf", "role": "gain", "ui": "slider", "scale": "linear", "group": "Low Shelf"},
+    {"ident": "3:_Freq_Band_2", "name_regex": "Freq-Band 2", "role": "frequency", "ui": "slider", "scale": "log", "group": "Band 2"},
+    {"ident": "4:_Gain_Band_2", "name_regex": "Gain-Band 2", "role": "gain", "ui": "slider", "scale": "linear", "group": "Band 2"},
+    {"ident": "6:_Freq_Band_3", "name_regex": "Freq-Band 3", "role": "frequency", "ui": "slider", "scale": "log", "group": "Band 3"},
+    {"ident": "7:_Gain_Band_3", "name_regex": "Gain-Band 3", "role": "gain", "ui": "slider", "scale": "linear", "group": "Band 3"},
+    {"ident": "9:_Freq_High_Shelf_4", "name_regex": "Freq-High Shelf 4", "role": "frequency", "ui": "slider", "scale": "log", "group": "High Shelf"},
+    {"ident": "10:_Gain_High_Shelf_4", "name_regex": "Gain-High Shelf 4", "role": "gain", "ui": "slider", "scale": "linear", "group": "High Shelf"},
+    {"ident": "12:_Freq_High_Pass_5", "name_regex": "Freq-High Pass 5", "role": "frequency", "ui": "slider", "scale": "log", "group": "High Pass"},
+    {"ident": "13:_Gain_High_Pass_5", "name_regex": "Gain-High Pass 5", "role": "gain", "ui": "slider", "scale": "linear", "group": "High Pass"},
+    {"ident": "15:_Global_Gain", "name_regex": "Global Gain", "role": "macro", "ui": "knob", "scale": "linear", "group": "Master"},
+    {"ident": "17:wet", "name_regex": "Wet", "role": "wet", "ui": "slider", "scale": "linear", "group": "Master"},
+    {"ident": "16:bypass", "name_regex": "旁通|Bypass", "role": "bypass", "ui": "toggle", "scale": "indexed", "group": "Master"}
+  ]
+}

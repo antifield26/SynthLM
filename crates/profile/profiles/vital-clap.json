@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "fx_ident_match": "CLAP.*Vital",
+  "groups": ["Macros", "Chorus", "Tempo"],
+  "params": [
+    {"ident": null, "name_regex": "Macro 1", "role": "macro", "ui": "knob", "scale": "linear", "group": "Macros"},
+    {"ident": null, "name_regex": "Macro 2", "role": "macro", "ui": "knob", "scale": "linear", "group": "Macros"},
+    {"ident": null, "name_regex": "Macro 3", "role": "macro", "ui": "knob", "scale": "linear", "group": "Macros"},
+    {"ident": "1:49", "name_regex": "Chorus Filter Cutoff", "role": "cutoff", "ui": "knob", "scale": "log", "group": "Chorus"},
+    {"ident": "4:52", "name_regex": "Chorus Mix", "role": "mix", "ui": "knob", "scale": "linear", "group": "Chorus"},
+    {"ident": "5:53", "name_regex": "Chorus Feedback", "role": "resonance", "ui": "knob", "scale": "linear", "group": "Chorus"},
+    {"ident": "6:54", "name_regex": "Chorus Frequency", "role": "lfo_rate", "ui": "knob", "scale": "linear", "group": "Chorus"},
+    {"ident": "7:55", "name_regex": "Chorus Mod Depth", "role": "lfo_depth", "ui": "knob", "scale": "linear", "group": "Chorus"},
+    {"ident": "2:50", "name_regex": "Chorus Delay 1", "role": "delay", "ui": "knob", "scale": "linear", "group": "Chorus"},
+    {"ident": "8:56", "name_regex": "Chorus Switch", "role": "enable", "ui": "toggle", "scale": "indexed", "group": "Chorus"},
+    {"ident": "0:48", "name_regex": "Beats Per Minute", "role": "mod", "ui": "knob", "scale": "linear", "group": "Tempo"}
+  ]
+}

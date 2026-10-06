@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "fx_ident_match": "Pro-Q 4",
+  "groups": ["Band 1", "Band 1 Dynamics"],
+  "params": [
+    {"ident": "0:0", "name_regex": "Band 1 Used", "role": "enable", "ui": "toggle", "scale": "indexed", "group": "Band 1"},
+    {"ident": "1:1", "name_regex": "Band 1 Enabled", "role": "enable", "ui": "toggle", "scale": "indexed", "group": "Band 1"},
+    {"ident": "2:2", "name_regex": "Band 1 Frequency", "role": "frequency", "ui": "knob", "scale": "log", "group": "Band 1"},
+    {"ident": "3:3", "name_regex": "Band 1 Gain", "role": "macro", "ui": "knob", "scale": "linear", "group": "Band 1"},
+    {"ident": "4:4", "name_regex": "Band 1 Q", "role": "resonance", "ui": "knob", "scale": "linear", "group": "Band 1"},
+    {"ident": "5:5", "name_regex": "Band 1 Shape", "role": "shape", "ui": "select", "scale": "indexed", "group": "Band 1"},
+    {"ident": "6:6", "name_regex": "Band 1 Slope", "role": "slope", "ui": "select", "scale": "indexed", "group": "Band 1"},
+    {"ident": "7:7", "name_regex": "Band 1 Stereo Placement", "role": "mix", "ui": "select", "scale": "indexed", "group": "Band 1"},
+    {"ident": "8:8", "name_regex": "Band 1 Speakers", "role": "channel", "ui": "select", "scale": "indexed", "group": "Band 1"},
+    {"ident": "9:9", "name_regex": "Band 1 Dynamic Range", "role": "dynamics", "ui": "knob", "scale": "linear", "group": "Band 1 Dynamics"},
+    {"ident": "10:10", "name_regex": "Band 1 Dynamics Enabled", "role": "enable", "ui": "toggle", "scale": "indexed", "group": "Band 1 Dynamics"},
+    {"ident": "12:12", "name_regex": "Band 1 Threshold", "role": "threshold", "ui": "slider", "scale": "linear", "group": "Band 1 Dynamics"},
+    {"ident": "13:13", "name_regex": "Band 1 Attack", "role": "attack", "ui": "knob", "scale": "linear", "group": "Band 1 Dynamics"},
+    {"ident": "14:14", "name_regex": "Band 1 Release", "role": "release", "ui": "knob", "scale": "linear", "group": "Band 1 Dynamics"}
+  ]
+}

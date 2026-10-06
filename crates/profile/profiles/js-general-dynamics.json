@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "fx_ident_match": "General Dynamics",
+  "groups": ["Detector", "Envelope", "Mix", "Master"],
+  "params": [
+    {"ident": "0", "name_regex": "Detector Input", "role": "mod", "ui": "select", "scale": "indexed", "group": "Detector"},
+    {"ident": "1", "name_regex": "Detector Gain \\(dB\\)", "role": "threshold", "ui": "knob", "scale": "linear", "group": "Detector"},
+    {"ident": "2", "name_regex": "Detector RMS size \\(ms\\)", "role": "env", "ui": "knob", "scale": "linear", "group": "Detector"},
+    {"ident": "3", "name_regex": "Input lookahead \\(ms\\)", "role": "env", "ui": "knob", "scale": "linear", "group": "Envelope"},
+    {"ident": "4", "name_regex": "Input Attack \\(ms\\)", "role": "attack", "ui": "knob", "scale": "linear", "group": "Envelope"},
+    {"ident": "5", "name_regex": "Input Release \\(ms\\)", "role": "release", "ui": "knob", "scale": "linear", "group": "Envelope"},
+    {"ident": "6", "name_regex": "Gain Attack \\(ms\\)", "role": "attack", "ui": "knob", "scale": "linear", "group": "Envelope"},
+    {"ident": "7", "name_regex": "Gain Release \\(ms\\)", "role": "release", "ui": "knob", "scale": "linear", "group": "Envelope"},
+    {"ident": "8", "name_regex": "Wet Mix \\(dB\\)", "role": "macro", "ui": "knob", "scale": "linear", "group": "Mix"},
+    {"ident": "9", "name_regex": "Dry Mix \\(dB\\)", "role": "mix", "ui": "knob", "scale": "linear", "group": "Mix"},
+    {"ident": "10:bypass", "name_regex": "旁通|Bypass", "role": "bypass", "ui": "toggle", "scale": "indexed", "group": "Master"},
+    {"ident": "11:wet", "name_regex": "Wet", "role": "wet", "ui": "slider", "scale": "linear", "group": "Master"},
+    {"ident": "12:delta", "name_regex": "Delta", "role": "delta", "ui": "toggle", "scale": "indexed", "group": "Master"}
+  ]
+}

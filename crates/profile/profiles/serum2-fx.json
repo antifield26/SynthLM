@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "fx_ident_match": "Serum 2 FX",
+  "groups": ["Master", "Buses", "Performance", "Preset"],
+  "params": [
+    {"ident": "0:0", "name_regex": "Main Vol", "role": "macro", "ui": "knob", "scale": "linear", "group": "Master"},
+    {"ident": "18:19", "name_regex": "Bus 1 Vol", "role": "volume", "ui": "knob", "scale": "linear", "group": "Buses"},
+    {"ident": "19:20", "name_regex": "Bus 2 Vol", "role": "volume", "ui": "knob", "scale": "linear", "group": "Buses"},
+    {"ident": "17:18", "name_regex": "Direct Vol", "role": "mix", "ui": "knob", "scale": "linear", "group": "Buses"},
+    {"ident": "8:8", "name_regex": "Mod Wheel", "role": "mod", "ui": "slider", "scale": "linear", "group": "Performance"},
+    {"ident": "2:2", "name_regex": "Amp", "role": "gain", "ui": "knob", "scale": "linear", "group": "Performance"},
+    {"ident": "3:3", "name_regex": "Porta Time", "role": "glide", "ui": "knob", "scale": "linear", "group": "Performance"},
+    {"ident": "15:16", "name_regex": "Transpose", "role": "pitch", "ui": "select", "scale": "indexed", "group": "Performance"},
+    {"ident": "16:17", "name_regex": "Bypass", "role": "bypass", "ui": "toggle", "scale": "indexed", "group": "Performance"},
+    {"ident": null, "name_regex": "Mod(ulation)? Matrix|Routing", "role": "preset_only", "ui": "hidden", "scale": "indexed", "group": "Preset"}
+  ]
+}
