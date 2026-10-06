@@ -37,7 +37,7 @@
 | TSK-112 | B 矩阵 20 行脚本 × 5 款插件 | 调研 | 1 | — | P0 | M | 输出解析：名/范围 100%、automatable gate 有效、空率记录 | DEC-015 | Done | stock 4 格 + VST3 3 厂商 + CLAP Vital 通过；跨格式结论：Vital VST3 2986 vs CLAP 906 参数表不可移植（B §5 补记） |
 | TSK-113 | docs/LICENSES.md 登记初版 + `buildconf` 确认 | 合规 | 1 | — | P0 | S | 每个新增依赖一行（来源/条款/结论）；FFmpeg 构建行存档 | DEC-025 | Done | cargo tree 零外部依赖 + Gyan 9.0.2 buildconf 存档（GPL 构建，不可作 LGPL fallback） |
 | TSK-114 | REAPER 扩展真机线（bridge cdylib 加载 + smoke） | 实现 | 1 | TSK-101/102/103 | P0 | M | 扩展加载零崩溃 + 容器解析/undo/快照 smoke 全绿 | DEC-001/008/020 | Done | 加载/标记/零改动全绿（marker epoch 1791263540，前后基线 0轨0项1undo）；DLL 留装待处置 |
-| TSK-115 | IPC 权限用例 + 共享内存大数据通道 | 实现 | 1 | TSK-107 | P1 | M | 跨权限 ACL/Unix mode 用例绿；PCM/stem 走 shm 基准达标 | DEC-023 | In-Progress | shm 闭环 + 基准全绿（1MiB~95MiB/s，16MiB~245MiB/s）；待人类裁决 common 2 处 unsafe 例外；跨用户/真多进程未覆盖 |
+| TSK-115 | IPC 权限用例 + 共享内存大数据通道 | 实现 | 1 | TSK-107 | P1 | M | 跨权限 ACL/Unix mode 用例绿；PCM/stem 走 shm 基准达标 | DEC-023 | Done | shm 闭环 + 基准全绿；common 2 处 unsafe 例外人类已批（AGENTS §4）；跨用户/真多进程未覆盖后随 |
 
 ## Phase 2（语义与检索评价）
 
@@ -45,10 +45,10 @@
 |---|---|---|---|---|---|---|---|---|---|---|
 | TSK-201 | Profile schema + 首批白名单（≥5 款） | 实现 | 2 | TSK-112 | P0 | M | 白名单覆盖 ≥80% 目标声设参数；ident 回查 -1 迁移单测过 | DEC-015 | Done | schema+builtins 20 单测绿；7 插件各 8–16 条（Macro 4/Vital 待补测；name_regex 编译延后；13 doc 坏链已修） |
 | TSK-202 | MIR v1 链（48k/STFT/mel/CLAP/LUFS） | 实现 | 2 | TSK-104 | P0 | M | 参数变更即 golden 失配（敏感性）；固定输入评分落区间 | DEC-012/016 | Done | mir.rs+score.rs+golden（13+5 全绿；+6dB 归零 ΔLUFS=-6.021；CLAP 缝留待接入；3341 归 TSK-208） |
-| TSK-203 | 检索后端原型二选一（10k 基准） | 实现 | 2 | TSK-202 | P0 | M | 构建 <30min、P95 <100ms；落选者归档理由 | DEC-014 | Done | 双后端 trait + 10k harness 全绿（0.14s/P95~30ms）；推荐 LanceDb（parity 规则内），待人类拍板锁定；真 crate 绑定延后 |
+| TSK-203 | 检索后端原型二选一（10k 基准） | 实现 | 2 | TSK-202 | P0 | M | 构建 <30min、P95 <100ms；落选者归档理由 | DEC-014 | Done | 双后端 trait + 10k harness 全绿（0.14s/P95~30ms）；默认后端锁定 LanceDb（人类 2026-10-06 批准；反转：真 crate 下 P95 回退 >20% 即翻转）；注：harness 每次重写 BENCH.md，CI 侧如脏树需门禁 |
 | TSK-204 | 评价器 + `+6dB` 防作弊回归 | 测试 | 2 | TSK-202 | P0 | M | `+6dB` 用例必不涨分；三次方差门禁 | DEC-016/L5 | Done | golden 5→9（低频作弊/削波告警/位一致/多分辨率 ordering）；权重 0.30/0.45/0.25 初值，标定归 TSK-402 |
-| TSK-205 | stem 后台队列 + 内容寻址缓存 + GC | 实现 | 2 | TSK-104 | P1 | M | 缓存命中率/水位指标上报；超 50GB 自动 GC | DEC-009 | Todo | C-dsp §5 |
-| TSK-206 | symphonia/FFmpeg fallback 阈值实测 | 测试 | 2 | TSK-202 | P1 | S | 破损/异形格式矩阵：触发 fallback 的条件清单 | C-dsp §1 | Todo | C-dsp |
+| TSK-205 | stem 后台队列 + 内容寻址缓存 + GC | 实现 | 2 | TSK-104 | P1 | M | 缓存命中率/水位指标上报；超 50GB 自动 GC | DEC-009 | Done | dsp 新 crate（23 单测绿：状态机/寻址/GC/指针；零新外部依赖）；WAL/journal 与 DEC-027 迁移留后续 |
+| TSK-206 | symphonia/FFmpeg fallback 阈值实测 | 测试 | 2 | TSK-202 | P1 | S | 破损/异形格式矩阵：触发 fallback 的条件清单 | C-dsp §1 | Done | 8 格式矩阵全绿（唯一触发：截断 wav；AAC 46080 帧须 priming 修齐，转消费侧）；symphonia 已登记 |
 | TSK-207 | 时变 AB（timestretch vs RB 内部运行） | 测试 | 2 | TSK-202 | P2 | S | AB 报告落盘；RB 仅内部运行记录（不购证） | DEC-025 | Todo | C-dsp §3 |
 | TSK-208 | 响度 calibration/交叉验证复跑 | 测试 | 2 | TSK-202 | P1 | S | 3341 14/14 + 与 ebur128 ±0.5 LU | C-dsp §4 | Todo | C-dsp |
 
