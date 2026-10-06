@@ -58,7 +58,7 @@
 |---|---|---|---|---|---|---|---|---|---|---|
 | TSK-301 | model-gw 三档路由 + 熔断降级链 | 实现 | 3 | TSK-105/106 | P0 | M | 故障注入：Tier1  down→Tier2→Tier3→BLOCKED 路径全覆盖；无已存 consent 即 consent_required BLOCKED（先弹窗，AGENTS §8） | DEC-010/011 | Done | model_gw.rs（14 单测绿：全降级链/401 跳云/熔断/审计脱敏）；零网络（真传输归 TSK-116） |
 | TSK-116 | model-gw 真 HTTPS 传输（responses 格式） | 实现 | 3 | TSK-301 | P1 | S | 30s hard/P95 10s 超时接线；401/429/5xx 真映射；MockTransport 回归保留 | DEC-010/011 | Done | HttpsTransport（blocking rustls，无 openssl；127 stub 全绿，Mock 回归全过）；真端点验证转 TSK-117（推理 POST 系统性 400） |
-| TSK-117 | 云端推理真调用验证（Go 面形态/账户） | 测试 | 3 | TSK-116 | P0 | S | 任一 Tier 首次 2xx + 信封解码；失败即记录不硬试 | DEC-010/011 | Blocked | 阻塞原因：推理 POST 5 组合全 400 空体（鉴权/模型 ID 已排除）；解除条件：dashboard 核对（模型开关/余额/月限额）或 Go 面形态文档；证据 docs/research/C-live-endpoint.md |
+| TSK-117 | 云端推理真调用验证（Go 面形态/账户） | 测试 | 3 | TSK-116 | P0 | S | 任一 Tier 首次 2xx + 信封解码；失败即记录不硬试 | DEC-010/011 | Blocked | 阻塞原因：推理 POST 全 400 空体（鉴权/模型 ID 已排除；free 假设已由人类排除）；解除条件：dashboard 核对（模型开关/余额/月限额）或 Go 面形态文档；证据 docs/research/C-live-endpoint.md |
 | TSK-302 | Patch schema 双校验 + 修复循环 | 实现 | 3 | TSK-201/301 | P0 | M | 首轮有效率 ≥95%，2 轮修复 ≥99%（fixture 集） | DEC-013 | Done | patch.rs（48 fixture：首轮 100%/修复 100%；JSFX 裸 ident 按设计拒，SELECT 枚举/add存在性留后续） |
 | TSK-303 | TPE/CMA-ES 粗搜 + NM 收尾（mock 渲染） | 实现 | 3 | TSK-204 | P1 | M | 预算公式单测：50 次≈分钟级；mock 下收敛 | DEC-018/C §5 | Done | 零依赖 TPE-lite + 手写 NM（预算/收敛全绿）；optimizer/cmaes 待真嵌入时接入；接线已收口 |
 | TSK-304 | 多样性去重 + 候选卡片 6 字段 | 实现 | 3 | TSK-302 | P1 | S | 同质 fixture 去重生效；卡片字段缺失即单测红 | DEC-018/019 | Done | candidate.rs（去重/gap 标记/6 键卡片全绿）；CLAP 距离与试听引用格式待输入形状落定；接线已收口 |
