@@ -217,6 +217,7 @@ DEC-022：workspace 划分与 crate 边界（单向依赖）
 反转条件：编译增量 >5min 或循环依赖无法解，才合并相邻叶 crate。
 影响面：ARCHITECTURE、TSK-skeleton。
 核验依据：L8/L9、A05。
+补记（2026-10-06，TSK-205）：新增 `dsp` 叶 crate（stem 队列/内容寻址缓存/GC），仅依赖 `common`，`acrd` 后续可依赖；方向与本 DEC 单向性一致，不触发反转。
 
 DEC-023：IPC 协议演进（version 握手 + JSON 首版）
 状态：Proposed

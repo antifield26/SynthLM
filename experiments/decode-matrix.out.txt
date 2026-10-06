@@ -1,0 +1,24 @@
+TSK-206 decode matrix (symphonia primary vs FFmpeg CLI对照)
+date(UTC): 2026-10-06
+symphonia: 0.6.1 MPL-2.0 (features: default + mp3/aac/isomp4)
+ffmpeg: C:\Users\25371\tools\ffmpeg\ffmpeg-9.0.2-essentials_build\bin\ffmpeg.exe (Gyan 9.0.2-essentials GPL-2+ build, internal-run only)
+source: experiments/spike-tone.wav (pcm_s16le mono 44100Hz 1s, 44100 frames)
+scratch: %TEMP%/synthlm-decode-matrix-29652 (fixtures, not committed)
+rule: fallback = !symphonia_ok && ffmpeg_ok
+format | file | symphonia | ffmpeg对照 | fallback
+wav | m.wav | ok frames=44100 codec=AudioCodecId(264) sr=44100 ch=1 | ok bytes=88278 | no
+flac | m.flac | ok frames=44100 codec=AudioCodecId(8192) sr=44100 ch=1 | ok bytes=88278 | no
+mp3 | m.mp3 | ok frames=44100 codec=AudioCodecId(4102) sr=44100 ch=1 | ok bytes=88278 | no
+vorbis | m.ogg | ok frames=44100 codec=AudioCodecId(4096) sr=44100 ch=1 | ok bytes=88022 | no
+aac | m.m4a | ok frames=46080 codec=AudioCodecId(4103) sr=44100 ch=1 | ok bytes=88278 | no
+trunc-wav | trunc.wav | FAIL packet: unexpected end of file | ok bytes=134 | YES
+empty | empty.wav | FAIL probe: unsupported feature: core (probe): no suitable format reader found | FAIL exit=exit code: 0xbebbb1b7 bytes=0 [in#0 @ 000000977f265a80] Error opening input: Invalid data found when processing input | no
+random | random.bin | FAIL probe: unsupported feature: core (probe): no suitable format reader found | FAIL exit=exit code: 0xbebbb1b7 bytes=0 [in#0 @ 00000080005e0a40] Error opening input: Invalid data found when processing input | no
+---- fallback trigger list ----
+TRIGGER trunc-wav: symphonia FAIL + ffmpeg ok -> route decode via FFmpeg CLI.
+standing triggers (apply regardless of this run):
+- T1 symphonia probe Unsupported + ffmpeg ok -> FFmpeg fallback;
+- T2 symphonia decode error/0-frames + ffmpeg ok -> FFmpeg fallback;
+- T3 both fail -> hard error, no fallback (surface to user, keep provenance);
+- T4 local CLI is a GPL build: fallback SHIPS only via an LGPL/non-gpl
+FFmpeg build (TSK-206 follow-up); the Gyan binary stays internal-run.
