@@ -25,12 +25,12 @@
 |---|---|---|---|---|---|---|---|---|---|---|
 | TSK-101 | 容器地址重算层 + GUID 锚定 + 展平回退 | 实现 | 1 | TSK-002 | P0 | M | 50 次容器内外移动/增删重算成功率 ≥95%（Lua 自动化） | DEC-001/003 | In-Progress | 纯 Rust 层完成：container_addr.rs（11 单测 + 2 doctest 全绿，reaper-rs rev 659b22b）；真机 50-op 待 TSK-102 adapter 后关闭 |
 | TSK-102 | undo 事务封装 + 写后指针重取 | 实现 | 1 | TSK-002 | P0 | S | spike03c/f 复现：T1_delta=1、undo 后 ValidatePtr2=false→重取成功 | DEC-008 | In-Progress | undo.rs（RAII guard + dirty 去重 + GUID 重取，8 单测绿，主干零 unwrap，unsafe×2 均有论证）；medium/low 选用已定；真机 live-fire 待定 |
-| TSK-103 | 显式快照 + 一键整体回滚 | 实现 | 1 | TSK-102 | P0 | M | 故障注入 100 次应用/回滚零残留（计数器归零） | DEC-004/020 | Todo | A03/A04 |
+| TSK-103 | 显式快照 + 一键整体回滚 | 实现 | 1 | TSK-102 | P0 | M | 故障注入 100 次应用/回滚零残留（计数器归零） | DEC-004/020 | In-Progress | snapshot.rs（9 单测绿：往返/单 undo 块/迁移移除/NCH 回写/fail-closed；真机 live-fire 待定） |
 | TSK-104 | 42230 渲染线 + null-test 门禁 + 兜底链 | 实现 | 1 | TSK-103 | P0 | M | 同参三次渲染方差 <阈值；全速失败自动进小块→1x→online；M7（BOUNDSFLAG=4 + 单文件开关）文件清单验证 | DEC-005 | Todo | A03 |
 | TSK-105 | 三档 consent 弹窗 + 设置页 + 档位持久化 | 实现 | 1 | TSK-002 | P0 | S | 三档切换单测全过；缺授权调用即 `consent_required` BLOCKED | DEC-010/011 | Todo | DEC-010 |
 | TSK-106 | 上传字段白名单审计单测 | 测试 | 1 | TSK-105 | P0 | S | PCM 越界用例必红，白名单用例全绿；审计日志无 Key/PCM | DEC-011/026 | Todo | 待产出 |
 | TSK-107 | IPC hello/帧 + 超时重连（三 OS） | 实现 | 1 | TSK-002 | P0 | M | Win/macOS/Linux 建连/断线/权限用例全绿 | DEC-023 | In-Progress | 帧/握手/错误分类/审计脱敏/Windows 回环全绿（15 单测 + interprocess 2.4.4）；Linux/macOS 留 CI；权限/shm 后续 |
-| TSK-108 | `.env` Key 读取 + 缺失 BLOCKED | 实现 | 1 | TSK-105 | P0 | S | 无 `.env` 启动即 BLOCKED + 指引；grep 证明 Key 不进日志/快照 | DEC-010/026 | Todo | .gitignore |
+| TSK-108 | `.env` Key 读取 + 缺失 BLOCKED | 实现 | 1 | TSK-105 | P0 | S | 无 `.env` 启动即 BLOCKED + 指引；grep 证明 Key 不进日志/快照 | DEC-010/026 | Done | config.rs（33 单测绿，全注入式零 unsafe；Debug 全 redacted；零新依赖）；fail-safe 裁决：无已存 consent 不得出网（TSK-105/301 落实门禁） |
 | TSK-109 | Action ID 人工复核（40362/40601/渲染系） | 调研 | 1 | — | P1 | S | Action list 截图/导出对照表落盘 | A04 §7 | Done | A03 §7 对照表 + probe 证据；人类 2026-10-06 eyeball 确认 |
 | TSK-110 | P_EXT 跨工程跟随 + redo 干净重测（隔离 tab） | 测试 | 1 | TSK-102 | P1 | S | 独立 tab 下 undo/redo 后 P_EXT 值符合预期（对称往返） | DEC-027 | Done | 05d 对称干净（v1→空→v1）+ 人工跨工程 paste 通过（hello-manual）；夹具已清理 |
 | TSK-111 | CopyToTake NCH 携带 + glue 后 P_EXT 保留 | 测试 | 1 | TSK-102 | P1 | S | 目标 chunk NCH 一致；glue 新 take provenance 齐全或显式重写 | A04 §M3/M6 | Done | M3：复制带 FX 不带 NCH→须显式回写；M6：glue 丢 take P_EXT→须重写（undo 可恢复）；M7 并入 TSK-104 |
@@ -54,7 +54,7 @@
 
 | ID | 标题 | 类型 | 阶段 | 依赖 | 优先级 | 规模 | 验收标准(可测) | 关联决策 | 状态 | 证据链接 |
 |---|---|---|---|---|---|---|---|---|---|---|
-| TSK-301 | model-gw 三档路由 + 熔断降级链 | 实现 | 3 | TSK-105/106 | P0 | M | 故障注入：Tier1  down→Tier2→Tier3→BLOCKED 路径全覆盖 | DEC-010/011 | Todo | DEC-010 |
+| TSK-301 | model-gw 三档路由 + 熔断降级链 | 实现 | 3 | TSK-105/106 | P0 | M | 故障注入：Tier1  down→Tier2→Tier3→BLOCKED 路径全覆盖；无已存 consent 即 consent_required BLOCKED（先弹窗，AGENTS §8） | DEC-010/011 | Todo | DEC-010 |
 | TSK-302 | Patch schema 双校验 + 修复循环 | 实现 | 3 | TSK-201/301 | P0 | M | 首轮有效率 ≥95%，2 轮修复 ≥99%（fixture 集） | DEC-013 | Todo | C-models §2 |
 | TSK-303 | TPE/CMA-ES 粗搜 + NM 收尾（mock 渲染） | 实现 | 3 | TSK-204 | P1 | M | 预算公式单测：50 次≈分钟级；mock 下收敛 | DEC-018/C §5 | Todo | C-models §5 |
 | TSK-304 | 多样性去重 + 候选卡片 6 字段 | 实现 | 3 | TSK-302 | P1 | S | 同质 fixture 去重生效；卡片字段缺失即单测红 | DEC-018/019 | Todo | L6 |
