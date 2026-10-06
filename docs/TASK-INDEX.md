@@ -26,7 +26,7 @@
 | TSK-101 | 容器地址重算层 + GUID 锚定 + 展平回退 | 实现 | 1 | TSK-002 | P0 | M | 50 次容器内外移动/增删重算成功率 ≥95%（Lua 自动化） | DEC-001/003 | Done | Lua 50/50（公式交叉验证，含 move-in/out/del 各≥5 次）；Rust 纯层 11 单测 + 2 doctest；扩展真机归 TSK-114 |
 | TSK-102 | undo 事务封装 + 写后指针重取 | 实现 | 1 | TSK-002 | P0 | S | spike03c/f 复现：T1_delta=1、undo 后 ValidatePtr2=false→重取成功 | DEC-008 | Done | Lua 验收通过（spike03c/f）+ undo.rs 8 单测绿；扩展真机归 TSK-114 |
 | TSK-103 | 显式快照 + 一键整体回滚 | 实现 | 1 | TSK-102 | P0 | M | 故障注入 100 次应用/回滚零残留（计数器归零） | DEC-004/020 | Done | Lua 100/0 零残留（fault-inject-100.out.txt）+ snapshot.rs 9 单测绿；扩展真机归 TSK-114 |
-| TSK-104 | 42230 渲染线 + null-test 门禁 + 兜底链 | 实现 | 1 | TSK-103 | P0 | M | 同参三次渲染方差 <阈值；全速失败自动进小块→1x→online；M7（BOUNDSFLAG=4 + 单文件开关）文件清单验证 | DEC-005 | In-Progress | Lua 核心绿：隔离 3/3 一致 + M7 2×2 全解（&32 源/单文件位/-001 后缀）；余变速切换键与块 pin（需 SWS） |
+| TSK-104 | 42230 渲染线 + null-test 门禁 + 兜底链 | 实现 | 1 | TSK-103 | P0 | M | 同参三次渲染方差 <阈值；全速失败自动进小块→1x→online；M7（BOUNDSFLAG=4 + 单文件开关）文件清单验证 | DEC-005 | Done | Lua 核心绿（隔离 3/3 + M7 2×2）；变速键仅 chunk（RENDER_1X 0/1/2，无 stock setter），Rust harness 落实留 Phase 3 |
 | TSK-105 | 三档 consent 弹窗 + 设置页 + 档位持久化 | 实现 | 1 | TSK-002 | P0 | S | 三档切换单测全过；缺授权调用即 `consent_required` BLOCKED | DEC-010/011 | Done | consent.rs（11 单测绿：fail-closed/原子写/文本 prompt；零新依赖；图形渲染留 TSK-306） |
 | TSK-106 | 上传字段白名单审计单测 | 测试 | 1 | TSK-105 | P0 | S | PCM 越界用例必红，白名单用例全绿；审计日志无 Key/PCM | DEC-011/026 | Done | upload_audit.rs（12 单测绿，复用 canonical 无第二套；裁决：精确匹配 fail-closed 保留，tier 门禁归调用方 TSK-301） |
 | TSK-107 | IPC hello/帧 + 超时重连（三 OS） | 实现 | 1 | TSK-002 | P0 | M | Win/macOS/Linux 建连/断线/权限用例全绿 | DEC-023 | Done | 帧/握手/分类/脱敏/回环全绿 + CI 三 OS jobs 全绿；权限用例与 shm 通道拆至 TSK-115 |
@@ -46,7 +46,7 @@
 | TSK-201 | Profile schema + 首批白名单（≥5 款） | 实现 | 2 | TSK-112 | P0 | M | 白名单覆盖 ≥80% 目标声设参数；ident 回查 -1 迁移单测过 | DEC-015 | Done | schema+builtins 20 单测绿；7 插件各 8–16 条（Macro 4/Vital 待补测；name_regex 编译延后；13 doc 坏链已修） |
 | TSK-202 | MIR v1 链（48k/STFT/mel/CLAP/LUFS） | 实现 | 2 | TSK-104 | P0 | M | 参数变更即 golden 失配（敏感性）；固定输入评分落区间 | DEC-012/016 | Done | mir.rs+score.rs+golden（13+5 全绿；+6dB 归零 ΔLUFS=-6.021；CLAP 缝留待接入；3341 归 TSK-208） |
 | TSK-203 | 检索后端原型二选一（10k 基准） | 实现 | 2 | TSK-202 | P0 | M | 构建 <30min、P95 <100ms；落选者归档理由 | DEC-014 | Todo | C-models §3 |
-| TSK-204 | 评价器 + `+6dB` 防作弊回归 | 测试 | 2 | TSK-202 | P0 | M | `+6dB` 用例必不涨分；三次方差门禁 | DEC-016/L5 | Todo | C-models §4 |
+| TSK-204 | 评价器 + `+6dB` 防作弊回归 | 测试 | 2 | TSK-202 | P0 | M | `+6dB` 用例必不涨分；三次方差门禁 | DEC-016/L5 | Done | golden 5→9（低频作弊/削波告警/位一致/多分辨率 ordering）；权重 0.30/0.45/0.25 初值，标定归 TSK-402 |
 | TSK-205 | stem 后台队列 + 内容寻址缓存 + GC | 实现 | 2 | TSK-104 | P1 | M | 缓存命中率/水位指标上报；超 50GB 自动 GC | DEC-009 | Todo | C-dsp §5 |
 | TSK-206 | symphonia/FFmpeg fallback 阈值实测 | 测试 | 2 | TSK-202 | P1 | S | 破损/异形格式矩阵：触发 fallback 的条件清单 | C-dsp §1 | Todo | C-dsp |
 | TSK-207 | 时变 AB（timestretch vs RB 内部运行） | 测试 | 2 | TSK-202 | P2 | S | AB 报告落盘；RB 仅内部运行记录（不购证） | DEC-025 | Todo | C-dsp §3 |

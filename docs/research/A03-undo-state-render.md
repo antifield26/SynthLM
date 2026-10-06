@@ -59,3 +59,4 @@ native ID 跨版本稳定（schwa t=47729）；SWS/自定义须 `NamedCommandLoo
 - 确定性成立（隔离条件下 3/3 逐字节一致，FNV 均为 `11d6dc2f`，`render-line-02.out.txt`）：前提是静音非相关轨 + 固定内容；首轮在用户 live 工程（有外来未静音内容）中 r1≠r2=r3，根因为外来内容污染——门禁方法（mute others + 固定 bounds）有效。离线块大小 pin 需 SWS/`set_config_var`（stock Lua 无偏好写入 API），本次未改块大小。
 - M7 完整规则（`render-m7-matrix.out.txt` 2×2）：`RENDER_SETTINGS &32` 选 item 源；`&(4<<16)` 开 → 单文件，关 → 逐项文件（后缀 `-001`/`-002`）；源为 master 时无论该位均为单文件；`RENDER_TARGETS` 以分号分隔列出全部目标，可直接计数。
 - 待定：变速切换键（1x/online 兜底的设置键）与块大小 pin，需 SWS 路径，记 TSK-104 余项。
+- 2026-10-06 变速键结论（TSK-104 余项关闭）：`RENDER_1X` 只存在于工程 chunk（`RENDER_1X <0全速/1一倍速/2在线>`，Ultraschall StateChunk 文档两版一致），stock ReaScript/SWS 以外的 setter 需 chunk 改写 + 工程重载（破坏会话，不采用）；Rust harness 侧走 chunk 路径待 Phase 3 搜索循环任务落实。块 pin 同理（偏好项，无 stock 写 API）。
