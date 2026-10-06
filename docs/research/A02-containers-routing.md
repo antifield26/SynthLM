@@ -47,3 +47,10 @@
 ## 7 ⚠️需实测清单
 
 `container_nch*` 键名、`container_map.add.<fx>.<param>` 快捷写法、`param.N.container_map.delete`、`I_NCHAN=128` 跨平台可用性、ReaInsert 参数表/Ping/PDC 键、`AddByName("Container")` 跨语言稳定性、Master/Monitoring 链容器差异。
+
+## 8 公式验证补记（2026-10-06，TSK-101，`experiments/container-50op.out.txt`）
+
+- 地面真值法：`container_count` + `container_item.N`（0-based）递归枚举，全程只用已核验键；公式 `addr = 0x2000000 + (p+1)*(count+1) + (c+1)` 用每轮新鲜 count 独立重算并与真值比对。
+- 50/50 通过（move-in 6、move-out 5、del-top 6、add-top 9、churn 8，其余为安全 skip 轮，验证步同样执行）：公式成立条件 = 每次操作前重算，过期 stride 地址必失效。
+- 附带发现：`CopyToTrack` 入容器可用过期 stride 目标（REAPER 侧结构化归一，探针 `container-probe.out.txt`：dest=…37 落位后真值为 …35）；容器显示名本地化（`容器`）；`parent_container` 顶层返回空（ok=false）；嵌套容器未测（后续 spike）。
+- Rust 层 `container_addr.rs` 实现同一公式（decode 带 re-encode 校验）。
