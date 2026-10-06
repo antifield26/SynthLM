@@ -7,6 +7,9 @@
 //! [`model_gw::MockTransport`] fault-injection double. A real HTTPS client
 //! (and its `docs/LICENSES.md` entry) is a follow-up task.
 
+/// Candidate assembly: distance dedup with direction coverage plus the
+/// six-field candidate card (TSK-304, DEC-018/019).
+pub mod candidate;
 /// Three-tier model gateway (TSK-301): tier resolution, failover routing,
 /// mock transport, and audit (DEC-010/011).
 pub mod model_gw;
@@ -14,3 +17,6 @@ pub mod model_gw;
 /// ident-shaped paths, profile-linked semantics, and a pure repair loop
 /// (DEC-013).
 pub mod patch;
+/// Derivative-free search: zero-dep TPE-lite coarse pass plus hand-written
+/// Nelder-Mead refinement over a mock objective (TSK-303).
+pub mod search;
