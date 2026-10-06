@@ -207,12 +207,15 @@ pub enum GatewayError {
     InvalidTier,
     /// An upload field at `index` falls outside the DEC-011 whitelist.
     #[error(
-        "upload field at index {index} is outside the audit whitelist [prompt, mir, meta]; nothing was sent (see DEC-011)"
+        "upload field at index {index} is outside the audit whitelist [prompt, mir, meta, audio_ref]; nothing was sent (see DEC-011)"
     )]
     WhitelistViolation {
         /// Position of the first offending field (no value stored).
         index: usize,
     },
+    /// An audio-bearing request reached Tier3, which is text-only (DEC-010).
+    #[error("tier3 is text-only: audio understanding routes to Tier1/Tier2 (see DEC-010)")]
+    TierAudioUnsupported,
     /// A cloud tier is in the chain but no API key is configured.
     #[error(
         "missing API key: set OPENCODE_API_KEY (alias OPENCODE_GO_API_KEY) in .env and restart; cloud calls stay BLOCKED until configured (see DEC-010)"
@@ -238,6 +241,7 @@ impl GatewayError {
         match self {
             GatewayError::ConsentRequired | GatewayError::InvalidTier => ErrorCode::ConsentRequired,
             GatewayError::WhitelistViolation { .. } => ErrorCode::WhitelistViolation,
+            GatewayError::TierAudioUnsupported => ErrorCode::AudioCapabilityMissing,
             GatewayError::MissingKey => ErrorCode::AuthDenied,
             GatewayError::AllTiersExhausted { code } => code,
         }
@@ -261,7 +265,10 @@ impl GatewayError {
                 "set SYNTHLM_CONSENT_TIER to tier1, tier2, or tier3 (see DEC-010)"
             }
             GatewayError::WhitelistViolation { .. } => {
-                "restrict upload fields to the whitelist [prompt, mir, meta]; PCM and key material must stay local (see DEC-011)"
+                "restrict upload fields to the whitelist [prompt, mir, meta, audio_ref]; PCM and key material must stay local (see DEC-011)"
+            }
+            GatewayError::TierAudioUnsupported => {
+                "route audio understanding to Tier1 or Tier2; Tier3 local is text-only (see DEC-010)"
             }
             GatewayError::MissingKey => {
                 "set OPENCODE_API_KEY (alias OPENCODE_GO_API_KEY) in .env and restart; the key value is never logged (see DEC-010)"
@@ -290,7 +297,8 @@ pub struct ModelRequest {
     pub model: &'static str,
     /// Where the model lives.
     pub endpoint: Endpoint,
-    /// Whitelisted upload field names (subset of `[prompt, mir, meta]`).
+    /// Whitelisted upload field names (subset of `[prompt, mir, meta, audio_ref]`;
+    /// `audio_ref` is Tier1/Tier2-only, refused at Tier3).
     pub fields: Vec<String>,
     /// Request body size in bytes (synthetic in tests; never PCM).
     pub byte_count: u64,
@@ -927,6 +935,7 @@ impl Gateway {
     /// Returns [`GatewayError::ConsentRequired`] (undecided consent),
     /// [`GatewayError::InvalidTier`] (bad env override),
     /// [`GatewayError::WhitelistViolation`] (fields outside the whitelist),
+    /// [`GatewayError::TierAudioUnsupported`] (audio at text-only Tier3),
     /// [`GatewayError::MissingKey`] (cloud tier without a key), or
     /// [`GatewayError::AllTiersExhausted`] (chain failed or all breakers
     /// open). Never call from an audio thread (blocking transport contract).
@@ -965,6 +974,17 @@ impl Gateway {
         let mut skip_cloud = false;
 
         for tier in chain {
+            // Tier3 is text-only (DEC-010): an audio-bearing request that
+            // exhausts into Tier3 fails closed instead of silently degrading
+            // to a text-only understanding of an audio request.
+            if tier == ConsentTier::Tier3
+                && params
+                    .fields
+                    .iter()
+                    .any(|field| field == config::AUDIO_FIELD)
+            {
+                return Err(GatewayError::TierAudioUnsupported);
+            }
             // A 401 verdict earlier in this route poisons the shared key:
             // skip the remaining cloud tiers and jump to local Tier3.
             if skip_cloud && upload_allowed(tier) {
@@ -1193,6 +1213,45 @@ mod tests {
             .expect("tier3 works keyless");
         assert_eq!(ok.response.tier, ConsentTier::Tier3);
         assert_eq!(ok.attempted, vec![ConsentTier::Tier3]);
+    }
+
+    #[test]
+    fn tier3_audio_request_is_refused_before_transport() {
+        let mut gateway = Gateway::default();
+        let mut transport = MockTransport::all_ok();
+        let err = gateway
+            .route(
+                &decided(ConsentTier::Tier3),
+                params(&["prompt", "audio_ref"]),
+                &mut transport,
+            )
+            .expect_err("tier3 is text-only");
+        assert_eq!(err, GatewayError::TierAudioUnsupported);
+        assert_eq!(err.code(), ErrorCode::AudioCapabilityMissing);
+        assert!(err.blocked());
+        assert!(transport.calls().is_empty());
+        assert!(!format!("{err}").contains("audio_ref"));
+    }
+
+    #[test]
+    fn tier1_audio_request_flows_with_audio_field() {
+        let mut gateway = Gateway::default();
+        let mut transport = MockTransport::all_ok();
+        let outcome = gateway
+            .route(
+                &decided(ConsentTier::Tier1),
+                params(&["prompt", "audio_ref"]),
+                &mut transport,
+            )
+            .expect("tier1 serves audio");
+        assert_eq!(outcome.response.tier, ConsentTier::Tier1);
+        assert_eq!(outcome.attempted, vec![ConsentTier::Tier1]);
+        assert!(
+            outcome
+                .audits
+                .iter()
+                .all(|audit| audit.fields.iter().any(|field| field == "audio_ref"))
+        );
     }
 
     #[test]

@@ -55,7 +55,18 @@ fn owned(fields: &[&str]) -> Vec<String> {
 
 #[test]
 fn whitelist_constant_pins_dec011_members() {
-    assert_eq!(ALLOWED_UPLOAD_FIELDS, &["prompt", "mir", "meta"]);
+    assert_eq!(
+        ALLOWED_UPLOAD_FIELDS,
+        &["prompt", "mir", "meta", "audio_ref"]
+    );
+}
+
+#[test]
+fn audio_ref_accepted_for_cloud_tiers() {
+    // Tier1/Tier2-only by gateway routing rule (TSK-118); the field itself
+    // is a legal whitelist member.
+    validate_upload_fields(&owned(&["audio_ref"])).expect("audio_ref is whitelisted");
+    validate_upload_fields(&owned(&["prompt", "audio_ref"])).expect("combo passes");
 }
 
 #[test]

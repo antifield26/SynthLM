@@ -95,9 +95,14 @@ pub const DEFAULT_TIER: ConsentTier = ConsentTier::Tier1;
 /// DEC-011 upload whitelist: the only field names that may leave the machine.
 ///
 /// `prompt` = model prompt, `mir` = MIR features, `meta` = candidate
-/// metadata. Raw audio (PCM), key material, and prompt/repository paths are
-/// never members; [`validate_upload_fields`] rejects them.
-pub const ALLOWED_UPLOAD_FIELDS: &[&str] = &["prompt", "mir", "meta"];
+/// metadata, [`AUDIO_FIELD`] = reference-audio excerpt (Tier1/Tier2 only;
+/// Tier3 is text-only and the gateway refuses it there). Raw audio (PCM),
+/// key material, and prompt/repository paths are never members;
+/// [`validate_upload_fields`] rejects them.
+pub const ALLOWED_UPLOAD_FIELDS: &[&str] = &["prompt", "mir", "meta", AUDIO_FIELD];
+
+/// Reference-audio excerpt upload field (DEC-011, Tier1/Tier2 only).
+pub const AUDIO_FIELD: &str = "audio_ref";
 
 /// Guidance attached to [`ConfigError::MissingKey`] (static: contains no key).
 pub const MISSING_KEY_GUIDANCE: &str = "set OPENCODE_API_KEY (alias OPENCODE_GO_API_KEY) in .env and restart; cloud calls stay BLOCKED until configured; the key value is never logged (DEC-010/DEC-011)";
