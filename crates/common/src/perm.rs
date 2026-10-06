@@ -54,7 +54,7 @@ pub fn bind_default_endpoint(id: &str) -> std::io::Result<Listener> {
 /// by `interprocess`, like [`bind_endpoint`].
 #[cfg(unix)]
 pub fn bind_restricted_endpoint(id: &str) -> std::io::Result<Listener> {
-    use interprocess::local_socket::{GenericFilePath, ListenerOptions};
+    use interprocess::local_socket::{GenericFilePath, ListenerOptions, ToFsName as _};
     use interprocess::os::unix::local_socket::ListenerOptionsExt as _;
 
     let name = socket_file_path(id).to_fs_name::<GenericFilePath>()?;
@@ -71,7 +71,8 @@ pub fn bind_restricted_endpoint(id: &str) -> std::io::Result<Listener> {
 /// restricted filesystem socket must connect via the file path explicitly.
 #[cfg(unix)]
 pub fn connect_to_socket_file(id: &str) -> std::io::Result<interprocess::local_socket::Stream> {
-    use interprocess::local_socket::GenericFilePath;
+    use interprocess::local_socket::traits::Stream as _;
+    use interprocess::local_socket::{GenericFilePath, ToFsName as _};
 
     let name = socket_file_path(id).to_fs_name::<GenericFilePath>()?;
     interprocess::local_socket::Stream::connect(name)

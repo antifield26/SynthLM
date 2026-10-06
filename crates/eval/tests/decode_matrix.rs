@@ -318,15 +318,19 @@ fn decode_matrix_symphonia_vs_ffmpeg() {
 
     // Valid inputs.
     let mut sym_by_label: Vec<(String, SymOutcome)> = Vec::new();
+    let mut skipped_rows: Vec<String> = Vec::new();
     for (label, file, _) in &valid {
-        let path = scratch.join(file);
-        // If FFmpeg is absent the transcoded fixtures do not exist; the wav
-        // baseline row still runs straight from the repo fixture.
-        let path = if path.is_file() {
-            path
-        } else {
-            assert_eq!(*label, "wav");
+        let candidate = scratch.join(file);
+        // Without FFmpeg the transcoded fixtures do not exist: only the wav
+        // baseline row can run (straight from the repo fixture); the rest
+        // are recorded as skipped, never asserted.
+        let path = if candidate.is_file() {
+            candidate
+        } else if *label == "wav" {
             src_wav.clone()
+        } else {
+            skipped_rows.push(format!("{label} | {file} | skipped (no ffmpeg) | - | -"));
+            continue;
         };
         let sym = symphonia_decode(&path);
         let ff_out = scratch.join(format!("ff-{label}.wav"));
@@ -352,6 +356,9 @@ fn decode_matrix_symphonia_vs_ffmpeg() {
             sym.detail
         );
         check_row(label, file, &sym, &ff);
+    }
+    for line in &skipped_rows {
+        let _ = writeln!(report, "{line}");
     }
 
     // Baseline pins (measured 2026-10-06 run; drift means the toolchain
