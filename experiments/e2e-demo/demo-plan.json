@@ -1,0 +1,138 @@
+{
+  "audit": [
+    {
+      "byte_count": 236,
+      "fields": [
+        "prompt",
+        "mir",
+        "meta"
+      ],
+      "model": "seeded-demo-no-model-call",
+      "tier": "tier3",
+      "ts_unix_ms": 1789000000007
+    },
+    {
+      "byte_count": 176,
+      "fields": [
+        "prompt",
+        "mir",
+        "meta"
+      ],
+      "model": "seeded-demo-no-model-call",
+      "tier": "tier3",
+      "ts_unix_ms": 1789000000008
+    },
+    {
+      "byte_count": 177,
+      "fields": [
+        "prompt",
+        "mir",
+        "meta"
+      ],
+      "model": "seeded-demo-no-model-call",
+      "tier": "tier3",
+      "ts_unix_ms": 1789000000009
+    }
+  ],
+  "candidates": [
+    {
+      "apply_token": "demo-apply-demo-wide",
+      "audio_ref": "demo-preview-demo-wide.wav",
+      "changed_params": 3,
+      "confidence": 0.7250452183036152,
+      "delta_lufs": -1.6387731584701406,
+      "diff_summary_zh": "中频微凹并点缀高频，声场左右拉开更宽（EQ 代理：ReaEQ 无真宽度参数）。",
+      "direction": "spatial",
+      "id": "demo-wide",
+      "mel_weighted": 0.15897990763187408,
+      "patch": {
+        "ops": [
+          {
+            "op": "replace",
+            "path": "param/4:_Gain_Band_2",
+            "value": 0.4
+          },
+          {
+            "op": "replace",
+            "path": "param/10:_Gain_High_Shelf_4",
+            "value": 0.6
+          },
+          {
+            "op": "replace",
+            "path": "param/15:_Global_Gain",
+            "value": 0.55
+          }
+        ],
+        "target_snapshot": "demo-snapshot-seed-7"
+      },
+      "rank": 1,
+      "score_total": 0.8628277275688797
+    },
+    {
+      "apply_token": "demo-apply-demo-dark",
+      "audio_ref": "demo-preview-demo-dark.wav",
+      "changed_params": 2,
+      "confidence": 0.7542269180650983,
+      "delta_lufs": -0.6423953447591959,
+      "diff_summary_zh": "高频搁架与临场频段衰减，毛刺收敛，整体更暗。",
+      "direction": "darker",
+      "id": "demo-dark",
+      "mel_weighted": 0.6524770259857178,
+      "patch": {
+        "ops": [
+          {
+            "op": "replace",
+            "path": "param/10:_Gain_High_Shelf_4",
+            "value": 0.25
+          },
+          {
+            "op": "replace",
+            "path": "param/7:_Gain_Band_3",
+            "value": 0.3
+          }
+        ],
+        "target_snapshot": "demo-snapshot-seed-7"
+      },
+      "rank": 2,
+      "score_total": 0.6051521348101592
+    },
+    {
+      "apply_token": "demo-apply-demo-bright",
+      "audio_ref": "demo-preview-demo-bright.wav",
+      "changed_params": 2,
+      "confidence": 0.7798224154651558,
+      "delta_lufs": -2.840012421558651,
+      "diff_summary_zh": "高频搁架与临场频段提升，空气感增强，整体更亮。",
+      "direction": "transient",
+      "id": "demo-bright",
+      "mel_weighted": 1.8467514514923096,
+      "patch": {
+        "ops": [
+          {
+            "op": "replace",
+            "path": "param/10:_Gain_High_Shelf_4",
+            "value": 0.75
+          },
+          {
+            "op": "replace",
+            "path": "param/7:_Gain_Band_3",
+            "value": 0.65
+          }
+        ],
+        "target_snapshot": "demo-snapshot-seed-7"
+      },
+      "rank": 3,
+      "score_total": 0.3512775937905591
+    }
+  ],
+  "harness": "synthlm-acrd demo (TSK-405)",
+  "intent": "更亮 / 更暗 / 更宽（固定意图，ReaEQ 白名单代理；宽为 EQ 代理）",
+  "model": "seeded-demo-no-model-call",
+  "notes": [
+    "AI 规划步由固定种子确定性候选代替真实模型调用：诚实演示，非伪装智能。",
+    "ranking 由 eval mel_weighted 距离导出（total = 1/(1+mel_weighted)）；confidence 仅叠加种子抖动。",
+    "audit 为占位：Tier3 本地档，无任何网络调用；字段走白名单审计。"
+  ],
+  "seed": 7,
+  "target_snapshot": "demo-snapshot-seed-7"
+}

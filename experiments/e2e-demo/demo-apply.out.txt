@@ -1,0 +1,19 @@
+seed=7 snapshot=demo-snapshot-seed-7 tracks_before=0
+fx=0 via=add
+resolve|4:_Gain_Band_2=4|from_ident|init=0.250000000
+resolve|10:_Gain_High_Shelf_4=10|from_ident|init=0.250000000
+resolve|15:_Global_Gain=15|from_ident|init=1.000000000
+resolve|7:_Gain_Band_3=7|from_ident|init=0.250000000
+applied|demo-wide|4:_Gain_Band_2=0.400000006 10:_Gain_High_Shelf_4=0.600000024 15:_Global_Gain=0.550000012
+applied|demo-dark|10:_Gain_High_Shelf_4=0.250000000 7:_Gain_Band_3=0.300000012
+applied|demo-bright|10:_Gain_High_Shelf_4=0.750000000 7:_Gain_Band_3=0.649999976
+undo|demo-bright
+undo|demo-dark
+undo|demo-wide
+restored|10:_Gain_High_Shelf_4=0.250000000|expect=0.250000000|ok=true
+restored|7:_Gain_Band_3=0.250000000|expect=0.250000000|ok=true
+restored|15:_Global_Gain=1.000000000|expect=1.000000000|ok=true
+restored|4:_Gain_Band_2=0.250000000|expect=0.250000000|ok=true
+restored_all=true
+tracks_after=0|tracks_zero=true
+demo_apply_ok=true
