@@ -10,3 +10,7 @@
 /// Three-tier model gateway (TSK-301): tier resolution, failover routing,
 /// mock transport, and audit (DEC-010/011).
 pub mod model_gw;
+/// JSON Patch plan schema with two-phase validation and repair (TSK-302):
+/// ident-shaped paths, profile-linked semantics, and a pure repair loop
+/// (DEC-013).
+pub mod patch;

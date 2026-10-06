@@ -943,6 +943,8 @@ dependencies = [
 name = "synthlm-planner"
 version = "0.0.0"
 dependencies = [
+ "serde",
+ "serde_json",
  "synthlm-common",
  "synthlm-profile",
  "thiserror",
