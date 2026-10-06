@@ -1,17 +1,24 @@
 //! SynthLM evaluation layer: LUFS-first multi-objective scoring.
 //!
-//! MIR v1 pipeline (TSK-202):
+//! MIR v1 pipeline (TSK-202, multi-resolution + band weights in TSK-204):
 //!
 //! - [`mir::MirParams::v1`] freezes the DEC-012 analysis parameters
-//!   (48 kHz, Hann 2048, hop 512, 80-band log-mel).
+//!   (48 kHz, Hann 2048, hop 512, 80-band log-mel) plus the TSK-204 second
+//!   tier (Hann 1024, hop 256) whose log-mel is resampled and averaged.
 //! - [`mir::analyze`] runs decode-assumed-mono f32 samples through
 //!   loudness measurement ([`ebur128`], EBU R128) first, applies gain to
 //!   [`mir::MirParams::target_lufs`] (DEC-016, default −14 LUFS), then
 //!   computes the STFT magnitude spectrogram ([`realfft`]/[`rustfft`]),
-//!   80-band log-mel, and a hand-written spectral-flux transient envelope.
+//!   two-tier-averaged 80-band log-mel, and a hand-written spectral-flux
+//!   transient envelope (primary resolution).
 //! - [`score::compare`] turns two [`mir::MirFeatures`] snapshots into a
-//!   [`score::Score`] (ARCHITECTURE §6). Features from different
-//!   [`mir::MirParams`] are rejected as incomparable.
+//!   [`score::Score`] (ARCHITECTURE §6): unweighted `mel_l1` for
+//!   calibration plus per-band `mel_low|mid|high` and default-weighted
+//!   `mel_weighted` for ranking (weights tunable via
+//!   [`score::BandWeights`], calibration in TSK-402). Features from
+//!   different [`mir::MirParams`] are rejected as incomparable.
+//! - CLAP cosine similarity is a trait seam only
+//!   ([`score::ClapEmbedder`]); no model is wired yet.
 //! - CLAP cosine similarity is a trait seam only
 //!   ([`score::ClapEmbedder`]); no model is wired yet.
 //!
@@ -21,7 +28,7 @@ pub mod mir;
 pub mod score;
 
 pub use mir::{MirFeatures, MirParams, analyze};
-pub use score::{ClapEmbedder, Score, compare};
+pub use score::{BandWeights, ClapEmbedder, Score, compare};
 
 /// Errors returned at the `synthlm-eval` library boundary.
 ///

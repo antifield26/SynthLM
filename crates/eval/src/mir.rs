@@ -1,11 +1,14 @@
 //! MIR v1 feature pipeline: fixed-params analysis feeding loudness-first scoring.
 //!
-//! Parameter freeze (DEC-012): 48 kHz sample rate, Hann window 2048,
-//! hop 512, 80-band log-mel. Ordering (DEC-016): integrated LUFS is
+//! Parameter freeze (DEC-012): 48 kHz sample rate, primary Hann window 2048,
+//! hop 512, plus a second tier (window 1024, hop 256, TSK-204) whose log-mel
+//! is resampled to the primary frame grid and averaged with the primary
+//! log-mel. Ordering (DEC-016): integrated LUFS is
 //! measured first, the signal is gained to [`MirParams::target_lufs`]
 //! (−14 LUFS), and only then are spectral features computed. Every
 //! [`MirFeatures`] snapshot carries the [`MirParams`] it was produced
-//! with so [`crate::score::compare`] can refuse cross-params comparisons.
+//! with so [`crate::score::compare`] can refuse cross-params comparisons
+//! (both tiers participate in the equality key).
 //!
 //! Selection rationale (docs/research/C-models-retrieval-eval.md §4,
 //! verified 2026-10-06 against the local cargo registry manifests):
@@ -15,6 +18,12 @@
 //! filterbank and the linear-energy spectral-flux transient envelope are
 //! hand-written (no `ruststft` dependency) so the DEC-012 constants stay
 //! literal in this file.
+//!
+//! Why two tiers (TSK-204): the 2048 window resolves harmonics while the
+//! 1024 window localises transients; averaging their log-mels keeps one
+//! comparable grid while reducing single-window scalloping/ripple bias.
+//! The transient envelope ([`spectral_flux`]/onsets) intentionally stays
+//! primary-resolution so onset golden pins do not move with the tier mix.
 
 use crate::EvalError;
 use ebur128::{EbuR128, Mode};
@@ -59,22 +68,39 @@ pub const ONSET_REL_THRESHOLD: f32 = 0.25;
 /// work here because flux lives in signal-level energy units.
 const ONSET_FLOOR_RATIO: f32 = 1e-6;
 
-/// Frozen MIR v1 analysis parameters (DEC-012).
+/// Default second-tier STFT window in samples (TSK-204).
+///
+/// Half the primary window: doubles time resolution for transient detail
+/// while keeping enough bins (513) for a stable 80-band mel projection.
+pub const TIER2_WINDOW: usize = 1024;
+
+/// Default second-tier STFT hop in samples (TSK-204).
+///
+/// Quarter of the primary hop, matching the halved window's overlap ratio.
+pub const TIER2_HOP: usize = 256;
+
+/// Frozen MIR v1 analysis parameters (DEC-012, extended with the TSK-204
+/// second resolution tier).
 ///
 /// All fields participate in [`PartialEq`]: [`crate::score::compare`]
 /// refuses to score feature pairs produced with different params, so any
-/// change here (window, hop, mel bands, rate, frequency range, target)
-/// automatically invalidates cross-version comparisons instead of silently
-/// producing incomparable numbers. Schema changes must go through a
-/// version bump (`v1` → `v2`), never an in-place edit of [`MirParams::v1`].
+/// change here (window, hop, second tier, mel bands, rate, frequency
+/// range, target) automatically invalidates cross-version comparisons
+/// instead of silently producing incomparable numbers. Schema changes must
+/// go through a version bump (`v1` → `v2`), never an in-place edit of
+/// [`MirParams::v1`].
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MirParams {
     /// Sample rate in Hz. DEC-012 frozen value: 48000.
     pub sample_rate: u32,
-    /// STFT window length in samples (Hann). DEC-012 frozen value: 2048.
+    /// Primary STFT window length in samples (Hann). DEC-012 value: 2048.
     pub window: usize,
-    /// STFT hop in samples. DEC-012 frozen value: 512.
+    /// Primary STFT hop in samples. DEC-012 frozen value: 512.
     pub hop: usize,
+    /// Second-tier STFT window in samples (Hann). TSK-204 value: 1024.
+    pub window2: usize,
+    /// Second-tier STFT hop in samples. TSK-204 frozen value: 256.
+    pub hop2: usize,
     /// Mel filterbank band count. DEC-012 frozen value: 80.
     pub n_mel: usize,
     /// Filterbank low edge in Hz. DEC-012 implies full band: 0.0.
@@ -86,7 +112,7 @@ pub struct MirParams {
 }
 
 impl MirParams {
-    /// The frozen MIR v1 parameter set (DEC-012 + DEC-016).
+    /// The frozen MIR v1 parameter set (DEC-012 + DEC-016 + TSK-204 tier 2).
     ///
     /// Do not alter the returned values; introduce a new constructor for a
     /// new schema version instead.
@@ -95,6 +121,8 @@ impl MirParams {
             sample_rate: 48_000,
             window: 2048,
             hop: 512,
+            window2: TIER2_WINDOW,
+            hop2: TIER2_HOP,
             n_mel: 80,
             f_min_hz: 0.0,
             f_max_hz: 24_000.0,
@@ -102,9 +130,24 @@ impl MirParams {
         }
     }
 
-    /// Number of magnitude bins per STFT frame (`window / 2 + 1`).
+    /// Number of magnitude bins per primary STFT frame (`window / 2 + 1`).
     pub const fn n_bins(&self) -> usize {
         self.window / 2 + 1
+    }
+
+    /// Number of magnitude bins per second-tier STFT frame.
+    pub const fn n_bins2(&self) -> usize {
+        self.window2 / 2 + 1
+    }
+
+    /// Longer of the two analysis windows; inputs shorter than this hold
+    /// no full frame in at least one tier.
+    pub const fn max_window(&self) -> usize {
+        if self.window >= self.window2 {
+            self.window
+        } else {
+            self.window2
+        }
     }
 }
 
@@ -113,7 +156,9 @@ impl MirParams {
 /// `integrated_lufs` is the pre-normalisation reading (diagnostic),
 /// `gain_db` the applied ΔLUFS, and `normalized_lufs` / `normalized_dbtp`
 /// are re-measured on the gained signal to close the loop (residual shows
-/// the normalisation actually landed on target).
+/// the normalisation actually landed on target). `log_mel` is the
+/// two-tier average (TSK-204); `magnitude` and the transient envelope stay
+/// primary-resolution.
 #[derive(Debug, Clone)]
 pub struct MirFeatures {
     /// Parameters this snapshot was produced with (comparability key).
@@ -140,20 +185,23 @@ pub struct MirFeatures {
 
 /// Full MIR v1 analysis: loudness-first, then spectral features.
 ///
-/// 1. Validate samples (non-empty, at least one window, all finite).
+/// 1. Validate samples (non-empty, at least one window in *both* tiers,
+///    all finite).
 /// 2. Measure integrated LUFS + true peak via `ebur128` (EBU R128).
 /// 3. Gain to [`MirParams::target_lufs`] (DEC-016) and re-measure to close
 ///    the loop.
-/// 4. STFT magnitude → 80-band log-mel → spectral flux → onset peaks, all
-///    on the normalised signal.
+/// 4. Primary STFT magnitude → 80-band linear mel energies (transient flux
+///    and onsets are derived here, primary-resolution), plus a second-tier
+///    STFT (1024/256) whose log-mel is resampled to the primary frame grid
+///    and averaged with the primary log-mel (TSK-204).
 ///
 /// Input is mono f32 at [`MirParams::sample_rate`]; multi-channel handling
 /// (mix-down policy) is out of scope for v1 and must be decided by the
 /// caller before calling this function.
 pub fn analyze(samples: &[f32], params: &MirParams) -> Result<MirFeatures, EvalError> {
-    if samples.len() < params.window {
+    if samples.len() < params.max_window() {
         return Err(EvalError::TooShort {
-            need: params.window,
+            need: params.max_window(),
             got: samples.len(),
         });
     }
@@ -188,7 +236,21 @@ pub fn analyze(samples: &[f32], params: &MirParams) -> Result<MirFeatures, EvalE
     let magnitude = stft_magnitude(&normalized, params)?;
     let filterbank = mel_filterbank(params);
     let energies = mel_energy(&magnitude, &filterbank);
-    let log_mel = log_energies(&energies);
+    let log_primary = log_energies(&energies);
+    // Second tier (TSK-204): same mel count, finer time grid, resampled to
+    // the primary frame count and averaged in the log domain.
+    let tier2 = MirParams {
+        window: params.window2,
+        hop: params.hop2,
+        ..*params
+    };
+    let magnitude2 = stft_magnitude(&normalized, &tier2)?;
+    let filterbank2 = mel_filterbank(&tier2);
+    let log_tier2 = log_energies(&mel_energy(&magnitude2, &filterbank2));
+    let log_mel = average_grids(
+        &log_primary,
+        &resample_frames(&log_tier2, log_primary.len()),
+    );
     let flux = spectral_flux(&energies);
     let peak_energy = energies.iter().flatten().fold(0.0_f32, |m, &v| m.max(v));
     let onsets = pick_onsets(&flux, peak_energy);
@@ -357,6 +419,83 @@ fn log_energies(energies: &[Vec<f32>]) -> Vec<Vec<f32>> {
         .collect()
 }
 
+/// Resample a `[frame][band]` grid to `target_frames` rows (TSK-204).
+///
+/// Linear interpolation on the frame index maps source endpoints onto
+/// target endpoints, so identical grids stay identical and stationary
+/// signals keep a flat envelope. A single target frame holds the
+/// per-band mean of the source (energy-preserving for the degenerate
+/// one-frame case). Empty input or a zero target yields an empty grid;
+/// every frame is assumed to hold the same band count (guaranteed by
+/// [`mel_energy`]). Deterministic: identical inputs give bit-identical
+/// outputs.
+pub fn resample_frames(frames: &[Vec<f32>], target_frames: usize) -> Vec<Vec<f32>> {
+    if frames.is_empty() || target_frames == 0 {
+        return Vec::new();
+    }
+    if frames.len() == target_frames {
+        return frames.to_vec();
+    }
+    let n_bands = frames[0].len();
+    if target_frames == 1 {
+        let mut acc = vec![0.0_f64; n_bands];
+        for frame in frames {
+            for (slot, &v) in acc.iter_mut().zip(frame.iter()) {
+                *slot += f64::from(v);
+            }
+        }
+        let denom = frames.len() as f64;
+        return vec![acc.iter().map(|&s| (s / denom) as f32).collect()];
+    }
+    let src = frames.len();
+    (0..target_frames)
+        .map(|i| {
+            let pos = i as f64 * (src - 1) as f64 / (target_frames - 1) as f64;
+            let lo = pos.floor() as usize;
+            let hi = (lo + 1).min(src - 1);
+            let t = (pos - lo as f64) as f32;
+            frames[lo]
+                .iter()
+                .zip(frames[hi].iter())
+                .map(|(&a, &b)| a + (b - a) * t)
+                .collect()
+        })
+        .collect()
+}
+
+/// Element-wise mean of two `[frame][band]` grids (TSK-204 tier fusion).
+///
+/// Callers must resample both grids to the same frame count first (see
+/// [`resample_frames`]); rows/bands beyond the shorter grid are ignored by
+/// construction of `zip`, so mismatched inputs degrade to truncation
+/// rather than a panic. Both tiers share [`MirParams::n_mel`] bands, so in
+/// the pipeline the average is exact.
+pub fn average_grids(a: &[Vec<f32>], b: &[Vec<f32>]) -> Vec<Vec<f32>> {
+    a.iter()
+        .zip(b.iter())
+        .map(|(ra, rb)| {
+            ra.iter()
+                .zip(rb.iter())
+                .map(|(&x, &y)| 0.5 * (x + y))
+                .collect()
+        })
+        .collect()
+}
+
+/// Centre frequency (Hz) of each mel band (TSK-204 band-split key).
+///
+/// Uses the same mel-uniform point layout as [`mel_filterbank`]: band `m`
+/// (1-based in filterbank terms) peaks at interpolation point `m`, so the
+/// returned vector has [`MirParams::n_mel`] entries. [`crate::score`]
+/// maps these centres to low/mid/high regions for weighted scoring.
+pub fn mel_band_centers(params: &MirParams) -> Vec<f32> {
+    let mel_low = hz_to_mel(params.f_min_hz);
+    let mel_high = hz_to_mel(params.f_max_hz);
+    (1..=params.n_mel)
+        .map(|m| mel_to_hz(mel_low + (mel_high - mel_low) * m as f32 / (params.n_mel + 1) as f32))
+        .collect()
+}
+
 /// Linear mel-band energies `[frame][band]` (the pre-log intermediate).
 ///
 /// Transient flux ([`spectral_flux`]) is computed on these, not on log-mel:
@@ -493,11 +632,56 @@ mod tests {
         assert_eq!(p.sample_rate, 48_000);
         assert_eq!(p.window, 2048);
         assert_eq!(p.hop, 512);
+        assert_eq!(p.window2, TIER2_WINDOW);
+        assert_eq!(p.hop2, TIER2_HOP);
+        assert_eq!(p.window2, 1024);
+        assert_eq!(p.hop2, 256);
         assert_eq!(p.n_mel, 80);
         assert_eq!(p.f_min_hz, 0.0);
         assert_eq!(p.f_max_hz, 24_000.0);
         assert_eq!(p.target_lufs, -14.0);
         assert_eq!(p.n_bins(), 1025);
+        assert_eq!(p.n_bins2(), 513);
+        assert_eq!(p.max_window(), 2048);
+    }
+
+    #[test]
+    fn resample_frames_is_identity_and_mean() {
+        let grid = vec![vec![1.0_f32, 2.0], vec![3.0, 4.0], vec![5.0, 6.0]];
+        assert_eq!(resample_frames(&grid, 3), grid);
+        assert!(resample_frames(&grid, 0).is_empty());
+        assert!(resample_frames(&[], 4).is_empty());
+        // Single target frame holds the per-band mean.
+        let mean = resample_frames(&grid, 1);
+        assert_eq!(mean.len(), 1);
+        assert!((mean[0][0] - 3.0).abs() < 1e-6);
+        assert!((mean[0][1] - 4.0).abs() < 1e-6);
+        // Endpoints are pinned; midpoint interpolates linearly.
+        let up = resample_frames(&grid, 5);
+        assert_eq!(up.len(), 5);
+        assert_eq!(up[0], grid[0]);
+        assert_eq!(up[4], grid[2]);
+        assert!((up[2][0] - 3.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn average_grids_means_elementwise() {
+        let a = vec![vec![1.0_f32, 3.0]];
+        let b = vec![vec![3.0_f32, 5.0]];
+        assert_eq!(average_grids(&a, &b), vec![vec![2.0_f32, 4.0]]);
+        assert_eq!(average_grids(&a, &a), a);
+    }
+
+    #[test]
+    fn band_centers_span_full_range() {
+        let p = MirParams::v1();
+        let centers = mel_band_centers(&p);
+        assert_eq!(centers.len(), 80);
+        assert!(centers[0] > 0.0 && centers[0] < 400.0);
+        assert!(centers[79] > 4000.0 && centers[79] < 24_000.0);
+        for pair in centers.windows(2) {
+            assert!(pair[0] < pair[1], "centres must rise monotonically");
+        }
     }
 
     #[test]
