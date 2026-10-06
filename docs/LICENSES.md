@@ -16,6 +16,7 @@
 | serde 1.0.229（`synthlm-common` 直接依赖，IPC 帧/audit 序列化，`derive` 特性） | MIT OR Apache-2.0 | <https://crates.io/crates/serde>（registry 核验） | 可用，仅内部非商业运行 | 2026-10-06 |
 | serde_json 1.0.151（`synthlm-common` 直接依赖，IPC 首版 JSON 帧） | MIT OR Apache-2.0 | <https://crates.io/crates/serde_json>（registry 核验） | 可用，仅内部非商业运行 | 2026-10-06 |
 | thiserror 2.0.21（`synthlm-common` 直接依赖，库边界 `IpcError` 类型） | MIT OR Apache-2.0 | <https://crates.io/crates/thiserror>（registry 核验） | 可用，仅内部非商业运行 | 2026-10-06 |
+| shared_memory 0.12.4（`synthlm-common` 直接依赖，TSK-115 shm 通道；owner-only 创建） | MIT OR Apache-2.0 | <https://github.com/elast0ny/shared_memory-rs>（crates.io；2026-10-06 核验） | 可用，仅内部非商业运行；含 2 处论证 unsafe（common/shm.rs） | 2026-10-06 |
 | realfft 3.5.0（`synthlm-eval` 直接依赖，MIR v1 STFT 实数 FFT） | MIT | crates.io/crates/realfft（registry 缓存 manifest 核验） | 可用，仅内部非商业运行；传递依赖 rustfft（MIT OR Apache-2.0）以 Cargo.lock 为准 | 2026-10-06 |
 | rustfft 6.4.1（`synthlm-eval` 直接依赖，`Complex` 类型 + realfft 后端） | MIT OR Apache-2.0 | crates.io/crates/rustfft（registry 缓存 manifest 核验） | 可用，仅内部非商业运行；传递依赖（num-complex/num-traits/num-integer/primal-check/transpose/strength_reduce，均为 MIT OR Apache-2.0）以 Cargo.lock 为准 | 2026-10-06 |
 | ebur128 0.1.10（`synthlm-eval` 直接依赖，MIR v1 LUFS/true-peak，EBU R128） | MIT | crates.io/crates/ebur128（registry 缓存 manifest 核验；上游声明通过 EBU TECH 3341/3342 测试集） | 可用，仅内部非商业运行；纯 Rust（默认特性无 C 编译，`c-tests` 未启用）；传递依赖（bitflags 1.3.2、dasp_frame/dasp_sample 0.11.0、smallvec 1.16.2，均为 MIT 系）以 Cargo.lock 为准 | 2026-10-06 |

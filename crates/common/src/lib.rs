@@ -13,3 +13,11 @@ pub mod config;
 /// First-run consent store: three-tier authorization persistence, text prompt,
 /// and the settings data API (DEC-010/011, ARCHITECTURE §7).
 pub mod consent;
+
+/// IPC endpoint permissions: least-privilege socket files (Unix) and the
+/// same-user default-ACL behavioral assertion (Windows) (TSK-115, D-eng-eco §2).
+pub mod perm;
+
+/// Shared-memory bulk channel: threshold policy, PCM block handoff, and the
+/// control-plane announce envelope (TSK-115, D-eng-eco §2).
+pub mod shm;
