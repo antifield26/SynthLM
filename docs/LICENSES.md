@@ -12,7 +12,10 @@
 | thiserror 2.0.21（`synthlm-bridge` 直接依赖，库边界错误类型） | MIT OR Apache-2.0 | crates.io/crates/thiserror（registry 缓存 manifest 核验） | 可用，仅内部非商业运行 | 2026-10-06 |
 | serde 1.0.229（`synthlm-bridge` 直接依赖，anchor 序列化，derive） | MIT OR Apache-2.0 | crates.io/crates/serde（registry 缓存 manifest 核验） | 可用，仅内部非商业运行 | 2026-10-06 |
 | serde_json 1.0.151（`synthlm-bridge` dev-only，单测 JSON 往返） | MIT OR Apache-2.0 | crates.io/crates/serde_json（registry 缓存 manifest 核验） | 可用，仅内部非商业运行（不进运行时） | 2026-10-06 |
-| interprocess（待引入） | 0BSD/Apache-2.0 | crates.io | 可用（TSK-107 接入时登记版本） | 2026-10-06 |
+| interprocess 2.4.4（`synthlm-common` 直接依赖，TSK-107 IPC local socket；默认特性，无 tokio） | 0BSD OR Apache-2.0 | <https://crates.io/crates/interprocess>（仓库 <https://github.com/kotauskas/interprocess>；API 按 docs.rs 2.4.4 于 2026-10-06 核验） | 可用，仅内部非商业运行；传递依赖（libc/recvmsg/widestring/windows-sys 等）以 Cargo.lock 为准 | 2026-10-06 |
+| serde 1.0.229（`synthlm-common` 直接依赖，IPC 帧/audit 序列化，`derive` 特性） | MIT OR Apache-2.0 | <https://crates.io/crates/serde>（registry 核验） | 可用，仅内部非商业运行 | 2026-10-06 |
+| serde_json 1.0.151（`synthlm-common` 直接依赖，IPC 首版 JSON 帧） | MIT OR Apache-2.0 | <https://crates.io/crates/serde_json>（registry 核验） | 可用，仅内部非商业运行 | 2026-10-06 |
+| thiserror 2.0.21（`synthlm-common` 直接依赖，库边界 `IpcError` 类型） | MIT OR Apache-2.0 | <https://crates.io/crates/thiserror>（registry 核验） | 可用，仅内部非商业运行 | 2026-10-06 |
 | Demucs 官方权重 | 科研限定（代码 MIT） | issue #327 | 仅内部非商业运行；商用/分发重授权 | 2026-10-06 |
 | MERT/MuQ 权重 | CC-BY-NC-4.0 | HF license 字段 | 仅内部非商业；不进产品基线 | 2026-10-06 |
 | Rubber Band | GPL-2-or-later/商业 | breakfastquay 许可页 | 不购证→仅内部运行；分发即违法 | 2026-10-06 |
