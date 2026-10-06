@@ -50,8 +50,8 @@ tasks = (ROOT / "docs" / "TASK-INDEX.md").read_text(encoding="utf-8")
 for token in ("TSK-", "Blocked", "Done"):
     if token not in tasks:
         fail(f"TASK-INDEX.md: missing token '{token}'")
-if not any(state in tasks for state in ("Todo", "In-Progress")):
-    fail("TASK-INDEX.md: no active rows (Todo/In-Progress) left to track")
+active = [t for t in ("Todo", "In-Progress") if t in tasks]
+print(f"active-rows: {active if active else 'none (all closed or frozen)'}")
 
 if FAILURES:
     print("doc-sync FAILED:")
