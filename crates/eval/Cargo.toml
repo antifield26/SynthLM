@@ -5,3 +5,9 @@ edition.workspace = true
 
 [dependencies]
 synthlm-common = { path = "../common" }
+# TSK-202 (MIR v1): STFT via realfft/rustfft, LUFS via ebur128, errors via thiserror.
+# Licenses registered in docs/LICENSES.md (AGENTS.md red line 6): all permissive.
+thiserror = "2"
+realfft = "3.5"
+rustfft = "6.4"
+ebur128 = "0.1"
