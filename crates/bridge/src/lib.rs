@@ -14,3 +14,6 @@ pub mod container_addr;
 
 /// Undo transaction guard + dirty marking + take refetch (DEC-008, TSK-102).
 pub mod undo;
+
+/// Explicit take snapshot + one-click whole-chain rollback (DEC-004/020, TSK-103).
+pub mod snapshot;

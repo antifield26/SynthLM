@@ -128,6 +128,17 @@ impl<'a, B: ReaperUndo + ?Sized> UndoBlock<'a, B> {
     pub fn description(&self) -> &str {
         &self.desc
     }
+
+    /// Exclusive access to the wrapped backend for writes inside the block.
+    ///
+    /// Lets [`crate::snapshot`] `restore` / `apply_derived`
+    /// perform their DAW writes between the paired `BeginBlock2` (issued by
+    /// [`UndoBlock::begin`]) and the `EndBlock2` (issued by `Drop`),
+    /// preserving the single-undo-point guarantee (DEC-008/020) without
+    /// manual begin/end pairing.
+    pub fn backend_mut(&mut self) -> &mut B {
+        self.backend
+    }
 }
 
 impl<B: ReaperUndo + ?Sized> Drop for UndoBlock<'_, B> {
