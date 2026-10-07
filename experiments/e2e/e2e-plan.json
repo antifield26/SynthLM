@@ -1,0 +1,168 @@
+{
+  "audit": [],
+  "backend": "mock-seeded-demo",
+  "candidates": [
+    {
+      "apply_token": "e2e-apply-intent-57877f4d2bd8fa24-c1",
+      "audio_ref": "e2e-render-intent-57877f4d2bd8fa24-c1.wav",
+      "changed_params": 3,
+      "confidence": 0.8,
+      "delta_lufs": 0.0,
+      "diff_summary_zh": "低频更暗，整体更靠后。",
+      "direction": "darker",
+      "id": "intent-57877f4d2bd8fa24-c1",
+      "lua_params": [
+        {
+          "ident": "4:_Gain_Band_2",
+          "value": 0.6
+        },
+        {
+          "ident": "7:_Gain_Band_3",
+          "value": 0.4
+        },
+        {
+          "ident": "17:wet",
+          "value": 0.8
+        }
+      ],
+      "patch": {
+        "ops": [
+          {
+            "op": "replace",
+            "path": "param/4:_Gain_Band_2",
+            "value": 0.6
+          },
+          {
+            "op": "replace",
+            "path": "param/7:_Gain_Band_3",
+            "value": 0.4
+          },
+          {
+            "op": "replace",
+            "path": "param/17:wet",
+            "value": 0.8
+          }
+        ],
+        "target_snapshot": "intent-57877f4d2bd8fa24"
+      },
+      "rank": 1
+    },
+    {
+      "apply_token": "e2e-apply-intent-57877f4d2bd8fa24-c2",
+      "audio_ref": "e2e-render-intent-57877f4d2bd8fa24-c2.wav",
+      "changed_params": 3,
+      "confidence": 0.75,
+      "delta_lufs": 0.0,
+      "diff_summary_zh": "瞬态更紧，起振更清晰。",
+      "direction": "transient",
+      "id": "intent-57877f4d2bd8fa24-c2",
+      "lua_params": [
+        {
+          "ident": "4:_Gain_Band_2",
+          "value": 0.6
+        },
+        {
+          "ident": "7:_Gain_Band_3",
+          "value": 0.4
+        },
+        {
+          "ident": "17:wet",
+          "value": 0.8
+        }
+      ],
+      "patch": {
+        "ops": [
+          {
+            "op": "replace",
+            "path": "param/4:_Gain_Band_2",
+            "value": 0.6
+          },
+          {
+            "op": "replace",
+            "path": "param/7:_Gain_Band_3",
+            "value": 0.4
+          },
+          {
+            "op": "replace",
+            "path": "param/17:wet",
+            "value": 0.8
+          }
+        ],
+        "target_snapshot": "intent-57877f4d2bd8fa24"
+      },
+      "rank": 2
+    },
+    {
+      "apply_token": "e2e-apply-intent-57877f4d2bd8fa24-c3",
+      "audio_ref": "e2e-render-intent-57877f4d2bd8fa24-c3.wav",
+      "changed_params": 3,
+      "confidence": 0.7,
+      "delta_lufs": 0.0,
+      "diff_summary_zh": "声场更宽，混响感略增。",
+      "direction": "spatial",
+      "id": "intent-57877f4d2bd8fa24-c3",
+      "lua_params": [
+        {
+          "ident": "4:_Gain_Band_2",
+          "value": 0.6
+        },
+        {
+          "ident": "7:_Gain_Band_3",
+          "value": 0.4
+        },
+        {
+          "ident": "17:wet",
+          "value": 0.8
+        }
+      ],
+      "patch": {
+        "ops": [
+          {
+            "op": "replace",
+            "path": "param/4:_Gain_Band_2",
+            "value": 0.6
+          },
+          {
+            "op": "replace",
+            "path": "param/7:_Gain_Band_3",
+            "value": 0.4
+          },
+          {
+            "op": "replace",
+            "path": "param/17:wet",
+            "value": 0.8
+          }
+        ],
+        "target_snapshot": "intent-57877f4d2bd8fa24"
+      },
+      "rank": 3
+    }
+  ],
+  "harness": "synthlm-acrd e2e (TSK-505)",
+  "intent": "更亮的混音",
+  "intent_hash": "57877f4d2bd8fa24",
+  "model": "seeded-demo-no-model-call",
+  "notes": [
+    "LiveTier2 路径：consent/Key 缺失即 BLOCKED 指引，绝不回退到 seeded 占位；seeded 路径只属于显式 `acrd demo` 模式。",
+    "Patch 双校验：plan_for_intent 内修复 + 写盘前 validate 复核；修复计数如实记录（rounds/removed/replaced）。",
+    "Lua 内嵌执行渲染（Main_OnCommand 42230，固定 bounds，非相关轨 mute，RENDER_* 备份恢复），不另起新进程链；FNV 记录 + 标签核对回滚与显式复原 + 参数复原断言 + 稳态对稳态渲染 null-test（基线/复原各渲染两次）。",
+    "审计事件恰为 IPC 五字段（time/model/tier/fields/byte_count）；mock 路径零调用即 audit 为空。"
+  ],
+  "renders": [
+    "e2e-render-baseline-a.wav",
+    "e2e-render-baseline-b.wav",
+    "e2e-render-intent-57877f4d2bd8fa24-c1.wav",
+    "e2e-render-intent-57877f4d2bd8fa24-c2.wav",
+    "e2e-render-intent-57877f4d2bd8fa24-c3.wav",
+    "e2e-render-restored-a.wav",
+    "e2e-render-restored-b.wav"
+  ],
+  "repair": {
+    "removed": 0,
+    "replaced": 0,
+    "rounds": 0,
+    "second_check": "clean"
+  },
+  "seed": 7,
+  "target_snapshot": "intent-57877f4d2bd8fa24"
+}

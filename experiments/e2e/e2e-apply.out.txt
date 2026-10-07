@@ -1,0 +1,36 @@
+seed=7 intent_hash=57877f4d2bd8fa24 snapshot=intent-57877f4d2bd8fa24 tracks_before=0
+fx=0 via=add
+resolve|4:_Gain_Band_2=4|from_ident|init=0.250000000
+resolve|7:_Gain_Band_3=7|from_ident|init=0.250000000
+resolve|17:wet=17|from_ident|init=1.000000000
+refitems=1
+rendersetup|srate=0.0|channels=2.0|bounds=loop0-1
+render|baseline_a|fnv=9478f439
+render|baseline_b|fnv=9478f439
+settleset|stable=true|ref=9478f439
+loop|enter|intent-57877f4d2bd8fa24-c1
+applied|intent-57877f4d2bd8fa24-c1|4:_Gain_Band_2=0.600000024 7:_Gain_Band_3=0.400000006 17:wet=0.800000000
+render|intent-57877f4d2bd8fa24-c1|fnv=216da255
+loop|enter|intent-57877f4d2bd8fa24-c2
+applied|intent-57877f4d2bd8fa24-c2|4:_Gain_Band_2=0.600000024 7:_Gain_Band_3=0.400000006 17:wet=0.800000000
+render|intent-57877f4d2bd8fa24-c2|fnv=216da255
+loop|enter|intent-57877f4d2bd8fa24-c3
+applied|intent-57877f4d2bd8fa24-c3|4:_Gain_Band_2=0.600000024 7:_Gain_Band_3=0.400000006 17:wet=0.800000000
+render|intent-57877f4d2bd8fa24-c3|fnv=216da255
+undostop|want=SynthLM e2e: apply intent-57877f4d2bd8fa24-c3|top=SynthLM e2e: apply intent-57877f4d2bd8fa24-c1
+undo|intent-57877f4d2bd8fa24-c3|covered-by-restore
+undo|intent-57877f4d2bd8fa24-c2|covered-by-restore
+undo|intent-57877f4d2bd8fa24-c1|covered-by-restore
+undone_blocks=0
+explicit_restore=true
+restored|4:_Gain_Band_2=0.250000000|expect=0.250000000|ok=true
+restored|17:wet=1.000000000|expect=1.000000000|ok=true
+restored|7:_Gain_Band_3=0.250000000|expect=0.250000000|ok=true
+restored_all=true
+render|restored_a|fnv=9478f439
+render|restored_b|fnv=9478f439
+restorestable|stable=true
+nulltest|ref=9478f439|restored=9478f439|match=true
+restore|ok=1
+tracks_after=0|tracks_zero=true
+e2e_apply_ok=true
