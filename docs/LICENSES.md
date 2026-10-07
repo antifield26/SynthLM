@@ -25,6 +25,7 @@
 | eframe 0.36.2 / egui =0.36.2（`synthlm-ui` 直接依赖，TSK-119 主窗） | MIT OR Apache-2.0 | crates.io（2026-10-06 核验） | 仅内部非商业运行 | 2026-10-06 |
 | anyhow 1.0.104（`synthlm-ui` 直接依赖，应用层错误） | MIT OR Apache-2.0 | crates.io（2026-10-06 核验） | 仅内部非商业运行 | 2026-10-06 |
 | Noto Sans SC（`crates/ui/assets/` 子集 149KB，SIL OFL 1.1，OFL 文本随包） | SIL OFL 1.1 | google/fonts `NotoSansSC[wght].ttf` v2.004（Regular 400 实例化；2026-10-06 核验） | 内部使用合规（署名与许可文本随包）；上游变更需重跑子集化 | 2026-10-06 |
+| ctrlc 3.5.2（`synthlm-acrd` 直接依赖，TSK-501 优雅停机；另有 unix-only 传递 `nix`，本机未下载待复核） | MIT OR Apache-2.0（本地 manifest 核验） | crates.io（2026-10-06 核验） | 仅内部非商业运行 | 2026-10-06 |
 | ReaImGui 0.10.0.5（二进制扩展，用户侧安装，非仓库分发） | LGPL-3.0（另有 GPL-3.0 文本；仓库已归档并迁 codeberg） | <https://github.com/cfillion/reaimgui>（COPYING/COPYING.LESSER；2026-10-06 核验；sha256 800b216e… pin） | 用户机直装（ReaPack 默认仓亦有）；本仓库不分发该二进制 | 2026-10-06 |
 | realfft 3.5.0（`synthlm-eval` 直接依赖，MIR v1 STFT 实数 FFT） | MIT | crates.io/crates/realfft（registry 缓存 manifest 核验） | 可用，仅内部非商业运行；传递依赖 rustfft（MIT OR Apache-2.0）以 Cargo.lock 为准 | 2026-10-06 |
 | rustfft 6.4.1（`synthlm-eval` 直接依赖，`Complex` 类型 + realfft 后端） | MIT OR Apache-2.0 | crates.io/crates/rustfft（registry 缓存 manifest 核验） | 可用，仅内部非商业运行；传递依赖（num-complex/num-traits/num-integer/primal-check/transpose/strength_reduce，均为 MIT OR Apache-2.0）以 Cargo.lock 为准 | 2026-10-06 |
