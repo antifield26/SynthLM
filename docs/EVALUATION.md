@@ -91,9 +91,9 @@
 
 ## 8 未决问题清单（2026-10-07 对账）
 
-1. ~~首轮连通性实测~~ → **已关闭（2026-10-07 复核更正）**：Tier2 真 200（TSK-117）；Tier1 已于 2026-10-07 点火——200 + `output` 信封解码成功（TSK-701；M57-REPORT §1/§2 Tier1 LIVE-OK），4xx 分类补齐（400/404/405/410/422→`BadRequest` 终端不可重试，408/5xx 保持可重试），TSK-116 遗留 TODO 清结。（原文："Tier1 未点火、4xx 超出 401/429 分类仍待真端点（TSK-116 TODO / Phase 7 TSK-701）"，为 2026-10-07 前状态。）
+1. ~~首轮连通性实测~~ → **已关闭（2026-10-07 复核更正）**：Tier2 真 200（TSK-117）；Tier1 已于 2026-10-07 点火——200 + `output` 信封解码成功（TSK-701；见 `docs/M0-7-REPORT.md` §3 Tier1 LIVE-OK），4xx 分类补齐（400/404/405/410/422→`BadRequest` 终端不可重试，408/5xx 保持可重试），TSK-116 遗留 TODO 清结。（原文："Tier1 未点火、4xx 超出 401/429 分类仍待真端点（TSK-116 TODO / Phase 7 TSK-701）"，为 2026-10-07 前状态。）
 2. 费用模型确认（单价、限额、告警阈值）→ 仍开放；人类维持不声明计费，审计字节数作 proxy；解除需人类书面立项（F/B-002 冻结）。
 3. ~~本地回退端点地址与模型档~~ → **已关闭**：Tier3=`Bonsai-2-27B` llama.cpp `:8080`，纯文本；音频能力缺失即 BLOCKED（TSK-305）。
 4. ~~上传字段白名单终稿~~ → **已关闭**：`prompt/mir/meta/audio_ref` + fail-closed 审计单测（TSK-106/118）。
 5. ~~是否放行 ARCHITECTURE~~ → **已放行并 Accepted**（2026-10-07 状态对齐）。
-6. **新增（2026-10-07 评估）**：产品闭环缺口（acrd 未接线成守护进程、E2E 为 seeded demo）→ Phase 5（TSK-5xx）；能力补全（CLAP/Demucs/真检索后端）→ Phase 6（TSK-6xx）；代理矩阵/HiDPI/跨用户/扩大盲听等真实面 → Phase 7（TSK-7xx）。冻结项单列 F/B-nnn。
+6. **新增（2026-10-07 复核补记）**：产品闭环缺口（acrd 未接线成守护进程、E2E 为 seeded demo）→ Phase 5（TSK-5xx）；能力补全（CLAP/Demucs/真检索后端）→ Phase 6（TSK-6xx）；代理矩阵/HiDPI/跨用户/扩大盲听等真实面 → Phase 7（TSK-7xx）。冻结项单列 F/B-nnn。

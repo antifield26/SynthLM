@@ -2,7 +2,7 @@
 
 - 目的：登记一切新增依赖与外部组件的许可结论；新增依赖必须同步更新本表（AGENTS.md 红线 6）。
 - 适用范围：全仓库；约束：内部非商业、无分发、不购买许可。
-- 状态：Accepted（种子版，随 TSK-113 扩展；2026-10-07 按评估 P1-3 逐 crate 复核并补齐 crate×dep 缺行）
+- 状态：Accepted（种子版，随 TSK-113 扩展；2026-10-07 逐 crate 复核并补齐 crate×dep 缺行）
 - 最后核验日期：2026-10-07
 - 依赖文档：docs/DECISIONS.md（DEC-025）、docs/EVALUATION.md（§6）。
 
@@ -54,7 +54,7 @@
 | thiserror 2.0.21（`synthlm-retrieval` 直接依赖，库边界 `IndexError`，见 `crates/retrieval/src/error.rs`） | MIT OR Apache-2.0 | crates.io/crates/thiserror（同包同版本；2026-10-07 按 `crates/retrieval/Cargo.toml` 复核） | 可用，仅内部非商业运行 | 2026-10-07（按 crate 补齐缺行） |
 | thiserror 2.0.21（`synthlm-dsp` 直接依赖，库边界 `DspError`，见 `crates/dsp/src/error.rs`） | MIT OR Apache-2.0 | crates.io/crates/thiserror（同包同版本；2026-10-07 按 `crates/dsp/Cargo.toml` 复核） | 可用，仅内部非商业运行 | 2026-10-07（按 crate 补齐缺行） |
 | interprocess 2.4.4（`synthlm-acrd` 直接依赖，TSK-501 daemon accept loop 的 `Listener`/`Stream`，见 `crates/acrd/src/daemon.rs`；与 `synthlm-common` 同包同版本，无新增包） | 0BSD OR Apache-2.0 | <https://crates.io/crates/interprocess>（registry 核验；2026-10-07 按 `crates/acrd/Cargo.toml` 复核） | 可用，仅内部非商业运行；传递依赖以 Cargo.lock 为准 | 2026-10-07（原仅登记 `synthlm-common`，补 acrd 行） |
-| protoc 36.2（Protocol Buffers 编译器；**仅构建期**：非默认特性 `lancedb-real` 触发 `lance-encoding` 的 build script，需 `PROTOC` 指向该二进制，默认构建与运行时都不需要，见 `crates/retrieval/Cargo.toml`、`crates/retrieval/BENCH.md` caveat 2、`docs/M57-REPORT.md` §3） | BSD-3-Clause（protobuf 上游；**⚠️需实测**：仓库内无 protoc 许可文本/来源文件，条款未能复核） | <https://github.com/protocolbuffers/protobuf>（**⚠️需实测**：仓库仅记版本 36.2 与“借 temp-dir protoc”这一事实，未记下载来源与校验和） | 仅内部非商业，**构建机本地使用**；不随仓库分发、不进产物；CI 机是否安装见 `docs/M57-REPORT.md` §5（待人类） | 2026-10-07 |
+| protoc 36.2（Protocol Buffers 编译器；**仅构建期**：非默认特性 `lancedb-real` 触发 `lance-encoding` 的 build script，需 `PROTOC` 指向该二进制，默认构建与运行时都不需要，见 `crates/retrieval/Cargo.toml`、`crates/retrieval/BENCH.md` caveat 2、`docs/M0-7-REPORT.md` §3 新事实） | BSD-3-Clause（protobuf 上游；**⚠️需实测**：仓库内无 protoc 许可文本/来源文件，条款未能复核） | <https://github.com/protocolbuffers/protobuf>（**⚠️需实测**：仓库仅记版本 36.2 与“借 temp-dir protoc”这一事实，未记下载来源与校验和） | 仅内部非商业，**构建机本地使用**；不随仓库分发、不进产物；CI 机是否安装见 `docs/M0-7-REPORT.md` §4（待人类） | 2026-10-07 |
 | ort 2.0.0-rc.13（`synthlm-eval` 可选依赖，仅 `onnx` 特性启用；预构建 ONNX Runtime 二进制经 `download-binaries` 在特性构建时获取，运行时纯本地） | MIT OR Apache-2.0 | <https://github.com/pykeio/ort>（crates.io；docs.rs 2.0.0-rc.13 `Session::builder/commit_from_file/inputs/outputs` 于 2026-10-07 核验） | 可用，仅内部非商业运行；默认特性关闭，主构建不触网；`ort` 内部 FFI unsafe 计入依赖边界（见 `crates/eval/src/clap.rs`），本 crate 不新增 `unsafe` | 2026-10-07 |
 | LAION CLAP ONNX 权重（`lquint/clap-htsat-unfused-onnx` rev `b31e0c5b0737a45ca1b04b8d151bed48afd78fcc`，`model.onnx` 119654416 B，SHA256 `0763d8c6d03fe1675a3905b96ae3ff9ebfe316e3c0af9b64f8658ece57f0d5a5`，opset 18，基座 `laion/clap-htsat-unfused`） | Apache-2.0 | <https://huggingface.co/lquint/clap-htsat-unfused-onnx>（HF 模型页许可 + API rev + `curl -I -L` 头 `X-Linked-Size/X-Linked-ETag` 于 2026-10-07 核验；导出脚本 `export_clap.py` 同仓） | 仅内部非商业运行；本变更不下载权重，懒缓存 `%APPDATA%/SynthLM/models/clap/model.onnx`（DEC-027），以 rev + 字节数 + SHA 固定来源，`verify_cached_weight` 卡大小 | 2026-10-07 |
 | ort 2.0.0-rc.13（`synthlm-dsp` 可选依赖，仅 `onnx` 特性启用；与 `synthlm-eval` 同版本字符串，`Cargo.lock` 单一条目共享，workspace 统一） | MIT OR Apache-2.0 | <https://github.com/pykeio/ort>（crates.io；TSK-601 已核验 docs.rs 2.0.0-rc.13；本地 registry 源码于 2026-10-07 复核 `Session::run/inputs!/Tensor::from_array/try_extract_tensor/Outlet::name` 签名） | 可用，仅内部非商业运行；默认特性关闭，主构建不触网不链接 ORT；`ort` 内部 FFI unsafe 计入依赖边界（见 `crates/dsp/src/demucs.rs`），本 crate 不新增 `unsafe` | 2026-10-07 |
