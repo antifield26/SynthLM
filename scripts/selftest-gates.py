@@ -111,7 +111,7 @@ def main() -> int:
         lambda: git_restore("docs/TASK-INDEX.md"),
     )
 
-    report = ROOT / "docs" / "M0-7-REPORT.md"
+    report = ROOT / "docs" / "REPORTS.md"
     report_original = report.read_text(encoding="utf-8")
 
     expect_violation(
