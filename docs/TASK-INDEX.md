@@ -2,7 +2,7 @@
 
 - 目的：把 ROADMAP 拆成一次会话可完成、可验证的任务，供后续 Agent 会话逐项执行。
 - 适用范围：Phase 0–4；约束：非商业、无分发、不购证；三档授权；本地端点测试递延实现阶段。
-- 状态：Accepted（Phase 0–4 Done；Phase 5 见下表，2026-10-07）
+- 状态：Accepted（Phase 0–4 Done；Phase 5–7 见下表，F/B 单独冻结；2026-10-07）
 - 最后核验日期：2026-10-06
 - 依赖文档：docs/ROADMAP.md、docs/DECISIONS.md、docs/EVALUATION.md、docs/ARCHITECTURE.md。
 
@@ -49,7 +49,7 @@
 | TSK-204 | 评价器 + `+6dB` 防作弊回归 | 测试 | 2 | TSK-202 | P0 | M | `+6dB` 用例必不涨分；三次方差门禁 | DEC-016/L5 | Done | golden 5→9（低频作弊/削波告警/位一致/多分辨率 ordering）；权重 0.30/0.45/0.25 初值，标定归 TSK-402 |
 | TSK-205 | stem 后台队列 + 内容寻址缓存 + GC | 实现 | 2 | TSK-104 | P1 | M | 缓存命中率/水位指标上报；超 50GB 自动 GC | DEC-009 | Done | dsp 新 crate（23 单测绿：状态机/寻址/GC/指针；零新外部依赖）；WAL/journal 与 DEC-027 迁移留后续 |
 | TSK-206 | symphonia/FFmpeg fallback 阈值实测 | 测试 | 2 | TSK-202 | P1 | S | 破损/异形格式矩阵：触发 fallback 的条件清单 | C-dsp §1 | Done | 8 格式矩阵全绿（唯一触发：截断 wav；AAC 46080 帧须 priming 修齐，转消费侧）；symphonia 已登记 |
-| TSK-207 | 时变 AB（timestretch vs RB 内部运行） | 测试 | 2 | TSK-202 | P2 | S | AB 报告落盘；RB 仅内部运行记录（不购证） | DEC-025 | Done | 人类 2026-10-06 拍板采用 Rust 路线（timestretch，G1-G3 过 + G4 门禁）；RB 工具链不再搭建，采购项永久关闭（TSK-901 范围） |
+| TSK-207 | 时变 AB（timestretch vs RB 内部运行） | 测试 | 2 | TSK-202 | P2 | S | AB 报告落盘；RB 仅内部运行记录（不购证） | DEC-025 | Done | 人类 2026-10-06 拍板采用 Rust 路线（timestretch，G1-G3 过 + G4 门禁）；RB 工具链不再搭建，采购项永久关闭（F/B-001 范围） |
 | TSK-208 | 响度 calibration/交叉验证复跑 | 测试 | 2 | TSK-202 | P1 | S | 3341 14/14 + 与 ebur128 ±0.5 LU | C-dsp §4 | Done | 双实现 Δ=0.000 LU（远优）；AAC priming 规则落地（strip 1024，修齐 mel 0.276）；dBTP 告警函数 + 边界单测；权重/残留归 TSK-402 |
 
 ## Phase 3（搜索与 UX 闭环）
@@ -78,11 +78,9 @@
 | TSK-404 | 终验演示 M4 + 阶段报告 | 文档 | 4 | 全 | P0 | S | M4 脚本一次通过 + 五节报告 | ROADMAP M4 | Done | m4_gate.py 通过（16 证据 + 0 未关）；M4-REPORT 落盘；交互式 E2E 缺口转 TSK-405 |
 | TSK-405 | 交互式 E2E M3 harness（acrd 接线 + 固定演示） | 实现 | 4 | TSK-404 | P1 | M | 5 分钟闭环一次跑通（人机协同见证） | ROADMAP M3 | Done | seed 7 全链跑通 + 人类试听确认相对关系（暗闷/亮透/宽带拍频）；Phase 0–4 至此全部关闭 |
 
-## Phase 5（产品闭环与能力补全，2026-10-07 立项）
+## Phase 5（产品闭环，TSK-5xx，2026-10-07 立项）
 
-粒度规则同上：每行=一次会话；P0 必有可自动化验收；Done 必更状态 + 证据链接。依赖列指向既有 TSK 或本阶段前置。
-
-### M5 产品闭环
+粒度规则同上：每行=一次会话；P0 必有可自动化验收；Done 必更状态 + 证据链接。编号约定：Phase 5=`TSK-5xx`、Phase 6=`TSK-6xx`、Phase 7=`TSK-7xx`；冻结/阻塞不占 TSK 号，单列 `F/B-nnn`。
 
 | ID | 标题 | 类型 | 阶段 | 依赖 | 优先级 | 规模 | 验收标准(可测) | 关联决策 | 状态 | 证据链接 |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -93,32 +91,34 @@
 | TSK-505 | 单命令 E2E M3（真意图→候选→应用→回滚） | 实现 | 5 | TSK-503/504 | P0 | M | `acrd e2e --seed N` 一次跑通 ≤5min；3 候选差异句非空；应用/回滚零残留；runbook 表追加见证行 | ROADMAP M5 | Todo | |
 | TSK-506 | UI 主窗接线（卡片 6 字段 + 试听 + 应用/回滚） | 实现 | 5 | TSK-505/119/304 | P1 | M | 人工点选胜出候选可应用；回滚后工程计数归零；缺字段即红 | DEC-019/020 | Todo | |
 
-### M6 能力补全
+## Phase 6（能力补全，TSK-6xx，2026-10-07 立项）
 
 | ID | 标题 | 类型 | 阶段 | 依赖 | 优先级 | 规模 | 验收标准(可测) | 关联决策 | 状态 | 证据链接 |
 |---|---|---|---|---|---|---|---|---|---|---|
-| TSK-511 | CLAP ONNX 接线（score `clap_cos` + 候选距离） | 实现 | 5 | TSK-202/304 | P0 | M | `clap_cos` 不再恒 `None`；+6dB 回归仍不涨分；同质/异质 fixture 去重行为符合预期；ONNX 许可登记 | DEC-012/016/018 | Todo | |
-| TSK-512 | LanceDB 真后端接入 + 10k 真 crate 基准 | 实现 | 5 | TSK-203 | P0 | M | 真 crate 构建/P95 达标（<30min / <100ms）或按 DEC-014/203 反转记录；BENCH 重写不污染 CI（门禁或缓存） | DEC-014 | Todo | |
-| TSK-513 | Demucs ONNX 后端接线（懒下载 + stem 进缓存） | 实现 | 5 | TSK-205 | P1 | M | stub→真后端一条 stem 跑通；内容寻址命中；GC 水位指标；权重科研条款已登记 | DEC-009/025 | Todo | |
-| TSK-514 | patch 残留校验（SELECT 枚举 + add 存在性 + name_regex 编译） | 实现 | 5 | TSK-201/302 | P1 | S | 非法 SELECT/add fixture 必红；name_regex 编译失败 fail-closed；Macro4/Vital 补测进 builtins | DEC-013/015 | Todo | |
-| TSK-515 | WAL/journal + DEC-027 配置迁移 | 实现 | 5 | TSK-501/205 | P1 | M | 崩溃注入后任务可重放；`config_version` migrate 单测；用户目录不可写回退工程相对目录并提示 | DEC-009/027 | Todo | |
-| TSK-516 | 检索 RRF 多路与 audio_ref 输入形状落定 | 实现 | 5 | TSK-511/512 | P1 | S | 文本+音频双索引 RRF 单测；试听引用格式定稿并写进 CandidateCard | DEC-014/018/019 | Todo | |
+| TSK-601 | CLAP ONNX 接线（score `clap_cos` + 候选距离） | 实现 | 6 | TSK-202/304 | P0 | M | `clap_cos` 不再恒 `None`；+6dB 回归仍不涨分；同质/异质 fixture 去重行为符合预期；ONNX 许可登记 | DEC-012/016/018 | Todo | |
+| TSK-602 | LanceDB 真后端接入 + 10k 真 crate 基准 | 实现 | 6 | TSK-203 | P0 | M | 真 crate 构建/P95 达标（<30min / <100ms）或按 DEC-014/203 反转记录；BENCH 重写不污染 CI（门禁或缓存） | DEC-014 | Todo | |
+| TSK-603 | Demucs ONNX 后端接线（懒下载 + stem 进缓存） | 实现 | 6 | TSK-205 | P1 | M | stub→真后端一条 stem 跑通；内容寻址命中；GC 水位指标；权重科研条款已登记 | DEC-009/025 | Todo | |
+| TSK-604 | patch 残留校验（SELECT 枚举 + add 存在性 + name_regex 编译） | 实现 | 6 | TSK-201/302 | P1 | S | 非法 SELECT/add fixture 必红；name_regex 编译失败 fail-closed；Macro4/Vital 补测进 builtins | DEC-013/015 | Todo | |
+| TSK-605 | WAL/journal + DEC-027 配置迁移 | 实现 | 6 | TSK-501/205 | P1 | M | 崩溃注入后任务可重放；`config_version` migrate 单测；用户目录不可写回退工程相对目录并提示 | DEC-009/027 | Todo | |
+| TSK-606 | 检索 RRF 多路与 audio_ref 输入形状落定 | 实现 | 6 | TSK-601/602 | P1 | S | 文本+音频双索引 RRF 单测；试听引用格式定稿并写进 CandidateCard | DEC-014/018/019 | Todo | |
 
-### M7 真实面扩大
-
-| ID | 标题 | 类型 | 阶段 | 依赖 | 优先级 | 规模 | 验收标准(可测) | 关联决策 | 状态 | 证据链接 |
-|---|---|---|---|---|---|---|---|---|---|---|
-| TSK-521 | Tier1 点火 + 4xx 真端点分类验证 | 测试 | 5 | TSK-503/116 | P0 | S | Tier1 一次 2xx + 信封解码，或书面 BLOCKED（含 401/UA/条款）；400/404 终端 vs 可重试分类写进 `status_kind` 测试 | DEC-010/011 | Todo | |
-| TSK-522 | 代理矩阵回归（系统代理开/关） | 测试 | 5 | TSK-116 | P1 | S | `http_proxy` 存在与否下连接拒绝/超时/401 分类全绿；文档写明生产代理策略 | ARCH §5 | Todo | |
-| TSK-523 | HiDPI 复核 + UI CPU 抽稀 | 测试 | 5 | TSK-506/119 | P1 | S | HiDPI 截图无 tofu；100Hz 工况 CPU 相对基线下降并记录 | DEC-002 | Todo | |
-| TSK-524 | 跨用户 / 真多进程 IPC | 测试 | 5 | TSK-502/115 | P2 | M | 跨用户 ACL 用例绿或显式 BLOCKED+指引；真双进程 shm 压测达标 | DEC-023 | Todo | |
-| TSK-525 | 盲听扩大样本 + 权重复标定 | 测试 | 5 | TSK-511/402 | P1 | M | 样本 ≥ 当前 2 倍；Spearman ≥0.5 维持或记录权重反转（走 DEC-016） | DEC-016 | Todo | |
-| TSK-526 | 性能预算跨机复测（500 参数/撤销） | 测试 | 5 | TSK-505/403 | P2 | S | 目标机（非仅开发机）报告；超预算则分片方案落地 | DEC-007/008 | Todo | |
-| TSK-527 | 产品向 M5 终验报告 + 文档收口 | 文档 | 5 | TSK-505/506 | P0 | S | 五节报告；TASK-INDEX 无未解释活动行；残留债清零或转 Blocked（含解除条件） | ROADMAP M5 | Todo | |
-
-## 冻结/阻塞（原因 + 解除条件）
+## Phase 7（真实面扩大，TSK-7xx，2026-10-07 立项）
 
 | ID | 标题 | 类型 | 阶段 | 依赖 | 优先级 | 规模 | 验收标准(可测) | 关联决策 | 状态 | 证据链接 |
 |---|---|---|---|---|---|---|---|---|---|---|
-| TSK-901 | RB/JUCE/权重商用采购与分发 | 合规 | — | — | P3 | S | 不适用（冻结） | DEC-025 | Blocked | 阻塞原因：不购买许可 + 无分发约束；解除条件：人类书面解除约束并立项采购 |
-| TSK-902 | 云端计费声明与预算立项 | 合规 | — | — | P3 | S | 不适用（冻结） | DEC-010 | Blocked | 阻塞原因：人类明确不声明计费；解除条件：人类书面要求立项 |
+| TSK-701 | Tier1 点火 + 4xx 真端点分类验证 | 测试 | 7 | TSK-503/116 | P0 | S | Tier1 一次 2xx + 信封解码，或书面 BLOCKED（含 401/UA/条款）；400/404 终端 vs 可重试分类写进 `status_kind` 测试 | DEC-010/011 | Todo | |
+| TSK-702 | 代理矩阵回归（系统代理开/关） | 测试 | 7 | TSK-116 | P1 | S | `http_proxy` 存在与否下连接拒绝/超时/401 分类全绿；文档写明生产代理策略 | ARCH §5 | Todo | |
+| TSK-703 | HiDPI 复核 + UI CPU 抽稀 | 测试 | 7 | TSK-506/119 | P1 | S | HiDPI 截图无 tofu；100Hz 工况 CPU 相对基线下降并记录 | DEC-002 | Todo | |
+| TSK-704 | 跨用户 / 真多进程 IPC | 测试 | 7 | TSK-502/115 | P2 | M | 跨用户 ACL 用例绿或显式 BLOCKED+指引；真双进程 shm 压测达标 | DEC-023 | Todo | |
+| TSK-705 | 盲听扩大样本 + 权重复标定 | 测试 | 7 | TSK-601/402 | P1 | M | 样本 ≥ 当前 2 倍；Spearman ≥0.5 维持或记录权重反转（走 DEC-016） | DEC-016 | Todo | |
+| TSK-706 | 性能预算跨机复测（500 参数/撤销） | 测试 | 7 | TSK-505/403 | P2 | S | 目标机（非仅开发机）报告；超预算则分片方案落地 | DEC-007/008 | Todo | |
+| TSK-707 | Phase 5–7 终验报告 + 文档收口 | 文档 | 7 | TSK-505/506 | P0 | S | 五节报告；TASK-INDEX 无未解释活动行；残留债清零或转 F/B（含解除条件） | ROADMAP M5–M7 | Todo | |
+
+## 冻结/阻塞（F/B-nnn，原因 + 解除条件）
+
+冻结/阻塞**不占用** `TSK-nnn` 任务号；编号仅在本表递增。状态一律 `Blocked`。
+
+| ID | 标题 | 类型 | 阶段 | 依赖 | 优先级 | 规模 | 验收标准(可测) | 关联决策 | 状态 | 证据链接 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| F/B-001 | RB/JUCE/权重商用采购与分发 | 合规 | — | — | P3 | S | 不适用（冻结） | DEC-025 | Blocked | 阻塞原因：不购买许可 + 无分发约束；解除条件：人类书面解除约束并立项采购 |
+| F/B-002 | 云端计费声明与预算立项 | 合规 | — | — | P3 | S | 不适用（冻结） | DEC-010 | Blocked | 阻塞原因：人类明确不声明计费；解除条件：人类书面要求立项 |

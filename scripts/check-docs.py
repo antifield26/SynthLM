@@ -56,7 +56,7 @@ for token in ("TSK-", "Blocked", "Done"):
         fail(f"TASK-INDEX.md: missing token '{token}'")
 active = [t for t in ("Todo", "In-Progress") if t in tasks]
 print(f"active-rows: {active if active else 'none (all closed or frozen)'}")
-# Phase 5 rows may be Todo; that is expected while the phase is open.
+# Phase 5–7 rows may be Todo; that is expected while those phases are open.
 
 if FAILURES:
     print("doc-sync FAILED:")

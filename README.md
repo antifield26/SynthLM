@@ -2,7 +2,7 @@
 
 面向 REAPER 7 的 AI 作曲 / 声设 Agent：输入文本意图 + 参考音频，经本地 / 云端多模态模型，产出多个候选方案（第三方插件参数调节、音频派生编辑、轻度混音辅助），支持一键应用、A/B 对比、原子回滚。
 
-- 状态：Phase 0–4 工程契约与验证闭环已关闭（45 任务 Done，2 冻结）；Phase 5（产品闭环 + 能力补全）见 `docs/ROADMAP.md` §2b 与 `docs/TASK-INDEX.md`。产品向演示仍为 seeded 形态：`docs/M4-REPORT.md` 与 `experiments/e2e-runbook.md`。
+- 状态：Phase 0–4 工程契约与验证闭环已关闭（45 任务 Done，F/B-001/002 冻结）；Phase 5–7（产品闭环 / 能力补全 / 真实面）见 `docs/ROADMAP.md` §2 与 `docs/TASK-INDEX.md`（`TSK-5xx/6xx/7xx`）。产品向演示仍为 seeded 形态：`docs/M4-REPORT.md` 与 `experiments/e2e-runbook.md`。
 - 实现语言：Rust（Edition 2024 workspace：`common` / `profile` / `planner` / `retrieval` / `eval` / `dsp` / `acrd` / `bridge` / `ui`）。
 - 目标宿主：REAPER ≥ 7.60（实测基线 7.82），通过 ReaScript / reaper-rs 官方与社区接口集成；**不做插件宿主**（L1）。
 
@@ -44,4 +44,4 @@ python scripts/m4_gate.py           # 发布门禁（16 证据 + 任务全关）
 ## 许可
 
 - 本仓库代码：MIT（见 `LICENSE`）。
-- 第三方依赖/权重/模型：见 `docs/LICENSES.md` 登记（GPL/AGPL 未购证与 NC 权重仅限内部运行；出现分发物即冻结，TSK-901）。
+- 第三方依赖/权重/模型：见 `docs/LICENSES.md` 登记（GPL/AGPL 未购证与 NC 权重仅限内部运行；出现分发物即冻结，F/B-001）。

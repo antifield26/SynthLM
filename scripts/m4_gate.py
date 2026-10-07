@@ -3,7 +3,7 @@
 Does NOT re-run long suites; asserts:
 1. doc-sync gate passes (headers, DEC count, banned phrases, chapters);
 2. every non-frozen Phase 0–4 TASK-INDEX row is Done (Blocked allowed only for
-   TSK-901/902 freeze rows). Phase 5+ rows may be open by design;
+   F/B-nnn freeze rows). Phase 5–7 rows may be open by design;
 3. key evidence artifacts exist on disk.
 The interactive 5-minute E2E loop is TSK-405 (needs human + live stack).
 """
@@ -44,17 +44,20 @@ for rel in EVIDENCE:
 text = (ROOT / "docs" / "TASK-INDEX.md").read_text(encoding="utf-8")
 open_rows = 0
 for line in text.splitlines():
-    if not line.startswith("| TSK-"):
+    if not (line.startswith("| TSK-") or line.startswith("| F/B-")):
         continue
     cols = [c.strip() for c in line.split("|")]
     tid, phase, status = cols[1], cols[4], cols[10]
-    # M4 certifies Phase 0–4 only. Phase 5+ rows may stay open (product loop
-    # / capability work); they are gated by their own milestone checks.
+    # Freeze rows are never "open work"; they must stay Blocked with cause.
+    if tid.startswith("F/B-"):
+        if status != "Blocked":
+            fail(f"freeze row not Blocked: {tid} [{status}]")
+        continue
+    # M4 certifies Phase 0–4 only. Phase 5–7 rows may stay open (product
+    # loop / capability work); they are gated by their own milestone checks.
     if phase.isdigit() and int(phase) >= 5:
         continue
     if status == "Done":
-        continue
-    if status == "Blocked" and tid in ("TSK-901", "TSK-902"):
         continue
     if tid == "TSK-404" and status == "In-Progress":
         continue  # this run closes it on pass

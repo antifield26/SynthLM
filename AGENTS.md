@@ -1,7 +1,7 @@
 # AGENTS.md — SynthLM 后续所有 Agent 会话的强制契约（最高优先级）
 
 - 适用范围：本仓库后续一切 Agent 会话（调研/设计/实现/测试/文档）。与本文冲突者，以本文为准。
-- 状态：Accepted（人类 2026-10-06 确认）
+- 状态：Accepted（人类 2026-10-06 确认；2026-10-07 编号约定：Phase 5–7=`TSK-5xx/6xx/7xx`，冻结项=`F/B-nnn`）
 - 人类已锁定约束：非商业、无分发、不购买许可；云端三档授权（Tier1 muse-spark-1.3-contributor 训练保留 / Tier2 mimo-v2.6-flash ZDR / Tier3 本地 Bonsai-2-27B 唯一候选，纯文本）；REAPER 最低 v7.60。
 
 ## 1 角色与权限
@@ -24,7 +24,7 @@
 3. 模型推理、音频分析、渲染等待永不进 DAW 进程（L8）；bridge 只做控制面。
 4. 不凭印象写外部 API：断言必带来源链接 + 核验日期，不确定标 `⚠️需实测` 并登记 TSK。
 5. 不静默删除/覆盖用户工程与音频文件：一律派生新文件 + provenance（`P_EXT:SYNTHLM_*`），应用必经 undo 事务块且可整体回滚。
-6. 不引入未登记许可的依赖：新增依赖同步更新 `docs/LICENSES.md`；GPL/AGPL 未购证与 NC 权重仅限内部运行，出现分发物即冻结（TSK-901）。
+6. 不引入未登记许可的依赖：新增依赖同步更新 `docs/LICENSES.md`；GPL/AGPL 未购证与 NC 权重仅限内部运行，出现分发物即冻结（F/B-001）。
 7. 不在 UI/日志/快照外泄 Key 与音频内容：Key 只读 `.env`（已 gitignore），缺失即 BLOCKED；原始音频默认不出网，上传字段走白名单审计单测。
 8. 不跳过 AGENTS.md 写业务代码；`src/` 业务代码在 ARCHITECTURE + TASK-INDEX Accepted 前不得出现（骨架除外）。
 
@@ -45,7 +45,7 @@
 
 ## 6 状态维护
 
-- TASK-INDEX 是唯一任务真源：状态机 Todo → In-Progress → Done（Blocked 须写原因 + 解除条件，参照 TSK-901/902）。
+- TASK-INDEX 是唯一任务真源：状态机 Todo → In-Progress → Done（冻结/阻塞不占 TSK 号，单列 `F/B-nnn` 并写原因 + 解除条件，参照 F/B-001/002）。
 - DECISIONS 状态机：Proposed → Accepted →（Superseded by DEC-yyy）；推翻已锁定决策必须先走 §7 流程。
 - 每会话结束：更新任务行状态 + 证据链接，附未决问题清单；禁止把“已验证”写给未跑过的结论。
 

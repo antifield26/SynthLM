@@ -1,8 +1,8 @@
 # ROADMAP（路线图）
 
-- 目的：定义 Phase 0–4 目标、交付物、可验证验收、依赖、规模、Kill/反转条件，以及里程碑演示脚本、偿债计划与资源假设。
+- 目的：定义 Phase 0–7 目标、交付物、可验证验收、依赖、规模、Kill/反转条件，以及里程碑演示脚本、偿债计划与资源假设。
 - 适用范围：SynthLM 全工程；约束：非商业、无分发、不购买许可；三档授权（Tier1 训练保留 / Tier2 ZDR / Tier3 本地）；本地端点测试递延到实现阶段（人类 2026-10-06）。
-- 状态：Accepted（Phase 0–4 已关闭；Phase 5 规划见 §2b，2026-10-07）
+- 状态：Accepted（Phase 0–4 已关闭；Phase 5–7 规划见 §2，2026-10-07）
 - 最后核验日期：2026-10-06
 - 依赖文档：docs/DECISIONS.md、docs/EVALUATION.md、docs/ARCHITECTURE.md。
 
@@ -47,30 +47,41 @@
 - 验收：真实工程 5 分钟 3 候选复现；零崩溃；零不可逆；差异摘要齐全。
 - 依赖：Phase 3。规模：M。Kill：K5（演示不可复现→回 Research）。
 
-### Phase 5 产品闭环与能力补全（L，2026-10-07 立项）
+### Phase 5 产品闭环（L，TSK-5xx，2026-10-07 立项）
 
-- 背景：Phase 0–4 关闭后评估结论——治理/安全/部件验证一流，但 **产品闭环仍是 seeded demo**（无 acrd 守护进程、无真模型进环、无 42230 真渲染进评价），且 CLAP/Demucs/真检索后端等能力缝未接线。本阶段并行补齐 **产品主路径** 与 **能力补全**。
-- 目标：单命令可复现的真·5 分钟 3 候选（意图+参考音频 → 真模型/检索 Patch → 真渲染评价 → UI 试听应用回滚）；评价/检索/DSP 不再依赖占位。
-- 交付物：
-  1. **产品闭环（M5）**：acrd 守护进程（IPC 服务循环/任务状态机/WAL/watchdog）+ bridge↔acrd 真接线 + model-gw 真调用替换 demo 种子 + 42230 渲染进 `eval` + UI 主窗候选闭环 + 单命令 E2E。
-  2. **能力补全（M6）**：CLAP ONNX 嵌入进 score/去重 + LanceDB 真后端 10k 基准 + Demucs ONNX 后端 + Profile/patch 残留校验 + WAL/DEC-027 迁移。
-  3. **真实面扩大（M7）**：Tier1 点火 + 代理矩阵 + HiDPI/CPU + 跨用户 IPC + 扩大盲听 + 跨机性能复测。
-- 验收（产品向，替代“库级绿”）：
-  - 单命令 `acrd e2e --seed N`（或 runbook 等价物）一次跑通：真意图解析 → ≥3 候选 → 试听文件可播 → 应用/回滚零残留 → 审计字段齐全；
-  - 候选排序含 CLAP 项（非 `None`）；检索查询 P95 达标（真 crate）；
-  - 有/无系统代理下 transport 分类单测全绿；
-  - 5 分钟闭环计时 ≤5min（人机协同见证表追加行）。
-- 依赖：Phase 1–4 部件。规模：L。Kill：
-  - K6：acrd 接线后连续两轮 E2E 不可复现 → 回退保持 demo 形态并冻结产品宣称；
-  - K7：CLAP/Demucs/真检索三者中 ≥2 项无法在预算内接线 → 降级发布“文本规划 + 参数检索”子集并另立能力专项。
-- 反转/降级：云端有效率 <95% 经 2 轮修复仍不达标 → 收紧 schema 或 Tier3 文本规划 + 人工确认（K1 已有）；渲染不可比 → K2 人工 A/B；出现不可逆残留 → K3 冻结写。
-- 明确非目标（本阶段仍不做）：移动/Web、商用分发、自研采样引擎、购买 RB/JUCE、Tier3 模型更换。
+- 背景：Phase 0–4 关闭后评估——部件验证强，但产品闭环仍是 seeded demo（无 acrd 守护进程、无真模型进环、无 42230 真渲染进评价）。
+- 目标：单命令可复现的真·5 分钟 3 候选（意图+参考音频 → 真模型/检索 Patch → 真渲染评价 → UI 试听应用回滚）。
+- 交付物：acrd 守护进程（IPC 服务循环/任务状态机/WAL 壳/watchdog）+ bridge↔acrd 真接线 + model-gw 真调用替换 demo 种子 + 42230 渲染进 `eval` + UI 主窗候选闭环 + 单命令 E2E（TSK-501–506）。
+- 验收：`acrd e2e --seed N` 一次跑通 ≤5min；≥3 候选差异句非空；试听可播；应用/回滚零残留；审计五字段；runbook 见证行追加。
+- 依赖：Phase 1–4 部件。规模：L。Kill：K6（接线后连续两轮 E2E 不可复现 → 冻结产品宣称，回退 demo 形态）。
+- 反转/降级：云端有效率不达标走 K1；渲染不可比走 K2；不可逆残留走 K3。
+- 非目标：移动/Web、商用分发、自研采样引擎、购买 RB/JUCE、Tier3 模型更换。
 
-## 2b 与 Phase 0–4 的衔接
+### Phase 6 能力补全（M，TSK-6xx，2026-10-07 立项）
 
-- Phase 0–4 任务保持 Done 不回滚；评估暴露的残留债以 Phase 5 TSK 行 **转正**（禁止只留在证据栏）。
-- 文档状态机：Phase 5 开表后允许 `Todo`/`In-Progress`；关闭时 TASK-INDEX 必须回到无活动行或 Blocked（含原因）。
-- 代理策略已定（ARCH §5）：云端尊重系统代理，loopback/hermetic 永不代理——相关回归进 M7。
+- 背景：CLAP/Demucs/真检索后端等能力缝仍为 stub 或占位，评价与去重名不副实。
+- 目标：评价/检索/DSP 不再依赖占位；候选排序与召回具备真实嵌入与索引。
+- 交付物：CLAP ONNX 嵌入进 score/去重 + LanceDB 真后端 10k 基准 + Demucs ONNX 后端 + Profile/patch 残留校验 + WAL/DEC-027 迁移 + RRF/audio_ref 形状（TSK-601–606）。
+- 验收：`clap_cos` 非 `None` 且 +6dB 仍不涨分；LanceDB 真 crate P95 <100ms；Demucs 一条 stem 进缓存 GC；SELECT/add/name_regex 红绿齐。
+- 依赖：Phase 2 部件；与 Phase 5 可并行，接入产品环时以 TSK-606/505 会合。规模：M。Kill：K7（CLAP/Demucs/真检索 ≥2 项接不上 → 降级“文本规划+参数检索”子集）。
+- 明确非目标：同 Phase 5。
+
+### Phase 7 真实面扩大（M，TSK-7xx，2026-10-07 立项）
+
+- 背景：单机/单代理/小样本证据不足以宣称产品级稳定。
+- 目标：扩大真实运行面（云端档位、代理、显示、IPC、听感、性能）并终验收口。
+- 交付物：Tier1 点火 + 4xx 分类 + 代理矩阵 + HiDPI/CPU + 跨用户 IPC + 扩大盲听 + 跨机性能 + Phase 5–7 终验报告（TSK-701–707）。
+- 验收：Tier1 一次 2xx 或书面 BLOCKED；代理开/关矩阵全绿；HiDPI 无 tofu；盲听 Spearman ≥0.5；目标机性能报告；TASK-INDEX 无未解释活动行。
+- 依赖：Phase 5 主路径 + Phase 6 关键能力。规模：M。Kill：K5（终验不可复现）。
+- 明确非目标：同 Phase 5。
+
+## 2b 编号与冻结约定（2026-10-07）
+
+- Phase 5=`TSK-5xx`、Phase 6=`TSK-6xx`、Phase 7=`TSK-7xx`；Phase 0–4 既有 `TSK-0xx/1xx/2xx/3xx/4xx` 不改号。
+- 冻结/阻塞**不占** TSK 号，单列 `F/B-nnn`（当前 F/B-001 RB/JUCE/分发采购、F/B-002 云端计费立项）。
+- Phase 0–4 任务保持 Done 不回滚；评估残留债以 Phase 5–7 行 **转正**（禁止只留在证据栏）。
+- 文档状态机：Phase 5–7 开表后允许 `Todo`/`In-Progress`；关闭时 TASK-INDEX 必须回到无活动行或 F/B（含原因与解除条件）。
+- 代理策略已定（ARCH §5）：云端尊重系统代理，loopback/hermetic 永不代理——矩阵回归在 TSK-702。
 
 ## 3 里程碑与演示脚本（可复现）
 
@@ -79,9 +90,9 @@
 - M2 语义评价：对 5 款目标插件跑 20 行枚举脚本 + NCH `2.0→8.0` + `+6dB` 不涨分回归绿。复现：同一脚本同一工程跑三次。
 - M3 闭环：在参考工程输入固定意图 + 固定参考音频，计时 ≤5min 得 3 候选，各试听正常，一键应用后一键回滚，审计日志字段齐全。复现：种子固定 + 授权档 Tier3（本地）可离线重跑。
 - M4 终验：M3 + 100× 故障注入零残留 + 盲听排序相关达标 + 阶段报告。
-- M5 产品闭环：空工程 + 固定意图/参考音频，`acrd e2e --seed N` 单命令出 3 真候选（model-gw 或受控 stub 明示），42230 渲染进评价，UI 或脚本完成应用→回滚，审计齐全。复现：同 seed 两次字节级计划一致（模型 stub 模式）或排序稳定（真模型模式）。
-- M6 能力验收：CLAP 距离去重生效（同质 fixture 被合并、异质保留）；LanceDB 10k 真 crate P95 <100ms；Demucs stub→ONNX 可跑通一条 stem 并进缓存 GC；patch SELECT/add 校验红绿用例齐。
-- M7 真实面：Tier1 至少一次 2xx 或书面 BLOCKED 原因；代理开/关矩阵全绿；HiDPI 截图无 tofu；跨用户 IPC 用例绿或显式 BLOCKED。
+- M5 产品闭环（Phase 5）：空工程 + 固定意图/参考音频，`acrd e2e --seed N` 单命令出 3 真候选（model-gw 或受控 stub 明示），42230 渲染进评价，UI 或脚本完成应用→回滚，审计齐全。复现：同 seed 两次字节级计划一致（模型 stub 模式）或排序稳定（真模型模式）。
+- M6 能力验收（Phase 6）：CLAP 距离去重生效（同质 fixture 被合并、异质保留）；LanceDB 10k 真 crate P95 <100ms；Demucs stub→ONNX 可跑通一条 stem 并进缓存 GC；patch SELECT/add 校验红绿用例齐。
+- M7 真实面（Phase 7）：Tier1 至少一次 2xx 或书面 BLOCKED 原因；代理开/关矩阵全绿；HiDPI 截图无 tofu；跨用户 IPC 用例绿或显式 BLOCKED。
 
 ## 4 阶段间技术债偿还
 

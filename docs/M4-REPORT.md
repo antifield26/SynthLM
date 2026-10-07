@@ -8,7 +8,7 @@
 
 ## 1 完成
 
-- `scripts/m4_gate.py` 一次通过：16 证据文件齐 + 0 未关闭任务（TSK-901/902 冻结除外）。
+- `scripts/m4_gate.py` 一次通过：16 证据文件齐 + 0 未关闭任务（F/B-001/002 冻结除外；原 TSK-901/902 已改号）。
 - 100× 故障注入零残留（fault-inject-100/401 + pooled 真对）；盲听 ρ=0.825/1.0；全门禁绿。
 
 ## 2 验证
@@ -23,7 +23,7 @@
 ## 4 修正
 
 - 无权重/决策反转；DEC-010 Tier3→Bonsai 与分层调整已于前期落定。
-- 2026-10-07 评估补记：本机 `http_proxy` 环境下 `HttpsTransport` 曾把连接拒绝误分类为 `ServerError`；已改为 loopback/hermetic 永不走系统代理（ARCH §5）。产品闭环与能力缺口转入 Phase 5，不在本报告内伪关闭。
+- 2026-10-07 评估补记：本机 `http_proxy` 环境下 `HttpsTransport` 曾把连接拒绝误分类为 `ServerError`；已改为 loopback/hermetic 永不走系统代理（ARCH §5）。产品闭环与能力缺口转入 Phase 5–7（TSK-5xx/6xx/7xx），不在本报告内伪关闭。
 
 ## 5 阻塞与移交
 
