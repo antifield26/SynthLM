@@ -5,6 +5,6 @@ det|r2|exists=true|size=794490|fnv=12ba223b
 det|r3|exists=true|size=794490|fnv=12ba223b
 det|all_equal=false
 m7|single_exists=true|size=794490
-m7|targets_single=C:\Users\25371\AppData\Local\Temp\synthlm-m7-single.wav
+m7|targets_single=%USERPROFILE%\AppData\Local\Temp\synthlm-m7-single.wav
 restore|ok=1
 done=1

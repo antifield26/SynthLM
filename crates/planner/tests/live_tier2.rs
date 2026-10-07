@@ -1,12 +1,16 @@
 //! Live Tier2 connectivity smoke (human-authorized, TSK-116 verification).
 //!
-//! Runs ONLY on explicit request (`cargo test -p synthlm-planner --test
-//! live_tier2 -- --ignored --nocapture`); never in CI. Reads the key from
-//! process environment (launcher-injected `.env`), prints no secret
+//! The two live tests (`live_tier2_transport_smoke`, `live_tier2_envelope_shape`)
+//! run ONLY on explicit request (`cargo test -p synthlm-planner --test
+//! live_tier2 -- --ignored --nocapture`); never in CI. They read the key from
+//! process environment (launcher-injected `.env`) and print no secret
 //! material: only status codes, JSON top-level key names, lengths, and
 //! match booleans. Tier2 (`mimo-v2.6-flash`, ZDR) first per least-exposure
 //! order. Human authorization for this exact invocation is on record;
 //! the consent dialog (TSK-105) gates all product paths.
+//!
+//! `live_consent_gate_still_holds` is offline by construction (pure consent
+//! gate, no transport, no key) and therefore runs in the default suite.
 
 use synthlm_common::consent::{ConsentState, require_consent};
 use synthlm_common::ipc::{ConsentTier, TimeoutConfig};
@@ -19,7 +23,7 @@ fn live_key() -> String {
 }
 
 #[test]
-#[ignore]
+#[ignore = "live network call to the Tier2 endpoint (mimo-v2.6-flash, ZDR) and needs OPENCODE_API_KEY; run with --ignored --nocapture"]
 fn live_tier2_transport_smoke() {
     let key = live_key();
     assert!(!key.trim().is_empty(), "key must be non-blank");
@@ -42,7 +46,7 @@ fn live_tier2_transport_smoke() {
 }
 
 #[test]
-#[ignore]
+#[ignore = "live network call to the Tier2 endpoint (mimo-v2.6-flash, ZDR) and needs OPENCODE_API_KEY; run with --ignored --nocapture"]
 fn live_tier2_envelope_shape() {
     // Raw shape probe: top-level JSON key names only, plus output-text
     // length and prefix-match boolean. No values, no prompt text logged.
@@ -75,9 +79,15 @@ fn live_tier2_envelope_shape() {
 }
 
 #[test]
-#[ignore]
 fn live_consent_gate_still_holds() {
-    // The product gate is unchanged by this authorized probe: undecided
+    // Offline by construction: no transport, no key, no I/O — `require_consent`
+    // is a pure match over the in-memory `ConsentState` (crates/common/src/
+    // consent.rs, "Gate: require_consent": `Undecided` -> `ConsentRequired`,
+    // never `Decided` -> cloud). This is the half of the TSK-116 smoke that
+    // must stay honest on machines with no network or key, so it is not
+    // `#[ignore]`d.
+    //
+    // The product gate is unchanged by the authorized probes: undecided
     // consent still BLOCKEDs before any transport use.
     let err = require_consent(&ConsentState::Undecided).expect_err("must block");
     assert!(err.blocked());

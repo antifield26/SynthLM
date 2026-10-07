@@ -1,7 +1,7 @@
 TSK-206 decode matrix (symphonia primary vs FFmpeg CLI对照)
 date(UTC): 2026-10-06
 symphonia: 0.6.1 MPL-2.0 (features: default + mp3/aac/isomp4)
-ffmpeg: C:\Users\25371\tools\ffmpeg\ffmpeg-9.0.2-essentials_build\bin\ffmpeg.exe (Gyan 9.0.2-essentials GPL-2+ build, internal-run only)
+ffmpeg: %USERPROFILE%\tools\ffmpeg\ffmpeg-9.0.2-essentials_build\bin\ffmpeg.exe (Gyan 9.0.2-essentials GPL-2+ build, internal-run only)
 source: experiments/spike-tone.wav (pcm_s16le mono 44100Hz 1s, 44100 frames)
 scratch: %TEMP%/synthlm-decode-matrix-29652 (fixtures, not committed)
 rule: fallback = !symphonia_ok && ffmpeg_ok

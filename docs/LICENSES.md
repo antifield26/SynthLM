@@ -2,16 +2,16 @@
 
 - 目的：登记一切新增依赖与外部组件的许可结论；新增依赖必须同步更新本表（AGENTS.md 红线 6）。
 - 适用范围：全仓库；约束：内部非商业、无分发、不购买许可。
-- 状态：Accepted（种子版，随 TSK-113 扩展）
-- 最后核验日期：2026-10-06
+- 状态：Accepted（种子版，随 TSK-113 扩展；2026-10-07 按评估 P1-3 逐 crate 复核并补齐 crate×dep 缺行）
+- 最后核验日期：2026-10-07
 - 依赖文档：docs/DECISIONS.md（DEC-025）、docs/EVALUATION.md（§6）。
 
 | 依赖/组件 | 许可 | 来源 | 内部使用结论 | 日期 |
 |---|---|---|---|---|
-| reaper-rs（`reaper-medium` + `reaper-low`，git rev `659b22b` pinned） | MIT | <https://github.com/helgoboss/reaper-rs>（README 要求用 git master，不用 crates.io 陈旧版） | 可用，仅内部非商业运行；传递依赖（nutype git 分支、vst、winapi 等）以 Cargo.lock 为准 | 2026-10-06（rev 提交 2026-09-12 "cargo fmt"，完整 rev `659b22bfbc34bf4a5a40902e6fdf60ccfd34ca23`） |
+| reaper-rs（`reaper-medium` + `reaper-low`，二者均为 `synthlm-bridge` 直接依赖，git rev `659b22b` pinned） | MIT | <https://github.com/helgoboss/reaper-rs>（README 要求用 git master，不用 crates.io 陈旧版） | 可用，仅内部非商业运行；传递依赖（nutype git 分支、vst、winapi 等）以 Cargo.lock 为准 | 2026-10-06（rev 提交 2026-09-12 "cargo fmt"，完整 rev `659b22bfbc34bf4a5a40902e6fdf60ccfd34ca23`） |
 | thiserror 2.0.21（`synthlm-bridge` 直接依赖，库边界错误类型） | MIT OR Apache-2.0 | crates.io/crates/thiserror（registry 缓存 manifest 核验） | 可用，仅内部非商业运行 | 2026-10-06 |
 | serde 1.0.229（`synthlm-bridge` 直接依赖，anchor 序列化，derive） | MIT OR Apache-2.0 | crates.io/crates/serde（registry 缓存 manifest 核验） | 可用，仅内部非商业运行 | 2026-10-06 |
-| serde_json 1.0.151（`synthlm-bridge` dev-only，单测 JSON 往返） | MIT OR Apache-2.0 | crates.io/crates/serde_json（registry 缓存 manifest 核验） | 可用，仅内部非商业运行（不进运行时） | 2026-10-06 |
+| serde_json 1.0.151（`synthlm-bridge` **直接运行时依赖**，声明在 `crates/bridge/Cargo.toml` `[dependencies]`；TSK-502 控制面帧构造：快照/计划/补丁/渲染结果/评分信封的 `Value` 组装，见 `crates/bridge/src/client.rs`） | MIT OR Apache-2.0 | crates.io/crates/serde_json（registry 缓存 manifest 核验；依赖段与调用点 2026-10-07 复核） | 可用，仅内部非商业运行（**进运行时**：仅控制面帧构造，不触音频线程、不发网络） | 2026-10-06（2026-10-07 校正：原记“dev-only，单测 JSON 往返／不进运行时”为误标） |
 | interprocess 2.4.4（`synthlm-common` 直接依赖，TSK-107 IPC local socket；默认特性，无 tokio） | 0BSD OR Apache-2.0 | <https://crates.io/crates/interprocess>（仓库 <https://github.com/kotauskas/interprocess>；API 按 docs.rs 2.4.4 于 2026-10-06 核验） | 可用，仅内部非商业运行；传递依赖（libc/recvmsg/widestring/windows-sys 等）以 Cargo.lock 为准 | 2026-10-06 |
 | serde 1.0.229（`synthlm-common` 直接依赖，IPC 帧/audit 序列化，`derive` 特性） | MIT OR Apache-2.0 | <https://crates.io/crates/serde>（registry 核验） | 可用，仅内部非商业运行 | 2026-10-06 |
 | serde_json 1.0.151（`synthlm-common` 直接依赖，IPC 首版 JSON 帧） | MIT OR Apache-2.0 | <https://crates.io/crates/serde_json>（registry 核验） | 可用，仅内部非商业运行 | 2026-10-06 |
@@ -26,8 +26,8 @@
 | webpki-roots 1.0.9（reqwest 经 rustls 传递依赖） | **MPL-2.0（文件级）** | crates.io（2026-10-06 核验） | 内部运行合规（DEC-025）；修改其文件须开源该文件；随 reqwest 链复核 | 2026-10-06 |
 | eframe 0.36.2 / egui =0.36.2（`synthlm-ui` 直接依赖，TSK-119 主窗） | MIT OR Apache-2.0 | crates.io（2026-10-06 核验） | 仅内部非商业运行 | 2026-10-06 |
 | anyhow 1.0.104（`synthlm-ui` 直接依赖，应用层错误） | MIT OR Apache-2.0 | crates.io（2026-10-06 核验） | 仅内部非商业运行 | 2026-10-06 |
-| Noto Sans SC（`crates/ui/assets/` 子集 149KB，SIL OFL 1.1，OFL 文本随包） | SIL OFL 1.1 | google/fonts `NotoSansSC[wght].ttf` v2.004（Regular 400 实例化；2026-10-06 核验） | 内部使用合规（署名与许可文本随包）；上游变更需重跑子集化 | 2026-10-06 |
-| ctrlc 3.5.2（`synthlm-acrd` 直接依赖，TSK-501 优雅停机；另有 unix-only 传递 `nix`，本机未下载待复核） | MIT OR Apache-2.0（本地 manifest 核验） | crates.io（2026-10-06 核验） | 仅内部非商业运行 | 2026-10-06 |
+| Noto Sans SC（`crates/ui/assets/NotoSansSC-subset.ttf` 子集 **222,524 B ≈ 217.3 KiB**，SIL OFL 1.1，OFL 文本随包） | SIL OFL 1.1 | google/fonts `NotoSansSC[wght].ttf` v2.004（Regular 400 实例化；2026-10-06 核验） | 内部使用合规（署名与许可文本随包）；上游变更需重跑子集化 | 2026-10-06（2026-10-07 校正：TSK-506 重跑子集化，tracked 文件 222,524 B；原记“149KB”已失效，见 `crates/ui/assets/README-SOURCE.txt`） |
+| ctrlc 3.5.2（`synthlm-acrd` 直接依赖，TSK-501 优雅停机；另有 unix-only 传递 `nix`，本机 registry 已见 0.23.2/0.31.3，2026-10-07 复核） | MIT OR Apache-2.0（本地 manifest 核验） | crates.io（2026-10-06 核验） | 仅内部非商业运行 | 2026-10-06 |
 | ReaImGui 0.10.0.5（二进制扩展，用户侧安装，非仓库分发） | LGPL-3.0（另有 GPL-3.0 文本；仓库已归档并迁 codeberg） | <https://github.com/cfillion/reaimgui>（COPYING/COPYING.LESSER；2026-10-06 核验；sha256 800b216e… pin） | 用户机直装（ReaPack 默认仓亦有）；本仓库不分发该二进制 | 2026-10-06 |
 | realfft 3.5.0（`synthlm-eval` 直接依赖，MIR v1 STFT 实数 FFT） | MIT | crates.io/crates/realfft（registry 缓存 manifest 核验） | 可用，仅内部非商业运行；传递依赖 rustfft（MIT OR Apache-2.0）以 Cargo.lock 为准 | 2026-10-06 |
 | rustfft 6.4.1（`synthlm-eval` 直接依赖，`Complex` 类型 + realfft 后端） | MIT OR Apache-2.0 | crates.io/crates/rustfft（registry 缓存 manifest 核验） | 可用，仅内部非商业运行；传递依赖（num-complex/num-traits/num-integer/primal-check/transpose/strength_reduce，均为 MIT OR Apache-2.0）以 Cargo.lock 为准 | 2026-10-06 |
@@ -42,17 +42,28 @@
 | MERT/MuQ 权重 | CC-BY-NC-4.0 | HF license 字段 | 仅内部非商业；不进产品基线 | 2026-10-06 |
 | Rubber Band | GPL-2-or-later/商业 | breakfastquay 许可页 | 不购证→仅内部运行；分发即违法 | 2026-10-06 |
 | OpenCode Go 云端（Tier1/ZDR-Tier2） | 用户确认条款（训练保留/ZDR；不声明计费） | 人类 2026-10-06 | 三档授权 + 审计；Key 仅 `.env` | 2026-10-06 |
-| FFmpeg（二进制，Gyan 9.0.2-essentials，`C:\tools\ffmpeg`） | GPL-2+（`--enable-gpl` + `--enable-librubberband`） | `ffmpeg -buildconf` 存档 experiments/ffmpeg-buildconf-9.0.2.txt | 仅内部运行；禁作 LGPL fallback；LGPL 构建另寻（TSK-206）；分发即触发 F/B-001 | 2026-10-06 |
-
+| FFmpeg（二进制，Gyan 9.0.2-essentials，安装于用户 PATH；绝对路径不在此固化，见 §附核验记录） | GPL-2+（`--enable-gpl` + `--enable-librubberband`） | `ffmpeg -buildconf` 存档 experiments/ffmpeg-buildconf-9.0.2.txt | 仅内部运行；禁作 LGPL fallback；LGPL 构建另寻（TSK-206）；分发即触发 F/B-001 | 2026-10-06 |
+| serde 1.0.229（`synthlm-profile` 直接依赖，`derive` 特性：profile schema 结构体序列化，见 `crates/profile/src/schema.rs`） | MIT OR Apache-2.0 | crates.io/crates/serde（与 workspace 同版本、同包，无新增包；2026-10-07 按 `crates/profile/Cargo.toml` 复核） | 可用，仅内部非商业运行 | 2026-10-07（按 crate 补齐缺行） |
+| serde 1.0.229（`synthlm-planner` 直接依赖，`derive` 特性：`CandidateCard`/`PatchPlan`/补丁操作序列化，见 `crates/planner/src/candidate.rs`、`crates/planner/src/patch.rs`） | MIT OR Apache-2.0 | crates.io/crates/serde（同包同版本；2026-10-07 按 `crates/planner/Cargo.toml` 复核） | 可用，仅内部非商业运行 | 2026-10-07（按 crate 补齐缺行） |
+| serde 1.0.229（`synthlm-dsp` 直接依赖，`derive` 特性：缓存 key／artifact 指针／job 状态序列化，见 `crates/dsp/src/key.rs`、`crates/dsp/src/artifact.rs`、`crates/dsp/src/job.rs`） | MIT OR Apache-2.0 | crates.io/crates/serde（同包同版本；2026-10-07 按 `crates/dsp/Cargo.toml` 复核） | 可用，仅内部非商业运行 | 2026-10-07（按 crate 补齐缺行） |
+| serde_json 1.0.151（`synthlm-profile` 直接依赖，profile JSON 读写：`from_json`/`to_json_pretty`，见 `crates/profile/src/schema.rs`） | MIT OR Apache-2.0 | crates.io（与 workspace 同版本，无新增包；2026-10-07 按 `crates/profile/Cargo.toml` 复核） | 仅内部非商业运行 | 2026-10-07（按 crate 补齐缺行） |
+| serde_json 1.0.151（`synthlm-planner` 直接依赖，模型请求体与响应信封组装/解析，见 `crates/planner/src/model_gw.rs`、`crates/planner/src/planning.rs`） | MIT OR Apache-2.0 | crates.io（与 workspace 同版本，无新增包；2026-10-07 按 `crates/planner/Cargo.toml` 复核） | 仅内部非商业运行 | 2026-10-07（按 crate 补齐缺行） |
+| serde_json 1.0.151（`synthlm-dsp` 直接依赖，GC 顺序文件读写与 JSON 错误桥接，见 `crates/dsp/src/store.rs`、`crates/dsp/src/error.rs`） | MIT OR Apache-2.0 | crates.io（与 workspace 同版本，无新增包；2026-10-07 按 `crates/dsp/Cargo.toml` 复核） | 仅内部非商业运行 | 2026-10-07（按 crate 补齐缺行） |
+| thiserror 2.0.21（`synthlm-profile` 直接依赖，库边界 `ProfileError`，见 `crates/profile/src/schema.rs`） | MIT OR Apache-2.0 | crates.io/crates/thiserror（同包同版本；2026-10-07 按 `crates/profile/Cargo.toml` 复核） | 可用，仅内部非商业运行 | 2026-10-07（按 crate 补齐缺行） |
+| thiserror 2.0.21（`synthlm-planner` 直接依赖，库边界 `SearchError`/`PlanningError`/`CandidateError`/`PatchError`/`GatewayError`） | MIT OR Apache-2.0 | crates.io/crates/thiserror（同包同版本；2026-10-07 按 `crates/planner/Cargo.toml` 复核） | 可用，仅内部非商业运行 | 2026-10-07（按 crate 补齐缺行） |
+| thiserror 2.0.21（`synthlm-retrieval` 直接依赖，库边界 `IndexError`，见 `crates/retrieval/src/error.rs`） | MIT OR Apache-2.0 | crates.io/crates/thiserror（同包同版本；2026-10-07 按 `crates/retrieval/Cargo.toml` 复核） | 可用，仅内部非商业运行 | 2026-10-07（按 crate 补齐缺行） |
+| thiserror 2.0.21（`synthlm-dsp` 直接依赖，库边界 `DspError`，见 `crates/dsp/src/error.rs`） | MIT OR Apache-2.0 | crates.io/crates/thiserror（同包同版本；2026-10-07 按 `crates/dsp/Cargo.toml` 复核） | 可用，仅内部非商业运行 | 2026-10-07（按 crate 补齐缺行） |
+| interprocess 2.4.4（`synthlm-acrd` 直接依赖，TSK-501 daemon accept loop 的 `Listener`/`Stream`，见 `crates/acrd/src/daemon.rs`；与 `synthlm-common` 同包同版本，无新增包） | 0BSD OR Apache-2.0 | <https://crates.io/crates/interprocess>（registry 核验；2026-10-07 按 `crates/acrd/Cargo.toml` 复核） | 可用，仅内部非商业运行；传递依赖以 Cargo.lock 为准 | 2026-10-07（原仅登记 `synthlm-common`，补 acrd 行） |
+| protoc 36.2（Protocol Buffers 编译器；**仅构建期**：非默认特性 `lancedb-real` 触发 `lance-encoding` 的 build script，需 `PROTOC` 指向该二进制，默认构建与运行时都不需要，见 `crates/retrieval/Cargo.toml`、`crates/retrieval/BENCH.md` caveat 2、`docs/M57-REPORT.md` §3） | BSD-3-Clause（protobuf 上游；**⚠️需实测**：仓库内无 protoc 许可文本/来源文件，条款未能复核） | <https://github.com/protocolbuffers/protobuf>（**⚠️需实测**：仓库仅记版本 36.2 与“借 temp-dir protoc”这一事实，未记下载来源与校验和） | 仅内部非商业，**构建机本地使用**；不随仓库分发、不进产物；CI 机是否安装见 `docs/M57-REPORT.md` §5（待人类） | 2026-10-07 |
 | ort 2.0.0-rc.13（`synthlm-eval` 可选依赖，仅 `onnx` 特性启用；预构建 ONNX Runtime 二进制经 `download-binaries` 在特性构建时获取，运行时纯本地） | MIT OR Apache-2.0 | <https://github.com/pykeio/ort>（crates.io；docs.rs 2.0.0-rc.13 `Session::builder/commit_from_file/inputs/outputs` 于 2026-10-07 核验） | 可用，仅内部非商业运行；默认特性关闭，主构建不触网；`ort` 内部 FFI unsafe 计入依赖边界（见 `crates/eval/src/clap.rs`），本 crate 不新增 `unsafe` | 2026-10-07 |
 | LAION CLAP ONNX 权重（`lquint/clap-htsat-unfused-onnx` rev `b31e0c5b0737a45ca1b04b8d151bed48afd78fcc`，`model.onnx` 119654416 B，SHA256 `0763d8c6d03fe1675a3905b96ae3ff9ebfe316e3c0af9b64f8658ece57f0d5a5`，opset 18，基座 `laion/clap-htsat-unfused`） | Apache-2.0 | <https://huggingface.co/lquint/clap-htsat-unfused-onnx>（HF 模型页许可 + API rev + `curl -I -L` 头 `X-Linked-Size/X-Linked-ETag` 于 2026-10-07 核验；导出脚本 `export_clap.py` 同仓） | 仅内部非商业运行；本变更不下载权重，懒缓存 `%APPDATA%/SynthLM/models/clap/model.onnx`（DEC-027），以 rev + 字节数 + SHA 固定来源，`verify_cached_weight` 卡大小 | 2026-10-07 |
 | ort 2.0.0-rc.13（`synthlm-dsp` 可选依赖，仅 `onnx` 特性启用；与 `synthlm-eval` 同版本字符串，`Cargo.lock` 单一条目共享，workspace 统一） | MIT OR Apache-2.0 | <https://github.com/pykeio/ort>（crates.io；TSK-601 已核验 docs.rs 2.0.0-rc.13；本地 registry 源码于 2026-10-07 复核 `Session::run/inputs!/Tensor::from_array/try_extract_tensor/Outlet::name` 签名） | 可用，仅内部非商业运行；默认特性关闭，主构建不触网不链接 ORT；`ort` 内部 FFI unsafe 计入依赖边界（见 `crates/dsp/src/demucs.rs`），本 crate 不新增 `unsafe` | 2026-10-07 |
 | Demucs ONNX 权重（`StemSplitio/htdemucs-onnx` rev `d54ed9eb60e258ea82131c6ee14578628816456a`，`htdemucs_fp16weights.onnx` 165612636 B，SHA256 `d05c269d0178d2a72ad484b10b11dd370193fc923201c3b27a99f848745db70a`，opset 17，单文件 4-stem `htdemucs`；推理窗/overlap-add 配方移植自同 rev MIT `infer.py`） | 科研限定（上游官方权重不受 MIT 覆盖，scientific purposes only；见 `facebookresearch/demucs#327`，DEC-025；Hub 页 `license:mit` 标签仅覆盖导出代码/打包，不覆盖权重权利，从严按科研限定执行） | <https://huggingface.co/StemSplitio/htdemucs-onnx>（Hub API rev + `curl -I -L` 头 `X-Linked-Size/X-Linked-ETag` 于 2026-10-07 核验；下载文件实测 SHA256/大小与 manifest 一致） | 仅内部非商业运行；本变更不下载权重，懒缓存 `%APPDATA%/SynthLM/models/demucs/htdemucs_fp16weights.onnx`（DEC-027），以 rev + 字节数 + SHA 固定来源，`verify_cached_weight` 卡大小；商用/分发须重授权（F/B-001 方向） | 2026-10-07 |
 
-注（2026-10-07 校正）：workspace **并非**零外部依赖骨架。直接依赖已接入（reaper-rs git、serde/serde_json、thiserror、interprocess、shared_memory、reqwest+rustls、realfft/rustfft/ebur128、symphonia、eframe/egui 等），传递依赖以 `Cargo.lock` 为准；上表为接入后的许可登记（TSK-113 起持续维护）。新增依赖仍必须同步本表（AGENTS 红线 6）。
+注（2026-10-07 校正）：**“零外部依赖”只描述 TSK-113 当时的初始骨架，不描述现状**——workspace 现已接入大量外部依赖：直接依赖覆盖 reaper-rs（git rev `659b22b`）、serde/serde_json、thiserror、interprocess、shared_memory、reqwest+rustls、realfft/rustfft/ebur128、symphonia、ebur128-stream、lancedb+arrow-array/arrow-schema/futures/tempfile/tokio、ort、eframe/egui、regex、ctrlc、anyhow，以及仅构建期需要的 `protoc`（逐 crate 见上表）；传递依赖以 `Cargo.lock` 为准（2026-10-07 该文件共 867 个 package 条目，含 9 个内部 `synthlm-*`）。上表为接入后的许可登记（TSK-113 起持续维护，2026-10-07 按 crate×依赖补齐缺行并校正 serde_json/字体两行）。新增依赖仍必须同步本表（AGENTS 红线 6）。
 
 ## 附：2026-10-06 TSK-113 核验记录
 
-- `cargo tree --workspace`：零外部依赖（输出仅 8 个内部包），引入记录义务当前为空。
-- FFmpeg：`~/tools/ffmpeg/ffmpeg-9.0.2-essentials_build/bin/ffmpeg.exe`（Gyan essentials，人类授权安装，已加入用户 PATH；此前 `C:\tools\ffmpeg` 已迁走）。`ffmpeg -buildconf` 存档见 `experiments/ffmpeg-buildconf-9.0.2.txt`：含 `--enable-gpl --enable-version3 ... --enable-librubberband`（无 `--enable-nonfree`）→ **该二进制为 GPL-2+ 构建，不是 LGPL**。
+- `cargo tree --workspace`（**2026-10-06 当时**）：初始骨架零外部依赖（输出仅 8 个内部包），引入记录义务当时为空。**该结论已于 2026-10-07 失效**：当前 workspace 已接入上表所列全部直接依赖与 `Cargo.lock` 中的传递依赖（2026-10-07 共 867 个 package 条目），故“零外部依赖”只能作为初始骨架的历史记录，不再描述现状；现状以上方许可登记表与 2026-10-07 校正注为准。
+- FFmpeg：安装于用户 PATH 的 `ffmpeg`（Gyan 9.0.2-essentials；具体安装目录随机器变化，按 AGENTS §8 不固化绝对路径；历史上先后位于用户目录下 tools\ffmpeg 与 `C:\tools\ffmpeg`，均已迁走）。`ffmpeg -buildconf` 存档见 `experiments/ffmpeg-buildconf-9.0.2.txt`：含 `--enable-gpl --enable-version3 ... --enable-librubberband`（无 `--enable-nonfree`）→ **该二进制为 GPL-2+ 构建，不是 LGPL**。
 - 结论（与 C-dsp §1.2 预判一致）：此二进制不可作 LGPL fallback；仅限内部非商业运行（DEC-025）；LGPL fallback 需另找非 gpl 构建，记入 TSK-206。

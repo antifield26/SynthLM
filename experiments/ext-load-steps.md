@@ -14,7 +14,7 @@
 1. **确认 REAPER 已完全退出**（扩展在启动时加载，须重启才生效/卸载；
    不要在 REAPER 运行时覆盖 `UserPlugins` 下的旧文件）。
 2. **复制并改名**（满足 `reaper_` 前缀规则，README `243`–`253`）：
-   - 从：`C:\Users\25371\projects\SynthLM\target\debug\synthlm_bridge.dll`
+   - 从：`%USERPROFILE%\projects\SynthLM\target\debug\synthlm_bridge.dll`
    - 到：`%APPDATA%\REAPER\UserPlugins\reaper_synthlm_bridge.dll`
    - 注意：这一步由人类手动做（Agent 约束：不复制任何 DLL 到 REAPER 目录）。
 3. **正常启动 REAPER**（不要 `-nonewinst`，要完整启动以加载扩展），打开

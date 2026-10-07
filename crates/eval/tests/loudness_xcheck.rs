@@ -12,8 +12,10 @@
 //!    need the licensed vectors on a licensed bench (research doc
 //!    `docs/research/C-dsp-toolchain.md` §4).
 //! 3. AAC priming: a hermetic zero-priming simulation (always runs) plus a
-//!    real FFmpeg-AAC → symphonia round trip (runs when the local FFmpeg
-//!    binary exists, skips otherwise — same precedent as
+//!    real FFmpeg-AAC → symphonia round trip (runs when an FFmpeg binary
+//!    resolves — `FFMPEG_BIN` when set, else `ffmpeg` on `PATH`, probed by
+//!    invoking `-version`; otherwise the test prints one greppable
+//!    `FFMPEG-SKIP` line and returns green — same precedent as
 //!    `tests/decode_matrix.rs`). The consumer rule under test is
 //!    [`strip_codec_padding`] with an [`AAC_PRIMING_SAMPLES`] head trim plus
 //!    truncation to the source frame count.
@@ -30,12 +32,6 @@ const SR: u32 = 48_000;
 
 /// 2 s of mono audio at 48 kHz.
 const N2S: usize = 96_000;
-
-/// Local FFmpeg when `FFMPEG_BIN` is unset (same default as the decode
-/// matrix; GPL build, internal-run only — here it only synthesises the AAC
-/// fixture, the assertions run on symphonia-decoded samples).
-const FFMPEG_DEFAULT: &str =
-    r"C:\Users\25371\tools\ffmpeg\ffmpeg-9.0.2-essentials_build\bin\ffmpeg.exe";
 
 /// Upper bound on packets per file so corrupt inputs cannot spin the loop.
 const MAX_PACKETS: usize = 10_000;
@@ -272,10 +268,40 @@ fn priming_trim_restores_zero_distance() {
     );
 }
 
+/// Resolve the FFmpeg CLI used to synthesise the AAC fixture. It is only the
+/// fixture generator; the assertions run on symphonia-decoded samples, so a
+/// local GPL build is fine (internal-run only, never shipped).
+///
+/// Resolution order: `FFMPEG_BIN` when set and non-empty (absolute path or
+/// bare name, the caller's choice) → else the bare name `ffmpeg`, which the
+/// OS resolves through the process `PATH` at spawn time. No machine-specific
+/// path is baked in (AGENTS.md §8).
 fn ffmpeg_bin() -> PathBuf {
     std::env::var_os("FFMPEG_BIN")
+        .filter(|value| !value.is_empty())
         .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from(FFMPEG_DEFAULT))
+        .unwrap_or_else(|| PathBuf::from("ffmpeg"))
+}
+
+/// Whether `bin` is a usable FFmpeg, probed by actually invoking
+/// `bin -version` (an `.exists()` check on a bare name never consults `PATH`,
+/// so it would report "missing" even on a machine where FFmpeg works).
+///
+/// Contract for the calling test: on `Err(reason)` the test must stay green —
+/// machines without FFmpeg are a supported configuration — but must not hide
+/// the gap. The caller prints exactly one greppable `FFMPEG-SKIP` line
+/// carrying the resolved binary and `reason`, then returns (the hermetic
+/// zero-priming simulation has already run and keeps its assertions).
+fn ffmpeg_probe(bin: &Path) -> Result<(), String> {
+    match Command::new(bin).arg("-version").output() {
+        Ok(out) if out.status.success() => Ok(()),
+        Ok(out) => Err(format!(
+            "`{} -version` exited with {}",
+            bin.display(),
+            out.status
+        )),
+        Err(err) => Err(format!("cannot spawn `{}`: {err}", bin.display())),
+    }
 }
 
 /// Minimal mono PCM-16 WAV writer (test fixture synthesis only).
@@ -376,8 +402,13 @@ fn symphonia_decode_mono(path: &Path) -> (Vec<f32>, u32, usize) {
 #[test]
 fn aac_roundtrip_priming_rule() {
     let ffmpeg = ffmpeg_bin();
-    if !ffmpeg.exists() {
-        eprintln!("AAC SKIP: ffmpeg not found at {}", ffmpeg.display());
+    if let Err(reason) = ffmpeg_probe(&ffmpeg) {
+        eprintln!(
+            "FFMPEG-SKIP: AAC priming round trip skipped (resolved binary `{}`): {reason}; \
+             the hermetic zero-priming simulation (`priming_trim_restores_zero_distance`) \
+             runs independently and keeps its assertions (set FFMPEG_BIN to override)",
+            ffmpeg.display()
+        );
         return;
     }
     let params = MirParams::v1();

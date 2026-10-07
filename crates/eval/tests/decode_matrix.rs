@@ -1,7 +1,8 @@
 //! Decode coverage matrix: symphonia (primary) vs FFmpeg CLI (fallback).
 //!
-//! TSK-206 spike. Fixtures are transcoded into `%TEMP%` with the local FFmpeg
-//! (Gyan 9.0.2-essentials, GPL build, internal-run only) from the repo fixture
+//! TSK-206 spike. Fixtures are transcoded into `%TEMP%` with a locally
+//! resolved FFmpeg CLI (`FFMPEG_BIN` when set, else `ffmpeg` on `PATH`; no
+//! absolute binary path is baked in, AGENTS.md §8) from the repo fixture
 //! `experiments/spike-tone.wav` (PCM s16le, mono, 44.1 kHz, 1 s), then each
 //! file is decoded with `symphonia` 0.6.1 (MPL-2.0) and对照-decoded with the
 //! FFmpeg CLI. The verdict is the report at
@@ -25,19 +26,43 @@ use symphonia::core::formats::probe::{Hint, Probe};
 use symphonia::core::io::MediaSourceStream;
 use symphonia::core::meta::MetadataOptions;
 
-/// Local FFmpeg when `FFMPEG_BIN` is unset. GPL-2+ build
-/// (`--enable-gpl --enable-librubberband`), internal-run only; it is the
-///对照 tool here, never the shipped fallback (see report §4).
-const FFMPEG_DEFAULT: &str =
-    r"C:\Users\25371\tools\ffmpeg\ffmpeg-9.0.2-essentials_build\bin\ffmpeg.exe";
-
 /// Upper bound on packets per file so garbage inputs cannot spin the loop.
 const MAX_PACKETS: usize = 10_000;
 
+/// Resolve the FFmpeg CLI used as the对照 tool (never the shipped fallback;
+/// see report §4 — the 2026-10-06 baseline was a GPL-2+ Gyan 9.0.2 build,
+/// internal-run only).
+///
+/// Resolution order: `FFMPEG_BIN` when set and non-empty (absolute path or
+/// bare name, the caller's choice) → else the bare name `ffmpeg`, which the
+/// OS resolves through the process `PATH` at spawn time. No machine-specific
+/// path is baked in (AGENTS.md §8).
 fn ffmpeg_bin() -> PathBuf {
     std::env::var_os("FFMPEG_BIN")
+        .filter(|value| !value.is_empty())
         .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from(FFMPEG_DEFAULT))
+        .unwrap_or_else(|| PathBuf::from("ffmpeg"))
+}
+
+/// Whether `bin` is a usable FFmpeg, probed by actually invoking
+/// `bin -version` (an `.exists()` check on a bare name never consults `PATH`,
+/// so it would report "missing" even on a machine where FFmpeg works).
+///
+/// Contract for the callers in this file: on `Err(reason)` the test must stay
+/// green — machines without FFmpeg are a supported configuration — but must
+/// not hide the gap. The caller prints exactly one greppable `FFMPEG-SKIP`
+/// line carrying the resolved binary and `reason`, records the FFmpeg columns
+/// as skipped, and keeps asserting the symphonia side.
+fn ffmpeg_probe(bin: &Path) -> Result<(), String> {
+    match Command::new(bin).arg("-version").output() {
+        Ok(out) if out.status.success() => Ok(()),
+        Ok(out) => Err(format!(
+            "`{} -version` exited with {}",
+            bin.display(),
+            out.status
+        )),
+        Err(err) => Err(format!("cannot spawn `{}`: {err}", bin.display())),
+    }
 }
 
 fn crate_dir() -> PathBuf {
@@ -139,14 +164,15 @@ struct FfOutcome {
 }
 
 /// 对照-decode with the FFmpeg CLI into a throwaway wav under `%TEMP%`.
-/// `ran=false` when no FFmpeg binary exists (assertions on the对照 side are
-/// then skipped; the symphonia side still asserts).
-fn ffmpeg_decode(ffmpeg: &Path, input: &Path, out_wav: &Path) -> FfOutcome {
-    if !ffmpeg.exists() {
+/// `available=false` (the outcome of `ffmpeg_probe`) turns this into a
+/// no-op row: assertions on the对照 side are then skipped, the symphonia
+/// side still asserts.
+fn ffmpeg_decode(ffmpeg: &Path, available: bool, input: &Path, out_wav: &Path) -> FfOutcome {
+    if !available {
         return FfOutcome {
             ran: false,
             ok: false,
-            detail: "SKIP: ffmpeg binary not found".to_string(),
+            detail: "skipped: ffmpeg unavailable (FFMPEG-SKIP)".to_string(),
         };
     }
     let output = Command::new(ffmpeg)
@@ -221,7 +247,16 @@ fn run_ffmpeg(ffmpeg: &Path, args: &[&str]) {
 #[test]
 fn decode_matrix_symphonia_vs_ffmpeg() {
     let ffmpeg = ffmpeg_bin();
-    let ff_present = ffmpeg.exists();
+    let ff_probe = ffmpeg_probe(&ffmpeg);
+    let ff_present = ff_probe.is_ok();
+    if let Err(reason) = &ff_probe {
+        eprintln!(
+            "FFMPEG-SKIP: ffmpeg unavailable (resolved binary `{}`): {reason}; \
+             the FFmpeg对照 side is skipped, symphonia-only assertions still run \
+             (set FFMPEG_BIN to point at a binary)",
+            ffmpeg.display()
+        );
+    }
 
     let src_wav = crate_dir().join("../../experiments/spike-tone.wav");
     assert!(src_wav.is_file(), "missing fixture {}", src_wav.display());
@@ -274,9 +309,10 @@ fn decode_matrix_symphonia_vs_ffmpeg() {
         "ffmpeg: {} ({})",
         ffmpeg.display(),
         if ff_present {
-            "Gyan 9.0.2-essentials GPL-2+ build, internal-run only"
+            "resolved via FFMPEG_BIN/PATH; 2026-10-06 baseline was a Gyan \
+             9.0.2-essentials GPL-2+ build, internal-run only"
         } else {
-            "NOT FOUND — 对照 side skipped"
+            "unavailable — FFMPEG-SKIP, 对照 side skipped"
         }
     );
     let _ = writeln!(
@@ -329,12 +365,14 @@ fn decode_matrix_symphonia_vs_ffmpeg() {
         } else if *label == "wav" {
             src_wav.clone()
         } else {
-            skipped_rows.push(format!("{label} | {file} | skipped (no ffmpeg) | - | -"));
+            skipped_rows.push(format!(
+                "{label} | {file} | skipped (ffmpeg unavailable: FFMPEG-SKIP) | - | -"
+            ));
             continue;
         };
         let sym = symphonia_decode(&path);
         let ff_out = scratch.join(format!("ff-{label}.wav"));
-        let ff = ffmpeg_decode(&ffmpeg, &path, &ff_out);
+        let ff = ffmpeg_decode(&ffmpeg, ff_present, &path, &ff_out);
         check_row(label, file, &sym, &ff);
         sym_by_label.push((label.to_string(), sym));
     }
@@ -347,7 +385,7 @@ fn decode_matrix_symphonia_vs_ffmpeg() {
         let path = scratch.join(file);
         let sym = symphonia_decode(&path);
         let ff_out = scratch.join(format!("ff-{label}.wav"));
-        let ff = ffmpeg_decode(&ffmpeg, &path, &ff_out);
+        let ff = ffmpeg_decode(&ffmpeg, ff_present, &path, &ff_out);
         // Corrupt inputs must fail gracefully (Err, never panic); the detail
         // strings are the evidence, so assert on the flag, not the text.
         assert!(
