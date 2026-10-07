@@ -4069,6 +4069,7 @@ dependencies = [
  "anyhow",
  "eframe",
  "egui",
+ "serde_json",
  "synthlm-common",
 ]
 

@@ -16,3 +16,7 @@ synthlm-common = { path = "../common" }
 eframe = "0.36"
 egui = "=0.36.2"
 anyhow = "1"
+# TSK-506: plan-JSON card loading (same pinned versions already in the
+# workspace lockfile via synthlm-common and registered in docs/LICENSES.md;
+# no new external crate is introduced by these lines).
+serde_json = "1"
