@@ -30,6 +30,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
 
 use interprocess::local_socket::{Listener, Stream};
+use synthlm_common::consent::{FALLBACK_DIR_NAME, dir_writable, path_fingerprint};
 use synthlm_common::ipc::{
     EndpointRole, ErrorCode, IpcError, MessageType, PROTOCOL_MAJOR, PROTOCOL_MINOR, WireFrame,
     accept_next, bind_endpoint, bind_listener, connect_to, now_ms, read_frame, server_handshake,
@@ -662,6 +663,35 @@ pub fn default_state_dir() -> PathBuf {
     std::env::temp_dir().join("synthlm-acrd")
 }
 
+/// Resolve the daemon state dir against `base`, falling back to the
+/// project-relative dir on an unwritable base (DEC-027 reversal).
+///
+/// A writable `base` wins with no notice. Otherwise the state dir becomes
+/// `project_dir` joined with [`synthlm_common::consent::FALLBACK_DIR_NAME`] and
+/// `acrd` (consent and daemon state never share a directory), plus an
+/// actionable notice carrying relative names and the opaque
+/// [`synthlm_common::consent::path_fingerprint`] only — never an absolute path
+/// (AGENTS.md §8). Besides the writability probe no journal or heartbeat file
+/// is touched here.
+pub fn resolve_state_dir_in(base: &Path, project_dir: &Path) -> (PathBuf, Option<String>) {
+    if dir_writable(base) {
+        return (base.to_path_buf(), None);
+    }
+    let fallback = project_dir.join(FALLBACK_DIR_NAME).join("acrd");
+    let notice = format!(
+        "daemon state directory not writable (dir fingerprint {}); fell back to project-relative `.synthlm/acrd/`. Make the default state directory writable or pass `--state-dir`, then restart (see DEC-027).",
+        path_fingerprint(base)
+    );
+    (fallback, Some(notice))
+}
+
+/// Resolve the daemon state dir against [`crate::daemon::default_state_dir`]
+/// with the same project-relative fallback as
+/// [`crate::daemon::resolve_state_dir_in`].
+pub fn resolve_state_dir(project_dir: &Path) -> (PathBuf, Option<String>) {
+    resolve_state_dir_in(&default_state_dir(), project_dir)
+}
+
 /// Run the daemon: replay the journal, record the serve session as a task
 /// (`Running`, → `Done` on graceful shutdown so a crash replays it as
 /// `Pending`), install the Ctrl-C/TERM hook, bind the endpoint, and serve
@@ -998,5 +1028,43 @@ mod tests {
     fn default_state_dir_ends_in_acrd() {
         let dir = default_state_dir();
         assert_eq!(dir.file_name().and_then(|name| name.to_str()), Some("acrd"));
+    }
+
+    #[test]
+    fn state_dir_fallback_prefers_writable_base() {
+        let base = scratch_dir("state-ok");
+        let _ = fs::remove_dir_all(&base);
+        let project = scratch_dir("state-proj-unused");
+        let (dir, notice) = resolve_state_dir_in(&base, &project);
+        assert_eq!(dir, base);
+        assert_eq!(notice, None);
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn state_dir_fallback_uses_project_relative_without_absolute_paths() {
+        // A regular file where a directory is expected: directory creation
+        // fails on every OS, which simulates "state dir not writable" without
+        // touching permissions.
+        let scratch = scratch_dir("state-blocked");
+        let _ = fs::remove_dir_all(&scratch);
+        fs::create_dir_all(&scratch).expect("scratch dir");
+        let blocker = scratch.join("blocker");
+        fs::write(&blocker, b"x").expect("blocker file");
+        let project = scratch_dir("state-proj");
+        let (dir, notice) = resolve_state_dir_in(&blocker, &project);
+        assert_eq!(dir, project.join(".synthlm").join("acrd"));
+        let notice = notice.expect("fallback notice");
+        assert!(
+            notice.contains(".synthlm/acrd"),
+            "relative dir named: {notice}"
+        );
+        assert!(notice.contains("fingerprint"), "opaque id: {notice}");
+        let scratch_text = scratch.to_string_lossy();
+        assert!(
+            !notice.contains(scratch_text.as_ref()),
+            "no absolute path: {notice}"
+        );
+        let _ = fs::remove_dir_all(&scratch);
     }
 }

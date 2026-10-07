@@ -16,6 +16,13 @@
 //! construction (there is no close/flush protocol), so the kill -9 drill is
 //! `drop(handle)` + reopen. Compaction (snapshot + truncate) and fsync of the
 //! parent directory are deferred as documented follow-ups, not silent gaps.
+//!
+//! Idempotency (dedup) contract, proven by the crash tests below: task ids are
+//! unique per log (re-creating an existing id is refused with
+//! [`crate::task::TaskError::DuplicateTask`]), terminal `Done` tasks accept no
+//! further transition (completed work is never re-executed), and a replayed
+//! `Pending` task is claimed exactly once (`Pending → Running` succeeds a
+//! single time; a second claim is rejected).
 
 use std::collections::HashMap;
 use std::fs;
@@ -583,6 +590,104 @@ mod tests {
             .expect_err("unknown");
         assert!(matches!(err, TaskError::UnknownTask(_)), "{err:?}");
         assert!(log.get("missing").is_none());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn pending_only_tasks_survive_crash_and_claim_exactly_once() {
+        let dir = fresh_dir("pending-crash");
+        {
+            let mut log = TaskLog::open(&dir).expect("open");
+            // Pending-only tasks: created, never transitioned (crash before start).
+            log.create_task("p1", "render").expect("create p1");
+            log.create_task("p2", "plan").expect("create p2");
+            // Running task: crash mid-execution.
+            log.create_task("r1", "eval").expect("create r1");
+            log.transition("r1", TaskState::Running)
+                .expect("r1 running");
+            drop(log); // simulated kill: no cleanup
+        }
+        let mut log = TaskLog::open(&dir).expect("reopen after crash");
+        assert_eq!(log.task_count(), 3, "no task may be lost");
+        // Nothing lost, nothing auto-started: everything replayable is Pending.
+        for id in ["p1", "p2", "r1"] {
+            assert_eq!(
+                log.get(id).expect("task replays").state,
+                TaskState::Pending,
+                "{id} must be replayable"
+            );
+        }
+        // Exactly-once claim: the first worker starts p1 ...
+        log.transition("p1", TaskState::Running)
+            .expect("first claim starts");
+        // ... a second claim of the same Running task is refused (no double run).
+        let err = log
+            .transition("p1", TaskState::Running)
+            .expect_err("double claim must fail");
+        assert!(
+            matches!(err, TaskError::IllegalTransition { .. }),
+            "{err:?}"
+        );
+        assert_eq!(log.get("p1").expect("p1").state, TaskState::Running);
+        // Completing then re-submitting the same id is deduped, not duplicated.
+        log.transition("p1", TaskState::Done).expect("finish p1");
+        let err = log
+            .create_task("p1", "render")
+            .expect_err("duplicate create must fail");
+        assert!(matches!(err, TaskError::DuplicateTask(_)), "{err:?}");
+        assert_eq!(log.task_count(), 3, "dedup refusal must not invent tasks");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn terminal_tasks_are_never_reexecuted_after_replay() {
+        let dir = fresh_dir("terminal-crash");
+        {
+            let mut log = TaskLog::open(&dir).expect("open");
+            log.create_task("done-1", "render").expect("create");
+            log.transition("done-1", TaskState::Running).expect("run");
+            log.transition("done-1", TaskState::Done).expect("done");
+            log.create_task("fail-1", "plan").expect("create");
+            log.transition("fail-1", TaskState::Running).expect("run");
+            log.transition("fail-1", TaskState::Failed).expect("fail");
+            drop(log); // simulated kill after terminal states commit
+        }
+        let mut log = TaskLog::open(&dir).expect("reopen after crash");
+        assert_eq!(
+            log.get("done-1").expect("done replays").state,
+            TaskState::Done,
+            "done stays done: never re-run"
+        );
+        assert_eq!(
+            log.get("fail-1").expect("failed replays").state,
+            TaskState::Failed
+        );
+        // Resubmitting a completed id is refused (dedup), not re-executed.
+        let err = log
+            .create_task("done-1", "render")
+            .expect_err("done id resubmit refused");
+        assert!(matches!(err, TaskError::DuplicateTask(_)), "{err:?}");
+        // No exit from Done through any transition either.
+        for next in [
+            TaskState::Pending,
+            TaskState::Running,
+            TaskState::Done,
+            TaskState::Failed,
+        ] {
+            let err = log
+                .transition("done-1", next)
+                .expect_err("done is terminal");
+            assert!(
+                matches!(err, TaskError::IllegalTransition { .. }),
+                "{err:?}"
+            );
+        }
+        // The explicit retry lane still works after replay: Failed → Pending → Running.
+        log.transition("fail-1", TaskState::Pending)
+            .expect("retry re-pends");
+        log.transition("fail-1", TaskState::Running)
+            .expect("retry re-runs");
+        assert_eq!(log.get("fail-1").expect("fail-1").state, TaskState::Running);
         let _ = fs::remove_dir_all(&dir);
     }
 

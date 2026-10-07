@@ -52,10 +52,17 @@
 //! | Toggle (indexed) | Bool | `0.0`/`1.0` numbers, bool-word Strings (`"true"`, `"off"`, `"1"`) |
 //! | Select (indexed) | String label or non-negative integer Number | integral floats (`2.0` → `2`) |
 //!
+//! When the target entry carries [`synthlm_profile::schema::ParamEntry::options`]
+//! (a stored enum label list), `Select` string values must name a member and
+//! integer indices must fall inside the list
+//! ([`crate::patch::PatchErrorKind::UnknownSelectOption`]); entries without a
+//! list keep the legacy lenient path.
+//!
 //! `Remove` ops must carry JSON `null` (a stray value is nulled by repair).
-//! `Add` / `Replace` need a non-null scalar (arrays/objects are rejected).
-//! Without target state `add` and `replace` both mean "set parameter"; the
-//! bridge enforces existence.
+//! `Replace` needs a non-null scalar (arrays/objects are rejected) and means
+//! "set parameter". `Add` is rejected on any resolved entry
+//! ([`crate::patch::PatchErrorKind::AddToExistingTarget`]): the whitelist is
+//! closed, so nothing is creatable — a setter must spell `replace`.
 //!
 //! Blocking contract: everything here is pure computation (no I/O, no clock).
 //! Never call from an audio thread anyway (AGENTS.md red line 2); this is a
@@ -65,7 +72,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use thiserror::Error;
 
 use synthlm_common::ipc::ErrorCode;
-use synthlm_profile::schema::{Profile, SoundRole, UiHint};
+use synthlm_profile::schema::{ParamEntry, Profile, SoundRole, UiHint};
 
 // ---------------------------------------------------------------------------
 // Op kind (lenient wire parsing: unknown spellings become Invalid)
@@ -310,6 +317,13 @@ pub enum PatchErrorKind {
     EmptyOps,
     /// Neither exact `ident` nor exact stored `name_regex` text hit.
     UnresolvableIdent,
+    /// `add` on a resolved whitelist entry. The whitelist is closed, so no
+    /// target is creatable: a setter must spell `replace` (removed).
+    AddToExistingTarget,
+    /// `Select` value outside the entry's stored `options` list (unknown
+    /// label, or an index past the end). Entries without a list keep the
+    /// legacy lenient path (removed).
+    UnknownSelectOption,
     /// `macro/<name>` hit a non-macro entry.
     RoleNotWhitelisted,
     /// Single-param op against a chunk-only `preset_only` entry.
@@ -352,6 +366,8 @@ impl PatchError {
     pub fn code(self) -> ErrorCode {
         match self.kind {
             PatchErrorKind::UnresolvableIdent
+            | PatchErrorKind::AddToExistingTarget
+            | PatchErrorKind::UnknownSelectOption
             | PatchErrorKind::RoleNotWhitelisted
             | PatchErrorKind::PresetOnlySingleParam => ErrorCode::WhitelistViolation,
             PatchErrorKind::InvalidOp
@@ -409,6 +425,12 @@ impl PatchError {
             }
             PatchErrorKind::UnresolvableIdent => {
                 "ident resolves to no profile entry (FromIdent -1 equivalent): drop the op or migrate the profile (see DEC-013)"
+            }
+            PatchErrorKind::AddToExistingTarget => {
+                "the whitelist is closed so add creates nothing; spell the setter replace (see DEC-013)"
+            }
+            PatchErrorKind::UnknownSelectOption => {
+                "select values must name a stored options label or index inside the list; extend the profile options first (see DEC-013)"
             }
             PatchErrorKind::RoleNotWhitelisted => {
                 "macro/ paths must address macro-role entries; retarget or drop the op (see DEC-015)"
@@ -568,10 +590,17 @@ fn semantic_errors(
         });
         return errors;
     }
+    if matches!(op.op, PatchOpKind::Add) {
+        errors.push(PatchError {
+            op_index: Some(index),
+            kind: PatchErrorKind::AddToExistingTarget,
+        });
+        return errors;
+    }
     if matches!(op.op, PatchOpKind::Remove) {
         return errors;
     }
-    if let Some(kind) = value_mismatch(&op.value, entry.ui) {
+    if let Some(kind) = value_mismatch(&op.value, entry) {
         errors.push(PatchError {
             op_index: Some(index),
             kind,
@@ -580,13 +609,16 @@ fn semantic_errors(
     errors
 }
 
-/// Check a setter value against the target widget. Returns `None` when the
-/// value fits as-is; otherwise the fixable-or-fatal semantic kind.
+/// Check a setter value against the target widget and, for `Select` targets
+/// carrying a stored `options` list, against the enum membership. Returns
+/// `None` when the value fits as-is; otherwise the fixable-or-fatal
+/// semantic kind.
 ///
-/// `Remove` values never reach here (shape-checked to `null`), and
-/// `preset_only` targets never reach here (rejected above).
-fn value_mismatch(value: &serde_json::Value, ui: UiHint) -> Option<PatchErrorKind> {
-    match ui {
+/// `Remove` values never reach here (shape-checked to `null`), `add` ops
+/// never reach here (rejected on resolved entries), and `preset_only`
+/// targets never reach here (rejected above).
+fn value_mismatch(value: &serde_json::Value, entry: &ParamEntry) -> Option<PatchErrorKind> {
+    match entry.ui {
         UiHint::Slider | UiHint::Knob => match value {
             serde_json::Value::Number(number) => {
                 if let Some(scalar) = number.as_f64() {
@@ -631,17 +663,30 @@ fn value_mismatch(value: &serde_json::Value, ui: UiHint) -> Option<PatchErrorKin
             _ => Some(PatchErrorKind::TypeMismatch),
         },
         UiHint::Select => match value {
-            serde_json::Value::String(_) => None,
+            serde_json::Value::String(label) => match entry.options.as_ref() {
+                None => None,
+                Some(options) if options.iter().any(|known| known == label) => None,
+                Some(_) => Some(PatchErrorKind::UnknownSelectOption),
+            },
             serde_json::Value::Number(number) => {
                 if let Some(scalar) = number.as_i64() {
                     if scalar >= 0 {
-                        None
+                        if select_index_in_range(entry, scalar as u64) {
+                            None
+                        } else {
+                            Some(PatchErrorKind::UnknownSelectOption)
+                        }
                     } else {
                         Some(PatchErrorKind::TypeMismatch)
                     }
-                } else if number.as_u64().is_some() {
-                    // Large non-negative integers past i64 range: valid as-is.
-                    None
+                } else if let Some(index) = number.as_u64() {
+                    // Large non-negative integers past i64 range: valid only
+                    // without a stored list, or inside it.
+                    if select_index_in_range(entry, index) {
+                        None
+                    } else {
+                        Some(PatchErrorKind::UnknownSelectOption)
+                    }
                 } else if let Some(scalar) = number.as_f64() {
                     if scalar.is_finite() && scalar >= 0.0 && scalar.fract() == 0.0 {
                         Some(PatchErrorKind::CoerceToInt)
@@ -655,6 +700,15 @@ fn value_mismatch(value: &serde_json::Value, ui: UiHint) -> Option<PatchErrorKin
             _ => Some(PatchErrorKind::TypeMismatch),
         },
         UiHint::Hidden => Some(PatchErrorKind::PresetOnlySingleParam),
+    }
+}
+
+/// Whether a `Select` integer `index` is admissible: always, without a
+/// stored `options` list (legacy lenient path); otherwise inside the list.
+fn select_index_in_range(entry: &ParamEntry, index: u64) -> bool {
+    match entry.options.as_ref() {
+        None => true,
+        Some(options) => usize::try_from(index).is_ok_and(|slot| slot < options.len()),
     }
 }
 
@@ -772,7 +826,9 @@ impl RepairReport {
 ///
 /// - remove: `InvalidOp`, `BadPath`, `BareIndex`, `MissingValue`,
 ///   `InvalidValueType`, `UnresolvableIdent` (the `FromIdent` -1
-///   migration/removal branch), `RoleNotWhitelisted`,
+///   migration/removal branch), `AddToExistingTarget` (closed whitelist:
+///   setters must spell `replace`), `UnknownSelectOption` (value outside
+///   the stored enum list), `RoleNotWhitelisted`,
 ///   `PresetOnlySingleParam`, `TypeMismatch`;
 /// - substitute: `UnexpectedValue` (null the stray value), `OutOfRange`
 ///   (clamp to `0.0..=1.0`), `CoerceToNumber` / `CoerceToBool` /
@@ -802,6 +858,8 @@ pub fn repair_round(plan: &PatchPlan, errors: &[PatchError]) -> (PatchPlan, Repa
             | PatchErrorKind::MissingValue
             | PatchErrorKind::InvalidValueType
             | PatchErrorKind::UnresolvableIdent
+            | PatchErrorKind::AddToExistingTarget
+            | PatchErrorKind::UnknownSelectOption
             | PatchErrorKind::RoleNotWhitelisted
             | PatchErrorKind::PresetOnlySingleParam
             | PatchErrorKind::TypeMismatch => {
@@ -1024,7 +1082,8 @@ mod tests {
             "params": [
                 {"ident": "0:cutoff", "name_regex": "Cutoff", "role": "cutoff", "ui": "knob", "scale": "log", "group": "Main"},
                 {"ident": "1:bypass", "name_regex": "Bypass", "role": "bypass", "ui": "toggle", "scale": "indexed", "group": "Main"},
-                {"ident": "2:mode", "name_regex": "Mode", "role": "shape", "ui": "select", "scale": "indexed", "group": "Main"},
+                {"ident": "2:mode", "name_regex": "Mode", "role": "shape", "ui": "select", "scale": "indexed", "group": "Main", "options": ["Band", "Bell", "Shelf"]},
+                {"ident": "3:filter", "name_regex": "Filter", "role": "shape", "ui": "select", "scale": "indexed", "group": "Main"},
                 {"ident": null, "name_regex": "Macro 1", "role": "macro", "ui": "knob", "scale": "linear", "group": "Main"},
                 {"ident": null, "name_regex": "Matrix", "role": "preset_only", "ui": "hidden", "scale": "indexed", "group": "Preset"}
             ]
@@ -1159,6 +1218,79 @@ mod tests {
             assert!(error.blocked());
             assert!(!error.guidance().is_empty());
         }
+    }
+
+    #[test]
+    fn add_on_existing_entry_is_rejected_not_set() {
+        // Closed whitelist (TSK-604): add creates nothing; the setter must
+        // spell replace. Unresolved adds stay UnresolvableIdent.
+        let profile = test_profile();
+        let plan = plan_of(vec![
+            PatchOp {
+                op: PatchOpKind::Add,
+                path: IdentPath::new("param/0:cutoff"),
+                value: serde_json::json!(0.5),
+            },
+            PatchOp {
+                op: PatchOpKind::Add,
+                path: IdentPath::new("param/99:nope"),
+                value: serde_json::json!(0.5),
+            },
+        ]);
+        let errors = validate(&plan, &profile);
+        let kinds: Vec<PatchErrorKind> = errors.iter().map(|error| error.kind).collect();
+        assert_eq!(
+            kinds,
+            vec![
+                PatchErrorKind::AddToExistingTarget,
+                PatchErrorKind::UnresolvableIdent,
+            ]
+        );
+        for error in &errors {
+            assert!(error.blocked());
+            assert!(!error.guidance().is_empty());
+        }
+        let (repaired, report) = repair_round(&plan, &errors);
+        assert_eq!(report.removed, vec![0, 1]);
+        assert!(repaired.ops.is_empty());
+    }
+
+    #[test]
+    fn select_options_membership_enforced_with_legacy_fallback() {
+        let profile = test_profile();
+        // Member label, in-range index: clean.
+        let clean = plan_of(vec![
+            set_op("param/2:mode", serde_json::json!("Bell")),
+            set_op("param/2:mode", serde_json::json!(2)),
+        ]);
+        assert!(validate(&clean, &profile).is_empty());
+        // Unknown label, past-the-end index: red.
+        let bad = plan_of(vec![
+            set_op("param/2:mode", serde_json::json!("Notch")),
+            set_op("param/2:mode", serde_json::json!(3)),
+        ]);
+        let errors = validate(&bad, &profile);
+        let kinds: Vec<PatchErrorKind> = errors.iter().map(|error| error.kind).collect();
+        assert_eq!(
+            kinds,
+            vec![
+                PatchErrorKind::UnknownSelectOption,
+                PatchErrorKind::UnknownSelectOption,
+            ]
+        );
+        for error in &errors {
+            assert!(error.blocked());
+            assert!(!error.guidance().is_empty());
+        }
+        let (repaired, report) = repair_round(&bad, &errors);
+        assert_eq!(report.removed, vec![0, 1]);
+        assert!(repaired.ops.is_empty());
+        // Entries without a stored list keep the legacy lenient path.
+        let legacy = plan_of(vec![
+            set_op("param/3:filter", serde_json::json!("Anything")),
+            set_op("param/3:filter", serde_json::json!(99)),
+        ]);
+        assert!(validate(&legacy, &profile).is_empty());
     }
 
     #[test]

@@ -146,8 +146,19 @@ pub struct ParamEntry {
     pub ident: Option<String>,
     /// Display-name pattern used when `ident` is absent or as a fallback
     /// resolver, e.g. `"Input Attack \\(ms\\)"`. Matched against
-    /// `TrackFX_GetParamName`; the bridge compiles it as a regex.
+    /// `TrackFX_GetParamName`; the bridge compiles it as a regex, and
+    /// [`Profile::validate`] rejects patterns that do not compile
+    /// (fail-closed, TSK-604).
     pub name_regex: Option<String>,
+    /// Legal labels for [`UiHint::Select`] entries, e.g. filter shapes.
+    /// `None` (the shape of all current factory profiles: no ground-truth
+    /// label list was captured in the b-matrix evidence, and labels are
+    /// never invented) keeps the legacy lenient path: any string or
+    /// non-negative integer index validates. `Some` enforces membership
+    /// (see [`Profile::validate`]) and is only meaningful together with
+    /// [`UiHint::Select`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub options: Option<Vec<String>>,
     /// Sound-semantic role (B §4 keyword set + macro/preset_only).
     pub role: SoundRole,
     /// Widget hint.
@@ -209,6 +220,20 @@ pub enum ProfileError {
         /// Offending entry index.
         index: usize,
     },
+    /// `name_regex` is present but does not compile as a regex.
+    #[error("params[{index}]: name_regex pattern does not compile: {pattern:?}")]
+    InvalidNameRegex {
+        /// Offending entry index.
+        index: usize,
+        /// The stored pattern text (config data, never caller material).
+        pattern: String,
+    },
+    /// `options` is present but empty.
+    #[error("params[{index}]: options must list at least one label")]
+    OptionsEmpty {
+        /// Offending entry index.
+        index: usize,
+    },
     /// A bare-numeric (JSFX-style) ident has no `name_regex` companion.
     #[error("params[{index}]: bare-numeric ident {ident:?} requires name_regex")]
     BareIdentWithoutNameRegex {
@@ -242,6 +267,24 @@ pub enum ProfileError {
         index: usize,
         /// The unknown group name.
         group: String,
+    },
+    /// An `options` label is empty.
+    #[error("params[{index}]: options labels must be non-empty")]
+    EmptyOptionLabel {
+        /// Offending entry index.
+        index: usize,
+    },
+    /// An `options` label repeats.
+    #[error("params[{index}]: options labels must be unique")]
+    DuplicateOptionLabel {
+        /// Offending entry index.
+        index: usize,
+    },
+    /// `options` is present on a non-`select` entry.
+    #[error("params[{index}]: options is only meaningful with ui select")]
+    OptionsRequireSelect {
+        /// Offending entry index.
+        index: usize,
     },
     /// Serialization failed.
     #[error("profile serialization failed: {0}")]
@@ -277,8 +320,10 @@ impl Profile {
         serde_json::to_string_pretty(self).map_err(|err| ProfileError::Serialize(err.to_string()))
     }
 
-    /// Fail-closed validation: version match, address rules, JS bare-index
-    /// rule, preset_only mutual exclusion, group membership.
+    /// Fail-closed validation: version match, address rules (including
+    /// regex compilation of every stored `name_regex`), JS bare-index
+    /// rule, preset_only mutual exclusion, select-`options` shape,
+    /// group membership.
     pub fn validate(&self) -> Result<(), ProfileError> {
         if self.schema_version != CURRENT_SCHEMA_VERSION {
             return Err(ProfileError::VersionMismatch {
@@ -304,6 +349,14 @@ impl Profile {
             {
                 return Err(ProfileError::EmptyNameRegex { index });
             }
+            if let Some(pattern) = param.name_regex.as_ref()
+                && regex::Regex::new(pattern).is_err()
+            {
+                return Err(ProfileError::InvalidNameRegex {
+                    index,
+                    pattern: pattern.clone(),
+                });
+            }
             if let Some(ident) = param.ident.as_ref()
                 && is_bare_ident(ident)
                 && param.name_regex.is_none()
@@ -322,6 +375,23 @@ impl Profile {
                 }
             } else if param.ui == UiHint::Hidden {
                 return Err(ProfileError::HiddenUiMismatch { index });
+            }
+            if let Some(options) = param.options.as_ref() {
+                if param.ui != UiHint::Select {
+                    return Err(ProfileError::OptionsRequireSelect { index });
+                }
+                if options.is_empty() {
+                    return Err(ProfileError::OptionsEmpty { index });
+                }
+                let mut seen = std::collections::HashSet::new();
+                for label in options {
+                    if label.is_empty() {
+                        return Err(ProfileError::EmptyOptionLabel { index });
+                    }
+                    if !seen.insert(label.as_str()) {
+                        return Err(ProfileError::DuplicateOptionLabel { index });
+                    }
+                }
             }
             if !self.groups.contains(&param.group) {
                 return Err(ProfileError::UnknownGroup {
@@ -356,6 +426,7 @@ mod tests {
         ParamEntry {
             ident: Some("17:wet".to_owned()),
             name_regex: Some("Wet".to_owned()),
+            options: None,
             role: SoundRole::Wet,
             ui: UiHint::Slider,
             scale: Scale::Linear,
@@ -415,6 +486,59 @@ mod tests {
         assert_eq!(
             profile.validate(),
             Err(ProfileError::EmptyNameRegex { index: 0 })
+        );
+    }
+
+    #[test]
+    fn uncompilable_name_regex_rejected_fail_closed() {
+        let mut profile = valid_profile();
+        profile.params[0].name_regex = Some("Cutoff (lo".to_owned());
+        assert_eq!(
+            profile.validate(),
+            Err(ProfileError::InvalidNameRegex {
+                index: 0,
+                pattern: "Cutoff (lo".to_owned(),
+            })
+        );
+    }
+
+    #[test]
+    fn escaped_name_regex_compiles() {
+        // Mirrors JS General Dynamics: escaped parens are regex, not groups.
+        let mut profile = valid_profile();
+        profile.params[0].name_regex = Some("Input Attack \\(ms\\)".to_owned());
+        profile.validate().expect("escaped pattern rejected");
+    }
+
+    #[test]
+    fn select_options_shape_enforced() {
+        fn select_profile(options: Option<Vec<String>>) -> Profile {
+            let mut profile = valid_profile();
+            profile.params[0].ui = UiHint::Select;
+            profile.params[0].options = options;
+            profile
+        }
+        select_profile(Some(vec!["Bell".to_owned(), "Shelf".to_owned()]))
+            .validate()
+            .expect("valid options rejected");
+        assert_eq!(
+            select_profile(Some(vec![])).validate(),
+            Err(ProfileError::OptionsEmpty { index: 0 })
+        );
+        assert_eq!(
+            select_profile(Some(vec!["Bell".to_owned(), String::new()])).validate(),
+            Err(ProfileError::EmptyOptionLabel { index: 0 })
+        );
+        assert_eq!(
+            select_profile(Some(vec!["Bell".to_owned(), "Bell".to_owned()])).validate(),
+            Err(ProfileError::DuplicateOptionLabel { index: 0 })
+        );
+        // Options are meaningless off a selector: fail-closed, not ignored.
+        let mut knob = valid_profile();
+        knob.params[0].options = Some(vec!["Bell".to_owned()]);
+        assert_eq!(
+            knob.validate(),
+            Err(ProfileError::OptionsRequireSelect { index: 0 })
         );
     }
 

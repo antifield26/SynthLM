@@ -234,6 +234,23 @@ mod tests {
                 "vital-clap missing {regex}"
             );
         }
+        // Macro 1-3 are live macro-role entries (knob-addressable via
+        // macro/ paths). No Macro 4 exists: the evidence matrix reports
+        // found=3, so none is invented here (TSK-604).
+        for macro_name in ["Macro 1", "Macro 2", "Macro 3"] {
+            let entry = p
+                .param_by_name_regex(macro_name)
+                .expect("vital-clap missing macro");
+            assert_eq!(
+                entry.role,
+                SoundRole::Macro,
+                "{macro_name} must be macro-role"
+            );
+            assert!(
+                entry.ident.is_none(),
+                "{macro_name} must stay ident-less (index-based CLAP IDs)"
+            );
+        }
         assert_factory_shape("vital-clap", &p);
     }
 

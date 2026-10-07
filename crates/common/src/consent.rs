@@ -402,6 +402,314 @@ pub fn save_consent(store: &ConsentStore) -> Result<(), ConsentError> {
 }
 
 // ---------------------------------------------------------------------------
+// Explicit config_version migration (TSK-605; DEC-027, ARCHITECTURE §7)
+// ---------------------------------------------------------------------------
+
+/// How a stored `config_version` compares to [`crate::consent::CONFIG_VERSION`].
+///
+/// [`crate::consent::load_from_path`] stays fail-closed for any non-current
+/// version; use [`crate::consent::migrate_store`] (or
+/// [`crate::consent::migrate_json`]) when the caller explicitly wants the
+/// migrate path instead of the undecided reset.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum VersionClass {
+    /// Older than [`crate::consent::CONFIG_VERSION`]: migratable.
+    Older,
+    /// Equal to [`crate::consent::CONFIG_VERSION`]: no migration needed.
+    Current,
+    /// Newer than [`crate::consent::CONFIG_VERSION`]: unknown, must be refused.
+    Newer,
+}
+
+/// Classify a stored `config_version` against [`crate::consent::CONFIG_VERSION`].
+pub fn classify_version(found: u32) -> VersionClass {
+    if found < CONFIG_VERSION {
+        VersionClass::Older
+    } else if found == CONFIG_VERSION {
+        VersionClass::Current
+    } else {
+        VersionClass::Newer
+    }
+}
+
+/// Explicit migration failure. Variants carry no caller material (only the
+/// refused numeric version), so formatting an error can never echo secrets,
+/// prompts, or paths (AGENTS.md §8).
+#[derive(Debug, Error, Clone, Copy, PartialEq, Eq)]
+pub enum MigrateError {
+    /// The record's `config_version` is newer than this build supports.
+    /// Carries the refused version number only.
+    #[error(
+        "unknown config_version: newer than this build supports; refusing to migrate (see DEC-027)"
+    )]
+    UnknownVersion {
+        /// The refused `config_version` value.
+        found: u32,
+    },
+    /// The record is not valid JSON or misses required fields (a missing
+    /// `config_version` or an unknown tier spelling, which is never guessed).
+    #[error(
+        "consent record is not valid JSON or misses required fields; refusing to guess (see DEC-027)"
+    )]
+    Corrupt,
+}
+
+impl MigrateError {
+    /// Map to the [`crate::ipc`] taxonomy. Both arms are terminal
+    /// (`blocked`); migration problems are fixed by the user (upgrade /
+    /// re-choose), never by retrying.
+    pub fn code(self) -> ErrorCode {
+        match self {
+            MigrateError::UnknownVersion { .. } | MigrateError::Corrupt => ErrorCode::Internal,
+        }
+    }
+
+    /// Whether this failure is user-visible `BLOCKED` (never retried).
+    ///
+    /// Derived from [`MigrateError::code`] so the verdict cannot drift from
+    /// the [`crate::ipc`] taxonomy; currently always `true`.
+    pub fn blocked(self) -> bool {
+        !self.code().retryable()
+    }
+
+    /// Static remediation hint for UI / BLOCKED surfaces (contains no secrets).
+    pub fn guidance(self) -> &'static str {
+        match self {
+            MigrateError::UnknownVersion { .. } => {
+                "the stored config is newer than this build; upgrade SynthLM, then retry (see DEC-027)"
+            }
+            MigrateError::Corrupt => {
+                "remove the stored consent and re-choose a tier in the first-run prompt (1/2/3); Tier3 keeps everything local (see DEC-010)"
+            }
+        }
+    }
+}
+
+/// Migrate one parsed [`crate::consent::ConsentStore`] to
+/// [`crate::consent::CONFIG_VERSION`].
+///
+/// - [`crate::consent::VersionClass::Current`] passes through unchanged.
+/// - `Older` preserves the stored tier and decision time and re-stamps the
+///   current version (v0 shares the v1 field layout, so migration is a
+///   re-stamp; future layouts add per-version transforms here).
+/// - `Newer` is refused with [`crate::consent::MigrateError::UnknownVersion`]
+///   (fail-closed: a newer schema is never guessed).
+///
+/// # Errors
+///
+/// Returns [`crate::consent::MigrateError::UnknownVersion`] when the record is
+/// newer than this build.
+pub fn migrate_store(store: &ConsentStore) -> Result<ConsentStore, MigrateError> {
+    match classify_version(store.version) {
+        VersionClass::Current => Ok(*store),
+        VersionClass::Older => Ok(ConsentStore {
+            tier: store.tier,
+            decided_at_unix: store.decided_at_unix,
+            version: CONFIG_VERSION,
+        }),
+        VersionClass::Newer => Err(MigrateError::UnknownVersion {
+            found: store.version,
+        }),
+    }
+}
+
+/// Parse consent JSON text and migrate it to [`crate::consent::CONFIG_VERSION`].
+///
+/// This is the explicit counterpart to the fail-closed
+/// [`crate::consent::load_from_path`]: malformed JSON, a missing
+/// `config_version`, or an unknown tier spelling yields
+/// [`crate::consent::MigrateError::Corrupt`] (never a guessed tier); a newer
+/// version yields [`crate::consent::MigrateError::UnknownVersion`]. Pure
+/// function: no I/O.
+///
+/// # Errors
+///
+/// Returns [`crate::consent::MigrateError::Corrupt`] for unparsable records
+/// and [`crate::consent::MigrateError::UnknownVersion`] for newer versions.
+pub fn migrate_json(text: &str) -> Result<ConsentStore, MigrateError> {
+    let store: ConsentStore = serde_json::from_str(text).map_err(|_| MigrateError::Corrupt)?;
+    migrate_store(&store)
+}
+
+// ---------------------------------------------------------------------------
+// Unwritable user-dir fallback (TSK-605; DEC-027 reversal, ARCHITECTURE §7)
+// ---------------------------------------------------------------------------
+
+/// Project-relative fallback directory name (DEC-027 reversal: user dir not
+/// writable → project-relative dir + explicit notice).
+///
+/// Joined onto the caller's project directory; the consent file keeps its
+/// [`crate::consent::CONSENT_FILE_NAME`] name inside it.
+pub const FALLBACK_DIR_NAME: &str = ".synthlm";
+
+/// Opaque fingerprint of a directory path (FNV-1a 64, 16 lowercase hex chars).
+///
+/// Used in fallback notices so the failed location stays identifiable without
+/// ever printing an absolute path (AGENTS.md §8). Deterministic for one path;
+/// reveals nothing about the path contents.
+pub fn path_fingerprint(path: &Path) -> String {
+    const OFFSET: u64 = 0xcbf29ce484222325;
+    const PRIME: u64 = 0x100000001b3;
+    let mut hash = OFFSET;
+    for byte in path.as_os_str().as_encoded_bytes() {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(PRIME);
+    }
+    format!("{hash:016x}")
+}
+
+/// Whether `dir` can host state: creatable plus one probe byte round-trip.
+///
+/// Any failure (missing base, permission denied, a file blocking the path)
+/// yields `false`. Creates `dir` when absent and removes the probe file
+/// afterwards; the probe name carries only the pid.
+pub fn dir_writable(dir: &Path) -> bool {
+    if std::fs::create_dir_all(dir).is_err() {
+        return false;
+    }
+    let probe = dir.join(format!(".synthlm-write-probe-{}", std::process::id()));
+    if std::fs::write(&probe, b"1").is_err() {
+        return false;
+    }
+    let _ = std::fs::remove_file(&probe);
+    true
+}
+
+/// Where consent state landed: the user dir, or the project-relative fallback.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ResolvedPlacement {
+    /// Directory hosting [`crate::consent::CONSENT_FILE_NAME`].
+    pub dir: PathBuf,
+    /// Whether the project-relative fallback was used.
+    pub fell_back: bool,
+    /// Actionable notice when [`crate::consent::ResolvedPlacement::fell_back`] is set
+    /// (relative names + fingerprint only, never an absolute path).
+    pub notice: Option<String>,
+}
+
+impl ResolvedPlacement {
+    /// Consent-file path inside the resolved directory.
+    pub fn consent_path(&self) -> PathBuf {
+        consent_file_path_in(&self.dir)
+    }
+}
+
+/// Build the fallback notice for a failed user-dir base (relative names and
+/// the opaque [`crate::consent::path_fingerprint`] only; never an absolute path).
+fn fallback_notice(failed: Option<&Path>) -> String {
+    let id = match failed {
+        Some(path) => path_fingerprint(path),
+        None => "unresolved".to_owned(),
+    };
+    format!(
+        "user directory not writable (dir fingerprint {id}); fell back to project-relative `{FALLBACK_DIR_NAME}/`. Make the user directory writable, then re-apply the tier in settings so the choice persists there (see DEC-027)."
+    )
+}
+
+/// Resolve the consent directory against an injected user-dir base.
+///
+/// A writable `base` wins; an unresolvable or unwritable base falls back to
+/// `project_dir` joined with [`crate::consent::FALLBACK_DIR_NAME`], with an
+/// actionable notice. Besides the [`crate::consent::dir_writable`] probe no
+/// consent file is read or written here.
+pub fn resolve_user_dir_in(base: Option<&Path>, project_dir: &Path) -> ResolvedPlacement {
+    if let Some(dir) = base
+        && dir_writable(dir)
+    {
+        return ResolvedPlacement {
+            dir: dir.to_path_buf(),
+            fell_back: false,
+            notice: None,
+        };
+    }
+    ResolvedPlacement {
+        dir: project_dir.join(FALLBACK_DIR_NAME),
+        fell_back: true,
+        notice: Some(fallback_notice(base)),
+    }
+}
+
+/// Resolve the consent directory against the real [`crate::consent::user_dir`].
+///
+/// Same fallback contract as [`crate::consent::resolve_user_dir_in`];
+/// `project_dir` is the caller's project root (the fallback lives directly
+/// beneath it).
+pub fn resolve_user_dir(project_dir: &Path) -> ResolvedPlacement {
+    let base = user_dir();
+    resolve_user_dir_in(base.as_deref(), project_dir)
+}
+
+/// Outcome of a save that may have used the project-relative fallback.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SaveOutcome {
+    /// Whether the project-relative fallback received the file.
+    pub fell_back: bool,
+    /// Actionable notice when [`crate::consent::SaveOutcome::fell_back`] is set
+    /// (relative names + fingerprint only, never an absolute path).
+    pub notice: Option<String>,
+}
+
+/// Save `store` to `primary`, falling back to the project-relative dir on any
+/// I/O failure.
+///
+/// The primary write keeps the [`crate::consent::save_to_path`] guarantee (a
+/// failed save leaves the previous file untouched) before the fallback is
+/// attempted; the fallback file keeps the [`crate::consent::CONSENT_FILE_NAME`]
+/// name inside `project_dir` joined with [`crate::consent::FALLBACK_DIR_NAME`].
+///
+/// # Errors
+///
+/// Returns the fallback's [`ConsentError::StoreIo`] when both writes fail.
+pub fn save_to_path_with_fallback(
+    primary: &Path,
+    project_dir: &Path,
+    store: &ConsentStore,
+) -> Result<SaveOutcome, ConsentError> {
+    if save_to_path(primary, store).is_ok() {
+        return Ok(SaveOutcome {
+            fell_back: false,
+            notice: None,
+        });
+    }
+    let fallback_dir = project_dir.join(FALLBACK_DIR_NAME);
+    save_to_path(&consent_file_path_in(&fallback_dir), store)?;
+    Ok(SaveOutcome {
+        fell_back: true,
+        notice: Some(fallback_notice(primary.parent())),
+    })
+}
+
+/// Save `store` to the real user directory, falling back to the
+/// project-relative dir when the user dir is unresolvable or unwritable.
+///
+/// Settings-page write path with the DEC-027 reversal built in: prefer
+/// [`crate::consent::save_consent`]'s placement, keep the choice (in the
+/// fallback) instead of dropping it, and surface the notice.
+///
+/// # Errors
+///
+/// Returns [`ConsentError::StoreIo`] when both placements fail; the previous
+/// choice stays in effect.
+pub fn save_consent_with_fallback(
+    project_dir: &Path,
+    store: &ConsentStore,
+) -> Result<SaveOutcome, ConsentError> {
+    match consent_file_path() {
+        Some(primary) => {
+            save_to_path_with_fallback(&primary, &project_dir.join(FALLBACK_DIR_NAME), store)
+        }
+        None => {
+            let fallback_dir = project_dir.join(FALLBACK_DIR_NAME);
+            save_to_path(&consent_file_path_in(&fallback_dir), store)?;
+            Ok(SaveOutcome {
+                fell_back: true,
+                notice: Some(fallback_notice(None)),
+            })
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Tests (synthetic values only; the real user directory is never touched)
 // ---------------------------------------------------------------------------
 
@@ -628,5 +936,249 @@ mod tests {
             assert!(!err.code().retryable(), "{err:?} must never retry");
             assert!(!err.guidance().is_empty());
         }
+    }
+
+    #[test]
+    fn version_classification_covers_older_current_newer() {
+        assert_eq!(classify_version(0), VersionClass::Older);
+        assert_eq!(classify_version(CONFIG_VERSION), VersionClass::Current);
+        assert_eq!(classify_version(CONFIG_VERSION + 1), VersionClass::Newer);
+        assert_eq!(classify_version(CONFIG_VERSION + 99), VersionClass::Newer);
+        assert_eq!(classify_version(u32::MAX), VersionClass::Newer);
+    }
+
+    #[test]
+    fn migrate_matrix_equal_old_new() {
+        // Equal: every tier passes through unchanged.
+        for tier in [ConsentTier::Tier1, ConsentTier::Tier2, ConsentTier::Tier3] {
+            let current = ConsentStore {
+                tier,
+                decided_at_unix: 1_789_000_000,
+                version: CONFIG_VERSION,
+            };
+            assert_eq!(migrate_store(&current), Ok(current));
+            let text = serde_json::to_string(&current).expect("serialize current");
+            assert_eq!(migrate_json(&text), Ok(current));
+        }
+        // Old: tier + decision time preserved, version re-stamped.
+        let old = ConsentStore {
+            tier: ConsentTier::Tier2,
+            decided_at_unix: 1_789_000_001,
+            version: 0,
+        };
+        let migrated = migrate_store(&old).expect("v0 must migrate");
+        assert_eq!(migrated.tier, ConsentTier::Tier2);
+        assert_eq!(migrated.decided_at_unix, 1_789_000_001);
+        assert_eq!(migrated.version, CONFIG_VERSION);
+        let old_text = serde_json::json!({
+            "config_version": 0,
+            "tier": "tier2",
+            "decided_at_unix": 1_789_000_001,
+        })
+        .to_string();
+        assert_eq!(migrate_json(&old_text), Ok(migrated));
+        // New: refused, BLOCKED, never guessed.
+        for found in [CONFIG_VERSION + 1, CONFIG_VERSION + 99] {
+            let future = ConsentStore {
+                tier: ConsentTier::Tier1,
+                decided_at_unix: 1,
+                version: found,
+            };
+            let err = migrate_store(&future).expect_err("newer schema must be refused");
+            assert_eq!(err, MigrateError::UnknownVersion { found });
+            assert_eq!(err.code(), ErrorCode::Internal);
+            assert!(err.blocked());
+            assert!(!err.guidance().is_empty());
+            let future_text = serde_json::json!({
+                "config_version": found,
+                "tier": "tier1",
+                "decided_at_unix": 1,
+            })
+            .to_string();
+            assert_eq!(
+                migrate_json(&future_text),
+                Err(MigrateError::UnknownVersion { found })
+            );
+        }
+    }
+
+    #[test]
+    fn migrate_json_rejects_corrupt_without_echo() {
+        const SYNTHETIC_SECRET: &str = "tsk605-synthetic-secret-DDDD";
+        // Malformed JSON.
+        let err = migrate_json("{not json").expect_err("malformed must fail");
+        assert_eq!(err, MigrateError::Corrupt);
+        // Missing config_version: never defaulted.
+        let err = migrate_json(r#"{"tier":"tier1","decided_at_unix":1}"#)
+            .expect_err("missing version must fail");
+        assert_eq!(err, MigrateError::Corrupt);
+        // Unknown tier spelling: never guessed, even when secret-shaped.
+        let smuggled = format!(
+            "{{\"config_version\":{CONFIG_VERSION},\"tier\":\"{SYNTHETIC_SECRET}\",\"decided_at_unix\":1}}"
+        );
+        let err = migrate_json(&smuggled).expect_err("unknown tier must fail");
+        assert_eq!(err, MigrateError::Corrupt);
+        assert!(!format!("{err}").contains(SYNTHETIC_SECRET));
+        assert!(!format!("{err:?}").contains(SYNTHETIC_SECRET));
+        for err in [
+            MigrateError::Corrupt,
+            MigrateError::UnknownVersion {
+                found: CONFIG_VERSION + 1,
+            },
+        ] {
+            assert!(err.blocked(), "{err:?} must be BLOCKED");
+            assert!(!err.code().retryable(), "{err:?} must never retry");
+            assert!(!err.guidance().is_empty());
+        }
+    }
+
+    /// Unique scratch project dir for fallback tests (the real user directory
+    /// is never touched).
+    fn project_dir(tag: &str) -> PathBuf {
+        let pid = std::process::id();
+        std::env::temp_dir().join(format!("synthlm-t605-{pid}-{tag}"))
+    }
+
+    #[test]
+    fn writable_base_wins_without_fallback() {
+        let base = project_dir("base-ok");
+        remove_dir(&base);
+        let placement = resolve_user_dir_in(Some(base.as_path()), &project_dir("proj-unused"));
+        assert!(!placement.fell_back);
+        assert_eq!(placement.notice, None);
+        assert_eq!(placement.dir, base);
+        assert_eq!(placement.consent_path(), base.join(CONSENT_FILE_NAME));
+        remove_dir(&base);
+    }
+
+    #[test]
+    fn unresolved_base_falls_back_with_path_free_notice() {
+        let project = project_dir("proj-fallback");
+        remove_dir(&project);
+        let placement = resolve_user_dir_in(None, &project);
+        assert!(placement.fell_back);
+        assert_eq!(placement.dir, project.join(FALLBACK_DIR_NAME));
+        let notice = placement.notice.expect("fallback must explain itself");
+        assert!(notice.contains(FALLBACK_DIR_NAME), "relative dir: {notice}");
+        assert!(notice.contains("fingerprint"), "opaque id: {notice}");
+        let project_text = project.to_string_lossy();
+        assert!(
+            !notice.contains(project_text.as_ref()),
+            "no absolute path: {notice}"
+        );
+        remove_dir(&project);
+    }
+
+    #[test]
+    fn unwritable_base_falls_back_to_project_relative() {
+        // A regular file where a directory is expected: directory creation
+        // fails on every OS, which simulates "user dir not writable" without
+        // touching permissions or the real user directory.
+        let scratch = project_dir("base-blocked");
+        remove_dir(&scratch);
+        std::fs::create_dir_all(&scratch).expect("scratch dir");
+        let blocker = scratch.join("blocker");
+        std::fs::write(&blocker, b"x").expect("blocker file");
+        let project = project_dir("proj-blocked");
+        remove_dir(&project);
+
+        assert!(!dir_writable(&blocker));
+        let placement = resolve_user_dir_in(Some(blocker.as_path()), &project);
+        assert!(placement.fell_back);
+        assert_eq!(placement.dir, project.join(FALLBACK_DIR_NAME));
+        let notice = placement.notice.expect("fallback notice");
+        let scratch_text = scratch.to_string_lossy();
+        assert!(
+            !notice.contains(scratch_text.as_ref()),
+            "no absolute path: {notice}"
+        );
+
+        remove_dir(&scratch);
+        remove_dir(&project);
+    }
+
+    #[test]
+    fn dir_writable_probes_create_and_write() {
+        let fresh = project_dir("writable").join("sub");
+        remove_dir(&fresh);
+        assert!(dir_writable(&fresh));
+        assert!(fresh.is_dir());
+        // A file path is never a writable dir.
+        let file = project_dir("writable-file");
+        remove_dir(&file);
+        std::fs::write(&file, b"x").expect("scratch file");
+        assert!(!dir_writable(&file));
+        remove_dir(&project_dir("writable"));
+        let _ = std::fs::remove_file(&file);
+    }
+
+    #[test]
+    fn fingerprint_is_stable_short_and_opaque() {
+        let left = Path::new("some-dir");
+        let fp = path_fingerprint(left);
+        assert_eq!(fp.len(), 16);
+        assert!(fp.chars().all(|c| c.is_ascii_hexdigit()));
+        assert_eq!(path_fingerprint(left), fp, "deterministic");
+        assert_ne!(
+            path_fingerprint(left),
+            path_fingerprint(Path::new("other-dir"))
+        );
+        assert!(!fp.contains("some-dir"));
+    }
+
+    #[test]
+    fn save_prefers_primary_and_falls_back_only_on_failure() {
+        let scratch = project_dir("save-fb");
+        remove_dir(&scratch);
+        std::fs::create_dir_all(&scratch).expect("scratch dir");
+        // Writable primary: no fallback.
+        let primary = consent_file_path_in(&scratch.join("primary"));
+        let outcome = save_to_path_with_fallback(
+            &primary,
+            &scratch.join("unused-project"),
+            &ConsentStore::new(ConsentTier::Tier1),
+        )
+        .expect("primary save");
+        assert!(!outcome.fell_back);
+        assert_eq!(outcome.notice, None);
+        assert_eq!(load_from_path(&primary).tier(), Some(ConsentTier::Tier1));
+
+        // Blocked primary (file where the parent dir should be): fallback wins.
+        let blocker = scratch.join("blocker");
+        std::fs::write(&blocker, b"x").expect("blocker file");
+        let bad_primary = blocker.join(CONSENT_FILE_NAME);
+        let project = scratch.join("project");
+        let outcome = save_to_path_with_fallback(
+            &bad_primary,
+            &project,
+            &ConsentStore::new(ConsentTier::Tier2),
+        )
+        .expect("fallback save");
+        assert!(outcome.fell_back);
+        let notice = outcome.notice.expect("fallback notice");
+        assert!(notice.contains(FALLBACK_DIR_NAME), "relative dir: {notice}");
+        let scratch_text = scratch.to_string_lossy();
+        assert!(
+            !notice.contains(scratch_text.as_ref()),
+            "no absolute path: {notice}"
+        );
+        let fallback_file = consent_file_path_in(&project.join(FALLBACK_DIR_NAME));
+        assert_eq!(
+            load_from_path(&fallback_file).tier(),
+            Some(ConsentTier::Tier2)
+        );
+
+        // Both blocked: the error surfaces, nothing invented.
+        let blocker2 = scratch.join("blocker2");
+        std::fs::write(&blocker2, b"x").expect("blocker file");
+        let err = save_to_path_with_fallback(
+            &bad_primary,
+            &blocker2.join("proj"),
+            &ConsentStore::new(ConsentTier::Tier3),
+        )
+        .expect_err("double failure must BLOCK");
+        assert!(err.blocked());
+
+        remove_dir(&scratch);
     }
 }

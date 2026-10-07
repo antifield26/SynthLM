@@ -1708,4 +1708,69 @@ mod tests {
         assert!(kinds.contains(&MessageType::Error));
         assert!(kinds.contains(&MessageType::ScoreReport));
     }
+
+    #[test]
+    fn kill_mid_chain_replays_journal_and_dedups_resubmission() {
+        // Kill -9 model: drop the dispatcher mid-chain (a render left Running),
+        // reopen on the same state dir, and prove the journal replayed: the old
+        // completed stages refuse duplicate resubmission while fresh ids run.
+        // (Stage payloads — snapshot rows, score numbers — are resupplied by
+        // the bridge on reconnect; the journal owns task states, and the
+        // DuplicateTask refusal below is the proof it survived the kill.)
+        let dir = scratch_dir("kill");
+        {
+            let mut dispatcher = Dispatcher::open(&dir).expect("open dispatcher");
+            submit_snapshot(&mut dispatcher, "kill-1", "snap-kill-1");
+            let plan = request_plan(&mut dispatcher, "kill-1", "snap-kill-1");
+            assert!(
+                plan.get("ops")
+                    .and_then(Value::as_array)
+                    .is_some_and(|ops| !ops.is_empty())
+            );
+            // Leave a render Running: the crash happens before render.result.
+            let frame = WireFrame {
+                ver: current_version(),
+                kind: MessageType::RenderRequest,
+                body: serde_json::json!({"task_id": "kill-1", "candidate_id": "kill-1-c1"}),
+            };
+            match dispatcher.dispatch_frame(&frame) {
+                StepOutcome::Reply(kind, _) => assert_eq!(kind, MessageType::RenderRequest),
+                other => panic!("render must instruct, got {other:?}"),
+            }
+            assert_eq!(dispatcher.render_pending_count(), 1);
+            drop(dispatcher); // simulated kill: no flush ceremony exists
+        }
+        // Restart: the journal replays (completed snapshot/plan tasks are still
+        // Done at the TaskLog layer, so resubmission dedups instead of doubling).
+        let mut dispatcher = Dispatcher::open(&dir).expect("reopen after kill");
+        let frame = WireFrame {
+            ver: current_version(),
+            kind: MessageType::SnapshotSubmit,
+            body: serde_json::json!({
+                "task_id": "kill-1", "snapshot_id": "snap-kill-1",
+                "take_guid": "{take-1}", "params_len": 2, "chunk_bytes": 64,
+            }),
+        };
+        match dispatcher.dispatch_frame(&frame) {
+            StepOutcome::Reply(kind, body) => {
+                assert_eq!(kind, MessageType::Error);
+                assert_eq!(
+                    body.get("code").and_then(Value::as_str),
+                    Some("protocol_violation")
+                );
+                assert_eq!(body.get("retryable").and_then(Value::as_bool), Some(false));
+            }
+            other => panic!("completed resubmit must dedup-refuse, got {other:?}"),
+        }
+        // A fresh chain on the reopened store runs end to end: replay, not loss.
+        let ack = submit_snapshot(&mut dispatcher, "kill-2", "snap-kill-2");
+        assert_eq!(ack.get("stored").and_then(Value::as_bool), Some(true));
+        let plan = request_plan(&mut dispatcher, "kill-2", "snap-kill-2");
+        assert!(
+            plan.get("candidates")
+                .and_then(Value::as_array)
+                .is_some_and(|cards| (3..=5).contains(&cards.len()))
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }
