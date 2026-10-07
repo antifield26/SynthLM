@@ -25,10 +25,16 @@
 //! [`crate::candidate::DEFAULT_DEDUP_DISTANCE`] there (cosine and Euclidean
 //! radii are not interchangeable).
 //!
-//! TODO(TSK-304/UI): [`crate::candidate::CandidateCard`] keeps `audio_ref` as an
-//! opaque non-empty string. Its exact format (render-file path, content hash,
-//! or IPC render handle from the bridge render harness) is still undecided;
-//! keep it opaque until that harness lands.
+//! Preview reference format (TSK-606, DEC-019): [`crate::candidate::CandidateCard`]
+//! carries `audio_ref` as a canonical derived file name,
+//! `preview-<stem>.wav`, where `<stem>` is the candidate id sanitised to
+//! `[0-9A-Za-z_-]` (see [`crate::candidate::audio_ref_for`]). The card holds
+//! only the name; the WAV bytes behind it are content-addressed by the
+//! renderer (hex fingerprint recorded in provenance/audit, never a card
+//! field — DEC-019 fixes the card at six fields). Consumers such as the UI
+//! resolve the name read-only via [`crate::candidate::CandidateCard::audio_ref`];
+//! there is no setter and no path input, so a raw path can never become a
+//! reference.
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -89,6 +95,11 @@ pub enum CandidateError {
     /// Preview audio reference is empty or whitespace-only.
     #[error("audio reference must be non-empty")]
     EmptyAudioRef,
+    /// Preview audio reference is not canonical: it must look like
+    /// `preview-<id>.wav` with a non-empty `[0-9A-Za-z_-]` stem (see
+    /// [`crate::candidate::audio_ref_for`]).
+    #[error("audio reference must be preview-<id>.wav with a [0-9A-Za-z_-] stem")]
+    InvalidAudioRef,
     /// Apply token is empty or whitespace-only.
     #[error("apply token must be non-empty")]
     EmptyApplyToken,
@@ -307,18 +318,96 @@ impl Direction {
 // CandidateCard (fixed six fields, DEC-019)
 // ---------------------------------------------------------------------------
 
+/// File-name prefix of every canonical preview reference (TSK-606).
+///
+/// A canonical reference is exactly
+/// `AUDIO_REF_PREFIX + <stem> + AUDIO_REF_SUFFIX` with a non-empty
+/// `[0-9A-Za-z_-]` stem; see [`crate::candidate::audio_ref_for`].
+pub const AUDIO_REF_PREFIX: &str = "preview-";
+
+/// File-name suffix of every canonical preview reference (TSK-606).
+///
+/// Previews are always WAV (the DEC-005 render line writes WAV); no other
+/// container is accepted by [`crate::candidate::CandidateCard::new`].
+pub const AUDIO_REF_SUFFIX: &str = ".wav";
+
+/// Derives the canonical preview reference for a candidate id (TSK-606).
+///
+/// Deterministic: the same id always yields the same name (no timestamps, no
+/// paths, no randomness), so identical re-renders hit the same derived file.
+/// The id is trimmed, then every character outside `[0-9A-Za-z_-]` becomes
+/// `_`, so separators (`/`, `\`), parent escapes (`..`), whitespace, and
+/// non-ASCII can never reach the file name. The stem is never empty for a
+/// non-blank id because the mapping is total per character.
+///
+/// # Errors
+///
+/// Returns [`crate::candidate::CandidateError::EmptyId`] when `candidate_id`
+/// is empty or whitespace-only.
+pub fn audio_ref_for(candidate_id: &str) -> Result<String, CandidateError> {
+    if candidate_id.trim().is_empty() {
+        return Err(CandidateError::EmptyId);
+    }
+    let stem: String = candidate_id
+        .trim()
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    Ok(format!("{AUDIO_REF_PREFIX}{stem}{AUDIO_REF_SUFFIX}"))
+}
+
+/// Reports whether `value` is a canonical preview reference (TSK-606).
+///
+/// Accepts exactly `preview-<stem>.wav` with a non-empty `[0-9A-Za-z_-]`
+/// stem; matching is case-sensitive and the whole string must match (no
+/// directories, no query strings, no second suffix).
+#[must_use]
+pub fn is_canonical_audio_ref(value: &str) -> bool {
+    let Some(stem) = value
+        .strip_prefix(AUDIO_REF_PREFIX)
+        .and_then(|rest| rest.strip_suffix(AUDIO_REF_SUFFIX))
+    else {
+        return false;
+    };
+    !stem.is_empty()
+        && stem
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
+
 /// Fixed six-field UI card (DEC-019): difference sentence, confidence,
 /// loudness delta, changed-parameter count, preview audio reference, and the
 /// apply-rollback token.
 ///
 /// No field is optional, so a card with a missing field cannot be constructed
 /// outside this module; use [`crate::candidate::CandidateCard::new`] or
-/// [`crate::candidate::CandidateCard::from_candidate`].
+/// [`crate::candidate::CandidateCard::from_candidate`]. Deserialization
+/// additionally rejects objects with a missing or extra field (`serde`
+/// `deny_unknown_fields` plus required fields), so a card that loses
+/// `audio_ref` on the wire fails loudly instead of arriving half-formed.
 ///
-/// `audio_ref` is an opaque preview handle (see the TODO(TSK-304/UI) note at
-/// the top of this module); `apply_token` is the opaque token the bridge
+/// `audio_ref` is the canonical derived preview name
+/// (`preview-<id>.wav`, see [`crate::candidate::audio_ref_for`]): the card
+/// carries the name only. The WAV bytes behind it are content-addressed by
+/// the renderer — a lowercase-hex content fingerprint (8..=256 chars, the
+/// same bounds convention as the dsp cache digests, cited by value so this
+/// crate stays within its DEC-022 edge) is recorded in provenance/audit next
+/// to the derived name, and the fingerprint — never a card field — is what
+/// verifies the bytes before playback. The name itself carries only the id
+/// stem: no PCM, no prompt text, no absolute path (AGENTS.md §8).
+///
+/// `apply_token` is the opaque token the bridge
 /// exchanges to apply and roll back within one undo transaction (DEC-008,
-/// DEC-020).
+/// DEC-020). Both handles are read-only for consumers such as the UI: the
+/// only accessors are [`crate::candidate::CandidateCard::audio_ref`] and
+/// [`crate::candidate::CandidateCard::apply_token`], and neither the planner
+/// nor any other crate can rewrite a card in place.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CandidateCard {
@@ -333,11 +422,17 @@ pub struct CandidateCard {
 impl CandidateCard {
     /// Build a card from its six fields.
     ///
+    /// `audio_ref` must be canonical (`preview-<id>.wav`, see
+    /// [`crate::candidate::audio_ref_for`]); derive it from the candidate id
+    /// rather than hand-writing it.
+    ///
     /// # Errors
     ///
     /// Returns [`crate::candidate::CandidateError`] when `diff`,
-    /// `audio_ref`, or `apply_token` is empty, when `confidence` is
-    /// non-finite or outside 0.0..=1.0, or when `delta_lufs` is non-finite.
+    /// `audio_ref`, or `apply_token` is empty, when `audio_ref` is non-empty
+    /// but not canonical ([`crate::candidate::CandidateError::InvalidAudioRef`]),
+    /// when `confidence` is non-finite or outside 0.0..=1.0, or when
+    /// `delta_lufs` is non-finite.
     pub fn new(
         diff: String,
         confidence: f64,
@@ -361,6 +456,9 @@ impl CandidateCard {
         if audio_ref.trim().is_empty() {
             return Err(CandidateError::EmptyAudioRef);
         }
+        if !is_canonical_audio_ref(&audio_ref) {
+            return Err(CandidateError::InvalidAudioRef);
+        }
         if apply_token.trim().is_empty() {
             return Err(CandidateError::EmptyApplyToken);
         }
@@ -377,12 +475,16 @@ impl CandidateCard {
     /// Derive the four evaluation fields from `candidate` and attach the
     /// preview reference plus the apply token.
     ///
+    /// Pass [`crate::candidate::audio_ref_for`] of `candidate.id()` as
+    /// `audio_ref` so the name always matches the candidate it previews.
+    ///
     /// # Errors
     ///
-    /// Returns [`crate::candidate::CandidateError::EmptyAudioRef`] or
+    /// Returns [`crate::candidate::CandidateError::EmptyAudioRef`],
+    /// [`crate::candidate::CandidateError::InvalidAudioRef`], or
     /// [`crate::candidate::CandidateError::EmptyApplyToken`] when the
-    /// attached handles are empty; the four copied fields already passed
-    /// [`crate::candidate::Candidate::new`].
+    /// attached handles are empty or off-shape; the four copied fields
+    /// already passed [`crate::candidate::Candidate::new`].
     pub fn from_candidate(
         candidate: &Candidate,
         audio_ref: String,
@@ -422,7 +524,10 @@ impl CandidateCard {
         self.changed
     }
 
-    /// Opaque preview audio reference (format pending, see module notes).
+    /// Canonical preview audio reference (`preview-<id>.wav`).
+    ///
+    /// Read-only handle for consumers such as the UI: resolve it against the
+    /// preview cache and play; never construct paths from it by hand.
     #[must_use]
     pub fn audio_ref(&self) -> &str {
         &self.audio_ref
@@ -659,5 +764,189 @@ pub fn diversify_with_threshold(pool: &[PoolEntry], k: usize, threshold: f64) ->
         candidates,
         direction_gap,
         missing_directions,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::patch::PatchPlan;
+
+    // NOTE: this module is also compiled by
+    // `crates/planner/tests/candidate_diversity.rs` through a `#[path]`
+    // include whose `patch` shim re-exports only `PatchPlan`, so the helpers
+    // below build empty-op plans and never touch other `patch` items.
+    fn patch_empty() -> PatchPlan {
+        PatchPlan {
+            ops: Vec::new(),
+            target_snapshot: "snap-t606".to_owned(),
+        }
+    }
+
+    fn candidate_with(id: &str) -> Candidate {
+        let patch = patch_empty();
+        let changed = count_changed_ops(&patch);
+        let score = ScoreSnapshot::new(0.6).expect("fixture score must be finite");
+        Candidate::new(
+            id.to_owned(),
+            patch,
+            "低频收紧，整体更暗。".to_owned(),
+            0.8,
+            -1.2,
+            changed,
+            score,
+        )
+        .expect("fixture candidate must validate")
+    }
+
+    #[test]
+    fn audio_ref_for_derives_preview_name() {
+        assert_eq!(
+            audio_ref_for("dup-low").expect("plain id must derive"),
+            "preview-dup-low.wav"
+        );
+        // Surrounding whitespace is trimmed before derivation.
+        assert_eq!(
+            audio_ref_for("  spaced  ").expect("padded id must derive"),
+            "preview-spaced.wav"
+        );
+        // Separators, dots, and non-ASCII become `_`, so no path escapes.
+        assert_eq!(
+            audio_ref_for("a/b\\c d.e候选").expect("hostile id must derive"),
+            "preview-a_b_c_d_e__.wav"
+        );
+        // Derivation is total over non-blank ids: same id, same name.
+        assert_eq!(
+            audio_ref_for("demo-dark").expect("id must derive"),
+            audio_ref_for("demo-dark").expect("derivation must be deterministic")
+        );
+    }
+
+    #[test]
+    fn audio_ref_for_rejects_blank_id() {
+        for blank in ["", "   "] {
+            let err = audio_ref_for(blank).expect_err("blank id must fail derivation");
+            assert_eq!(err, CandidateError::EmptyId);
+        }
+    }
+
+    #[test]
+    fn canonical_shape_accepts_only_preview_wav() {
+        for good in ["preview-a.wav", "preview-dup-low.wav", "preview-007_X.wav"] {
+            assert!(is_canonical_audio_ref(good), "{good:?} must be canonical");
+        }
+        for bad in [
+            "",
+            "   ",
+            "render/cand-07.wav",
+            "demo-preview-x.wav",
+            "preview-.wav",
+            "preview-a.mp3",
+            "preview-a/b.wav",
+            "preview-a\\b.wav",
+            "preview-..wav",
+            "preview-候选.wav",
+            "PREVIEW-a.wav",
+            "preview-a.WAV",
+            "preview-a.wav ",
+            " preview-a.wav",
+            "preview-a.wav.bak",
+        ] {
+            assert!(!is_canonical_audio_ref(bad), "{bad:?} must be rejected");
+        }
+    }
+
+    #[test]
+    fn card_new_enforces_audio_ref_shape() {
+        let good = || {
+            CandidateCard::new(
+                "低频收紧，整体更暗。".to_owned(),
+                0.5,
+                0.0,
+                1,
+                "preview-x.wav".to_owned(),
+                "apply-x".to_owned(),
+            )
+        };
+        assert!(good().is_ok());
+
+        // Blank keeps the historical error, not the shape error.
+        let err = CandidateCard::new(
+            "低频收紧，整体更暗。".to_owned(),
+            0.5,
+            0.0,
+            1,
+            "   ".to_owned(),
+            "apply-x".to_owned(),
+        )
+        .expect_err("blank audio_ref must be rejected");
+        assert_eq!(err, CandidateError::EmptyAudioRef);
+
+        // Non-empty but off-shape is the new failure mode.
+        for bad in [
+            "render/cand-07.wav",
+            "demo-preview-x.wav",
+            "preview-.wav",
+            "preview-a.mp3",
+        ] {
+            let err = CandidateCard::new(
+                "低频收紧，整体更暗。".to_owned(),
+                0.5,
+                0.0,
+                1,
+                bad.to_owned(),
+                "apply-x".to_owned(),
+            )
+            .expect_err("off-shape audio_ref must be rejected");
+            assert_eq!(err, CandidateError::InvalidAudioRef, "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn card_from_candidate_roundtrips_derived_ref() {
+        let got = candidate_with("src-01");
+        let derived = audio_ref_for(got.id()).expect("id must derive");
+        let card = CandidateCard::from_candidate(&got, derived.clone(), "apply-src".to_owned())
+            .expect("derivation must succeed");
+        assert_eq!(card.audio_ref(), derived);
+        assert_eq!(card.diff(), got.diff_summary_zh());
+
+        let value = serde_json::to_value(&card).expect("card must serialize");
+        let object = value.as_object().expect("card must serialize to an object");
+        assert_eq!(object.len(), 6, "DEC-019 fixes the card at six fields");
+        assert_eq!(object["audio_ref"], serde_json::json!(derived));
+    }
+
+    #[test]
+    fn card_audio_ref_missing_field_fails_deserialization() {
+        // A card that loses `audio_ref` on the wire must fail loudly.
+        let without_ref = serde_json::json!({
+            "diff": "低频收紧，整体更暗。",
+            "confidence": 0.5,
+            "delta_lufs": 0.0,
+            "changed": 1,
+            "apply_token": "apply-x"
+        });
+        let err = serde_json::from_value::<CandidateCard>(without_ref)
+            .expect_err("missing audio_ref must fail");
+        assert!(
+            err.to_string().contains("audio_ref"),
+            "error must name the missing field: {err}"
+        );
+
+        // An extra field fails too (shape lock, both directions).
+        let with_extra = serde_json::json!({
+            "diff": "低频收紧，整体更暗。",
+            "confidence": 0.5,
+            "delta_lufs": 0.0,
+            "changed": 1,
+            "audio_ref": "preview-x.wav",
+            "apply_token": "apply-x",
+            "fingerprint": "ab12cd34"
+        });
+        assert!(
+            serde_json::from_value::<CandidateCard>(with_extra).is_err(),
+            "seventh field must be rejected: the fingerprint stays out of the card"
+        );
     }
 }

@@ -6,9 +6,21 @@ edition.workspace = true
 [dependencies]
 synthlm-common = { path = "../common" }
 # TSK-205 (stem queue + content-addressed cache + GC): queue/cache layer only.
-# Demucs inference itself is NOT wired here (see src/demucs.rs stub).
-# Licenses: all permissive (MIT/Apache-2.0); already in workspace lockfile,
-# so no new external dependency. Registration left to docs/LICENSES.md owner.
+# TSK-603 (Demucs ONNX backend): optional `ort` under the `onnx` feature,
+# same version string as `synthlm-eval` (2.0.0-rc.13) so Cargo.lock keeps one
+# unified entry. Default build stays dependency-free and offline: weight
+# manifest + verify + cache/GC paths compile without ORT; session open and
+# inference require `--features onnx` (which pulls the prebuilt ONNX Runtime
+# binaries at build time via ort `download-binaries`, TSK-601 precedent).
+# Licenses: all permissive (MIT/Apache-2.0); rows in docs/LICENSES.md.
+# The Demucs ONNX *weights* are research-only (upstream issue #327, DEC-025);
+# they are never downloaded by the build, only lazily verified from the local
+# user-directory cache at first use.
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
+ort = { version = "2.0.0-rc.13", optional = true }
+
+[features]
+# Opt-in Demucs ONNX inference (TSK-603). Default (off): offline, no ORT link.
+onnx = ["dep:ort"]

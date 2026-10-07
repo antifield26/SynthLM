@@ -12,8 +12,12 @@
 //!   (built-in access order, no atime reliance) + orphan reclamation
 //!   (unreferenced artifacts are deleted), plus [`CacheMetrics`] for later
 //!   observability consumers;
-//! - Demucs adapter seam ([`StemSeparator`] / [`DemucsStub`]): trait only,
-//!   no model execution and no weight download in this task.
+//! - Demucs backends ([`StemSeparator`] seam / [`DemucsStub`] not-wired
+//!   marker / [`DemucsOnnxSeparator`] wired local ONNX backend): the wired
+//!   backend verifies the lazily-cached pinned weights, runs the 7.8 s
+//!   windowed forward pass on a background worker, and writes stem WAVs
+//!   through the content-addressed cache (pure local CPU, zero audio
+//!   leaves the machine).
 //!
 //! Dependency direction (DEC-022): `dsp` depends only on `common`
 //! (single-direction `dsp` ← `common`); it never touches `bridge`/DAW code
@@ -29,7 +33,14 @@ pub mod key;
 pub mod store;
 
 pub use artifact::{ArtifactKind, ArtifactRef};
-pub use demucs::{DemucsModel, DemucsStub, StemSeparator};
+pub use demucs::{
+    DEMUCS_CHANNELS, DEMUCS_INPUT_NAME, DEMUCS_ONNX_BYTES, DEMUCS_ONNX_FILE, DEMUCS_ONNX_LICENSE,
+    DEMUCS_ONNX_OPSET, DEMUCS_ONNX_REPO, DEMUCS_ONNX_REV, DEMUCS_ONNX_SHA256, DEMUCS_ONNX_URL,
+    DEMUCS_ONNX_VARIANT, DEMUCS_OUTPUT_NAME, DEMUCS_SAMPLE_RATE, DEMUCS_SOURCES,
+    DEMUCS_WINDOW_SAMPLES, DemucsModel, DemucsOnnxSeparator, DemucsStub, MixPcm, StemAccumulator,
+    StemRow, StemSeparator, canonical_params_preimage, chunk_plan, default_model_path,
+    encode_wav_f32, overlap_window, verify_cached_weight,
+};
 pub use error::DspError;
 pub use gc::{CacheMetrics, GcPolicy, GcReport, WATERMARK_BYTES, run_gc};
 pub use job::{Job, JobKind, JobState};

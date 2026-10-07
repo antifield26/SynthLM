@@ -58,4 +58,51 @@ pub enum DspError {
         /// Operation that was attempted (e.g. `"separate"`, `"ensure_model"`).
         op: String,
     },
+
+    /// Demucs model weights are not usable here (TSK-603).
+    ///
+    /// Terminal `BLOCKED`, never a silent fetch: the detail names the weight
+    /// file (never an absolute path) plus the pinned fetch URL, or explains
+    /// that the selected variant has no pinned manifest, or that the crate
+    /// was built without the `onnx` feature. Raw audio is never involved
+    /// (AGENTS.md §8).
+    #[error("demucs model unavailable: {detail}")]
+    ModelUnavailable {
+        /// Short, secret-free reason (file label + pinned URL, or the
+        /// missing-manifest / missing-feature explanation).
+        detail: String,
+    },
+
+    /// A cached weight file disagrees with the pinned manifest (TSK-603).
+    ///
+    /// Stale or truncated cache: re-fetch the pinned revision, never run
+    /// through it.
+    #[error("demucs weight size mismatch: expected {expected} bytes, observed {observed}")]
+    WeightMismatch {
+        /// Pinned manifest size in bytes.
+        expected: u64,
+        /// Observed file size in bytes.
+        observed: u64,
+    },
+
+    /// Separator input rejected before any inference (TSK-603).
+    ///
+    /// The backend takes explicit 44.1 kHz mono/stereo `f32` PCM only
+    /// (upstream `infer.py` contract: other rates must be resampled by the
+    /// caller); empty, ragged, or non-finite inputs fail here.
+    #[error("unsupported separator input: {detail}")]
+    UnsupportedInput {
+        /// Short, secret-free reason (shape/rate, never audio content).
+        detail: String,
+    },
+
+    /// ONNX session open or forward pass failed (TSK-603, `onnx` feature).
+    ///
+    /// Carries the weight file label and the failing stage only — never
+    /// audio, never an absolute path (AGENTS.md §8).
+    #[error("demucs inference failed: {detail}")]
+    InferenceFailed {
+        /// Short reason (stage + file label, never audio/paths).
+        detail: String,
+    },
 }

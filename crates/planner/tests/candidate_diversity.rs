@@ -473,7 +473,7 @@ fn card_carries_exactly_six_fields() {
         0.82,
         -1.4,
         2,
-        "render/cand-07.wav".to_owned(),
+        "preview-cand-07.wav".to_owned(),
         "apply-07".to_owned(),
     )
     .expect("fixture card must validate");
@@ -481,7 +481,7 @@ fn card_carries_exactly_six_fields() {
     assert_eq!(card.confidence(), 0.82);
     assert_eq!(card.delta_lufs(), -1.4);
     assert_eq!(card.changed(), 2);
-    assert_eq!(card.audio_ref(), "render/cand-07.wav");
+    assert_eq!(card.audio_ref(), "preview-cand-07.wav");
     assert_eq!(card.apply_token(), "apply-07");
 
     let value = serde_json::to_value(&card).expect("card must serialize");
@@ -507,7 +507,7 @@ fn card_rejects_each_bad_field() {
             0.5,
             0.0,
             1,
-            "render/x.wav".to_owned(),
+            "preview-x.wav".to_owned(),
             "apply-x".to_owned(),
         )
     };
@@ -518,7 +518,7 @@ fn card_rejects_each_bad_field() {
         0.5,
         0.0,
         1,
-        "render/x.wav".to_owned(),
+        "preview-x.wav".to_owned(),
         "apply-x".to_owned(),
     )
     .expect_err("empty diff must be rejected");
@@ -530,7 +530,7 @@ fn card_rejects_each_bad_field() {
             bad,
             0.0,
             1,
-            "render/x.wav".to_owned(),
+            "preview-x.wav".to_owned(),
             "apply-x".to_owned(),
         )
         .expect_err("out-of-range card confidence must be rejected");
@@ -541,7 +541,7 @@ fn card_rejects_each_bad_field() {
         f64::NAN,
         0.0,
         1,
-        "render/x.wav".to_owned(),
+        "preview-x.wav".to_owned(),
         "apply-x".to_owned(),
     )
     .expect_err("NaN card confidence must be rejected");
@@ -552,7 +552,7 @@ fn card_rejects_each_bad_field() {
         0.5,
         f64::INFINITY,
         1,
-        "render/x.wav".to_owned(),
+        "preview-x.wav".to_owned(),
         "apply-x".to_owned(),
     )
     .expect_err("infinite card delta must be rejected");
@@ -574,7 +574,7 @@ fn card_rejects_each_bad_field() {
         0.5,
         0.0,
         1,
-        "render/x.wav".to_owned(),
+        "preview-x.wav".to_owned(),
         String::new(),
     )
     .expect_err("blank apply_token must be rejected");
@@ -585,7 +585,7 @@ fn card_rejects_each_bad_field() {
 fn card_from_candidate_mirrors_four_fields() {
     let got = candidate_with("src", "声场展宽，纵深拉开。", 0.66, 0.3, 3, 0.71);
     let card =
-        CandidateCard::from_candidate(&got, "render/src.wav".to_owned(), "apply-src".to_owned())
+        CandidateCard::from_candidate(&got, "preview-src.wav".to_owned(), "apply-src".to_owned())
             .expect("derivation must succeed");
     assert_eq!(card.diff(), got.diff_summary_zh());
     assert_eq!(card.confidence(), got.confidence());
