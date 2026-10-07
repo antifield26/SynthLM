@@ -5,4 +5,4 @@
 # 2026-10-07: +7 from the TSK-805 wiring (`dispatch.rs`, new `cache.rs`,
 # new `vectors.rs`) — deliberate, so the ratchet baseline moved with it.
 # Recount with: python scripts/check-contract.py --print-links
-448
+450

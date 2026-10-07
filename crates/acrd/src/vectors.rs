@@ -4,8 +4,8 @@
 //! from any product binary are wired here:
 //!
 //! - **retrieval** — candidate de-duplication by the same cosine primitive the
-//!   RRF fusion path uses ([`synthlm_retrieval::fusion::cosine_distance`],
-//!   default radius [`synthlm_retrieval::fusion::DEFAULT_FUSED_DEDUP_DISTANCE`]);
+//!   RRF fusion path uses ([`synthlm_retrieval::cosine_distance`],
+//!   default radius [`synthlm_retrieval::DEFAULT_FUSED_DEDUP_DISTANCE`]);
 //! - **eval** — the CLAP-family audio distance (`clap_cos`), which the
 //!   dispatcher used to hard-code to `None`.
 //!
@@ -46,7 +46,7 @@ impl DedupOutcome {
 ///
 /// # Errors
 ///
-/// [`IndexError`] from the shared primitive (dimension mismatch, non-finite
+/// [`synthlm_retrieval::IndexError`] from the shared primitive (dimension mismatch, non-finite
 /// components, empty vector).
 pub fn dedup_candidates(vectors: &[Vec<f32>], radius: f64) -> Result<DedupOutcome, IndexError> {
     let mut kept: Vec<usize> = Vec::new();
@@ -72,7 +72,7 @@ pub fn dedup_candidates(vectors: &[Vec<f32>], radius: f64) -> Result<DedupOutcom
 ///
 /// # Errors
 ///
-/// [`EvalError`] for empty/non-finite/silent input or a dimension mismatch
+/// [`synthlm_eval::EvalError`] for empty/non-finite/silent input or a dimension mismatch
 /// (propagated from the embedder; no silent fallback to a default value).
 pub fn clap_cos(reference: &[f32], candidate: &[f32]) -> Result<f32, EvalError> {
     clap_cosine(

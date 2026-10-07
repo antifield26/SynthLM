@@ -8,7 +8,7 @@
 //!   the stored tier wins there; the environment/default legs serve
 //!   diagnostics and settings-preview callers.
 //! - Fail-safe gate: [`crate::model_gw::Gateway::route`] calls
-//!   [`synthlm_common::consent::require_consent`](synthlm_common::consent::require_consent) before any
+//!   [`synthlm_common::consent::require_consent`] before any
 //!   transport use. [`synthlm_common::consent::ConsentState::Undecided`] yields `consent_required`
 //!   BLOCKED with zero transport calls and zero audit events (AGENTS.md §8
 //!   默认不出网).

@@ -51,7 +51,7 @@ impl CacheStatus {
 ///
 /// # Errors
 ///
-/// Propagates [`DspError`] from the store (unreadable root, IO failures).
+/// Propagates [`synthlm_dsp::DspError`] from the store (unreadable root, IO failures).
 pub fn status(root: &Path) -> Result<CacheStatus, DspError> {
     std::fs::create_dir_all(root)?;
     let store = ContentStore::open(root.to_path_buf())?;
@@ -81,7 +81,7 @@ pub fn status(root: &Path) -> Result<CacheStatus, DspError> {
 ///
 /// # Errors
 ///
-/// Propagates [`DspError`] from the store.
+/// Propagates [`synthlm_dsp::DspError`] from the store.
 pub fn collect(root: &Path, live: &HashSet<CacheKey>) -> Result<GcReport, DspError> {
     std::fs::create_dir_all(root)?;
     let mut store = ContentStore::open(root.to_path_buf())?;
