@@ -2,7 +2,7 @@
 
 面向 REAPER 7 的 AI 作曲 / 声设 Agent：输入文本意图 + 参考音频，经本地 / 云端多模态模型，产出多个候选方案（第三方插件参数调节、音频派生编辑、轻度混音辅助），支持一键应用、A/B 对比、原子回滚。
 
-- 状态：Phase 0–7 工程契约与验证闭环已关闭（Phase 0–7 计 64 任务 Done，F/B-001/002 冻结）；Phase 8（能力接线与债清偿，TSK-805–808）在办，见 `docs/ROADMAP.md` §2 与 `docs/TASK-INDEX.md`。产品向演示仍为 seeded 形态：阶段报告见 `docs/M0-7-REPORT.md`，现场 runbook 见 `experiments/e2e-runbook.md`。
+- 状态：Phase 0–7 工程契约与验证闭环已关闭（Phase 0–7 计 64 任务 Done，F/B-001/002 冻结）；Phase 8（能力接线与债清偿，TSK-805–808）在办，见 `docs/ROADMAP.md` §2 与 `docs/TASK-INDEX.md`。产品向演示仍为 seeded 形态：阶段报告见 `docs/REPORTS.md`，现场 runbook 见 `experiments/e2e-runbook.md`。
 - 实现语言：Rust（Edition 2024 workspace：`common` / `profile` / `planner` / `retrieval` / `eval` / `dsp` / `acrd` / `bridge` / `ui`）。
 - 目标宿主：REAPER ≥ 7.60（实测基线 7.82），通过 ReaScript / reaper-rs 官方与社区接口集成；**不做插件宿主**（L1）。
 
@@ -40,7 +40,7 @@ python scripts/m4_gate.py           # 发布门禁（16 证据 + 任务全关）
 - `docs/ARCHITECTURE.md` —— 进程/线程边界、IPC、数据结构、崩溃恢复。
 - `docs/EVALUATION.md` —— 可行性、对抗假设、风险登记册（RSK-001–014）、kill criteria、许可矩阵。
 - `docs/ROADMAP.md` —— Phase 0–7 规划与里程碑演示脚本。
-- `docs/M0-7-REPORT.md` —— 唯一的阶段报告（Phase 0–7 合并终验 + 2026-10-07 整改与门禁现状）。
+- `docs/REPORTS.md` —— 唯一的阶段报告（Phase 0–7 合并终验 + 2026-10-07 整改与门禁现状）。
 - `docs/research/` —— A/B/C/D 调研笔记（来源 + 日期 + 置信度）。
 - `docs/LICENSES.md` —— 依赖许可登记册（新增依赖必须同步更新）。
 - `experiments/` —— spike 脚本与证据输出。

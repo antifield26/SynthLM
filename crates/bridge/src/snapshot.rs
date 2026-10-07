@@ -22,7 +22,7 @@
 //! Live adapter verification status (TSK-103 is closed): behaviours since
 //! verified live name their evidence inline (e2e-live TSK-505, M7 matrix
 //! TSK-104, M3/M6 spikes TSK-111); still-open v7.60-floor items are marked
-//! `TODO(M57-handoff)` and listed in `docs/M0-7-REPORT.md` §4.
+//! `TODO(M57-handoff)` and listed in `docs/REPORTS.md` §4.
 //!
 //! - Param ident ↔ index: `TrackFX_GetParamFromIdent` returns `-1` for unknown
 //!   idents (DEC-013); `-1` always takes the migration-removal branch (skip +

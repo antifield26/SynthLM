@@ -17,7 +17,7 @@
 | TSK-002 | Cargo workspace 骨架 + CI 绿灯 | 实现 | 0 | TSK-001 | P0 | S | `cargo clippy -- -D warnings && cargo test && cargo fmt --check && cargo doc` 全绿 | DEC-022/024 | Done | 8 crates + CI yml，本地五项全绿 |
 | TSK-003 | 文档同步检查脚本（头字段/稳定 ID） | 实现 | 0 | TSK-002 | P0 | S | 故意缺头字段的 fixture 必红，正常全绿 | L11 | Done | scripts/check-docs.py + scripts/check-contract.py（文档头字段/DEC 计数/证据存在性/计数一致性/绝对路径/裸链接棘轮；本地绿） |
 | TSK-004 | DECISIONS 27 条转 Accepted（人类拍板记录） | 文档 | 0 | — | P0 | S | 每条状态 Accepted + 拍板日期落盘 | DEC全 | Done | 人类 2026-10-06 全部确认（含 Gemma 4 12B 唯一候选） |
-| TSK-005 | Phase 0 阶段报告（含未决 + 拍板项） | 文档 | 0 | TSK-004 | P0 | S | 报告含完成/验证/新事实/修正/阻塞五节 | — | Done | docs/M0-7-REPORT.md §1（Phase 0 关闭，含 DoD 对照表；2026-10-07 三报告合并） |
+| TSK-005 | Phase 0 阶段报告（含未决 + 拍板项） | 文档 | 0 | TSK-004 | P0 | S | 报告含完成/验证/新事实/修正/阻塞五节 | — | Done | docs/REPORTS.md §1（Phase 0 关闭，含 DoD 对照表；2026-10-07 三报告合并） |
 
 ## Phase 1（桥接与安全底座）
 
@@ -75,7 +75,7 @@
 | TSK-401 | 100× 故障注入（pooled/容器/takeFX） | 测试 | 4 | TSK-103 | P0 | M | 零残留；任一残留即 K3 冻结 | H6/K3 | Done | 容器 50/0 + takeFX 50/0 + pooled 真对：传播证实共享源、undo 恢复、派生写双源 untouched；夹具已清 |
 | TSK-402 | 盲听标定（排序相关 + 权重调） | 测试 | 4 | TSK-204 | P1 | M | Spearman ≥0.5；权重变更走 DEC-016 反转记录 | DEC-016 | Done | B ρ=0.825 / T ρ=1.0 / 全10 ρ=0.7455；权重维持，无反转；+6dB 串扰系响度混杂，归一化免疫正确 |
 | TSK-403 | 性能预算（500 参数/撤销延迟） | 测试 | 4 | TSK-102 | P1 | S | 单块 500 参数 <1s；撤销 <500ms，否则分片 | DEC-007/008 | Done | Pro-Q 4 VST3 实测：写 500 参数 3.0ms、撤销 4.0ms、重做 2.0ms（预算内两个量级，无需分片；单机单插件，跨机以 CI/目标机为准） |
-| TSK-404 | 终验演示 M4 + 阶段报告 | 文档 | 4 | 全 | P0 | S | M4 脚本一次通过 + 五节报告 | ROADMAP M4 | Done | m4_gate.py 通过（16 证据 + 0 未关）；docs/M0-7-REPORT.md §2 落盘（含 100× 注入与盲听终验）；交互式 E2E 缺口转 TSK-405 |
+| TSK-404 | 终验演示 M4 + 阶段报告 | 文档 | 4 | 全 | P0 | S | M4 脚本一次通过 + 五节报告 | ROADMAP M4 | Done | m4_gate.py 通过（16 证据 + 0 未关）；docs/REPORTS.md §2 落盘（含 100× 注入与盲听终验）；交互式 E2E 缺口转 TSK-405 |
 | TSK-405 | 交互式 E2E M3 harness（acrd 接线 + 固定演示） | 实现 | 4 | TSK-404 | P1 | M | 5 分钟闭环一次跑通（人机协同见证） | ROADMAP M3 | Done | seed 7 全链跑通 + 人类试听确认相对关系（暗闷/亮透/宽带拍频）；Phase 0–4 至此全部关闭 |
 
 ## Phase 5（产品闭环）
@@ -110,18 +110,18 @@
 | TSK-704 | 跨用户 / 真多进程 IPC | 测试 | 7 | TSK-502/115 | P2 | M | 跨用户 ACL 用例绿或显式 BLOCKED+指引；真双进程 shm 压测达标 | DEC-023 | Done | 真双进程压测绿（200x4KiB 零丢零错序 p95 4.71ms；3x4MiB p95 58.9ms；批准内 2 unsafe）；跨用户拒绝单用户机不可观测→BLOCKED（perm.rs 指引 runas 双用户手动，ignored 用例 pin 机制） |
 | TSK-705 | 盲听扩大样本 + 权重复标定 | 测试 | 7 | TSK-601/402 | P1 | M | 样本 ≥ 当前 2 倍；Spearman ≥0.5 维持或记录权重反转（走 DEC-016） | DEC-016 | Done | 第二轮 11 clips 人类盲听三组全对（B2/W/T2 ρ=1.0×3，累计 n=21≥2 倍）；权重维持无反转（0.30/0.45/0.25）；映射仅 TEMP key，人耳结论无回显 |
 | TSK-706 | 性能预算跨机复测（500 参数/撤销） | 测试 | 7 | TSK-505/403 | P2 | S | 目标机（非仅开发机）报告；超预算则分片方案落地 | DEC-007/008 | Done | 单机复测（用户定）：Pro-Q4 VST3 3 次 write 1-2ms/undo 2ms/redo 2-3ms，全在预算两个量级内，无需分片。**2026-10-07 复核：本行无仓库内产物**（out.txt 已还原，现存 `experiments/perf-budget.out.txt` 是 TSK-403 的 3.0/4.0/2.0ms）；缺口：无第二台目标机 → 证据缺口记录于 M0-7-REPORT §6 第 3 条（补测待人类排期；不虚构已核验） |
-| TSK-707 | Phase 5–7 终验报告 + 文档收口 | 文档 | 7 | TSK-505/506 | P0 | S | 五节报告；TASK-INDEX 无未解释活动行；残留债清零或转 F/B（含解除条件） | ROADMAP M5–M7 | Done | docs/M0-7-REPORT.md §3（Phase 5–7 交付）落盘；**2026-10-07 复核更正：关闭时 Phase 0–7 计 64 Done（历史引文：原写 63），且关闭提交 `d108b43` 的 CI 为红**（见 M0-7-REPORT §6）；残留债未转 F/B（21 处 TODO(M57-handoff)）→ 转 TSK-805/806 |
+| TSK-707 | Phase 5–7 终验报告 + 文档收口 | 文档 | 7 | TSK-505/506 | P0 | S | 五节报告；TASK-INDEX 无未解释活动行；残留债清零或转 F/B（含解除条件） | ROADMAP M5–M7 | Done | docs/REPORTS.md §3（Phase 5–7 交付）落盘；**2026-10-07 复核更正：关闭时 Phase 0–7 计 64 Done（历史引文：原写 63），且关闭提交 `d108b43` 的 CI 为红**（见 M0-7-REPORT §6）；残留债未转 F/B（21 处 TODO(M57-handoff)）→ 转 TSK-805/806 |
 
 ## Phase 8（能力接线与债清偿）
 
-本阶段处理 Phase 0–7 关闭后遗留的能力接线与债务（TSK-805–808）；2026-10-07 已完成的一次性整改（真值更正、契约门禁落地、§8 隐私清理、LICENSES 登记修复、测试诚实化）记录在 `docs/M0-7-REPORT.md` §7，不再占用 TSK 行。
+本阶段处理 Phase 0–7 关闭后遗留的能力接线与债务（TSK-805–808）；2026-10-07 已完成的一次性整改（真值更正、契约门禁落地、§8 隐私清理、LICENSES 登记修复、测试诚实化）记录在 `docs/REPORTS.md` §7，不再占用 TSK 行。
 
 | ID | 标题 | 类型 | 阶段 | 依赖 | 优先级 | 规模 | 验收标准(可测) | 关联决策 | 状态 | 证据链接 |
 |---|---|---|---|---|---|---|---|---|---|---|
 | TSK-805 | 真实技术接线（dsp→acrd / serve live / 检索原语 / CLAP 距离） | 实现 | 8 | TSK-204/602/603 | P1 | L | 四条线均可在产品路径观测：`acrd cache status\|gc` 走 dsp；`serve` 可开 live 且默认仍 fail-closed；plan 响应含 retrieval 去重裁决；score 响应 `clap_cos` 非硬编码 | DEC-012/014/022 | Done | ①`crates/acrd/src/cache.rs`（ContentStore 状态 + run_gc）+ `acrd cache status\|gc` CLI；②`Dispatcher::enable_live/enable_live_https` + `LiveTransport`，`plan.request` 选 live 且未启用时仍 `UnsupportedBackend`；③`crates/acrd/src/vectors.rs` 用 retrieval `cosine_distance`（retrieval 公开重导出）+ plan 响应 `dedup{kept,collapsed,mode:advisory}`；④`on_score_report` 由 PCM 现算 `clap_cos` 或校验入参（越界 `BadScore`），响应带 `clap_cos`。测试：acrd 49 passed（新增 10）；`cargo clippy/test/doc/fmt` 全绿。**未做**：真 ONNX CLAP 权重（需下载 + mel 标定，仍 BLOCKED，见 TSK-601） |
-| TSK-806 | 裸 intra-doc 链接债清理（宽口径 439 处 / 41 文件） | 文档 | 8 | — | P2 | M | 棘轮计数单调下降至 0；`cargo doc` 仍零警告 | §4 | Todo | 基线由 `scripts/check-contract.py --links` 固定并写入 `scripts/link-baseline.txt`；门禁说明见 docs/M0-7-REPORT.md §7.2 |
-| TSK-807 | 人工见证类验收可复核化（runbook 见证行 / 盲听评分单 / HiDPI 150% 补测） | 测试 | 8 | TSK-505/703 | P1 | M | runbook 表出现人类见证行；盲听原始排序落盘；150% 截图入库 | DEC-002/016 | Todo | 缺口与现状见 docs/M0-7-REPORT.md §3.3/§4 |
-| TSK-808 | 测试诚实化（FFmpeg 显式 SKIP、真 crate 断言 CI 矩阵、断言计数门禁） | 测试 | 8 | — | P1 | M | CI 输出含真技术断言计数；skip 有显式 token 且可计数 | §5 | Todo | 已完成部分（见 docs/M0-7-REPORT.md §7.5）：eval 两文件改 `FFMPEG-SKIP` 显式 token + PATH 探测（本机 ffmpeg 在 PATH，分支仍真实执行）；`live_tier2.rs` 离线用例去 `#[ignore]`（461 passed / 0 failed / 3 ignored）。待办：真 crate/Demucs 断言的 CI 矩阵与计数门禁 |
+| TSK-806 | 裸 intra-doc 链接债清理（宽口径 439 处 / 41 文件） | 文档 | 8 | — | P2 | M | 棘轮计数单调下降至 0；`cargo doc` 仍零警告 | §4 | Todo | 基线由 `scripts/check-contract.py --links` 固定并写入 `scripts/link-baseline.txt`；门禁说明见 docs/REPORTS.md §7.2 |
+| TSK-807 | 人工见证类验收可复核化（runbook 见证行 / 盲听评分单 / HiDPI 150% 补测） | 测试 | 8 | TSK-505/703 | P1 | M | runbook 表出现人类见证行；盲听原始排序落盘；150% 截图入库 | DEC-002/016 | Todo | 缺口与现状见 docs/REPORTS.md §3.3/§4 |
+| TSK-808 | 测试诚实化（FFmpeg 显式 SKIP、真 crate 断言 CI 矩阵、断言计数门禁） | 测试 | 8 | — | P1 | M | CI 输出含真技术断言计数；skip 有显式 token 且可计数 | §5 | Todo | 已完成部分（见 docs/REPORTS.md §7.5）：eval 两文件改 `FFMPEG-SKIP` 显式 token + PATH 探测（本机 ffmpeg 在 PATH，分支仍真实执行）；`live_tier2.rs` 离线用例去 `#[ignore]`（461 passed / 0 failed / 3 ignored）。待办：真 crate/Demucs 断言的 CI 矩阵与计数门禁 |
 
 ## 冻结/阻塞（F/B-nnn，原因 + 解除条件）
 
