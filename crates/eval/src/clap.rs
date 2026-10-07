@@ -130,10 +130,10 @@ pub fn default_weight_path() -> Option<PathBuf> {
     }
     #[cfg(not(target_os = "windows"))]
     {
-        if let Ok(cache) = std::env::var("XDG_CACHE_HOME") {
-            if !cache.trim().is_empty() {
-                return Some(PathBuf::from(cache).join("synthlm/clap/model.onnx"));
-            }
+        if let Ok(cache) = std::env::var("XDG_CACHE_HOME")
+            && !cache.trim().is_empty()
+        {
+            return Some(PathBuf::from(cache).join("synthlm/clap/model.onnx"));
         }
         std::env::var("HOME")
             .ok()
