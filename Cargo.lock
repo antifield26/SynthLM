@@ -7841,6 +7841,7 @@ dependencies = [
 name = "synthlm-dsp"
 version = "0.0.0"
 dependencies = [
+ "ort",
  "serde",
  "serde_json",
  "synthlm-common",

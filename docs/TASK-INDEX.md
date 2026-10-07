@@ -95,10 +95,10 @@
 |---|---|---|---|---|---|---|---|---|---|---|
 | TSK-601 | CLAP ONNX 接线（score `clap_cos` + 候选距离） | 实现 | 6 | TSK-202/304 | P0 | M | `clap_cos` 不再恒 `None`；+6dB 回归仍不涨分；同质/异质 fixture 去重行为符合预期；ONNX 许可登记 | DEC-012/016/018 | Done | 谱指纹后端 `score_pair` 出 `Some`（identical 1.0/异质 0.856）；+6dB 距离 0；去重半径 0.02 同质坍缩/异质全留；ort 可选依赖 + 权重 manifest 登记；残留：`OnnxClapEmbedder::embed` 待 mel 标定 spike（BLOCKED，不出伪数） |
 | TSK-602 | LanceDB 真后端接入 + 10k 真 crate 基准 | 实现 | 6 | TSK-203 | P0 | M | 真 crate 构建/P95 达标（<30min / <100ms）或按 DEC-014/203 反转记录；BENCH 重写不污染 CI（门禁或缓存） | DEC-014 | Done | 真 crate 接入（pin + TempDir 表 + SQL 下推证明）；10k 独立复现 build 0.61s/P95 40.27ms/self-hit 100%；+41% 触发 TSK-203 反转：pattern 保持默认、real 常闭 opt-in（BENCH 手工追加）；代理矩阵/私网段 stub 留后续 |
-| TSK-603 | Demucs ONNX 后端接线（懒下载 + stem 进缓存） | 实现 | 6 | TSK-205 | P1 | M | stub→真后端一条 stem 跑通；内容寻址命中；GC 水位指标；权重科研条款已登记 | DEC-009/025 | Todo | |
+| TSK-603 | Demucs ONNX 后端接线（懒下载 + stem 进缓存） | 实现 | 6 | TSK-205 | P1 | M | stub→真后端一条 stem 跑通；内容寻址命中；GC 水位指标；权重科研条款已登记 | DEC-009/025 | Done | 真权重单 stem 跑通（本地 CPU，cache 二次命中；GC/水位单测）；ort 复用 eval 同版本 + Demucs 科研权重登记；残留：FT/6s 未钉选、非 44.1k 拒绝、RTF 基线待补 |
 | TSK-604 | patch 残留校验（SELECT 枚举 + add 存在性 + name_regex 编译） | 实现 | 6 | TSK-201/302 | P1 | S | 非法 SELECT/add fixture 必红；name_regex 编译失败 fail-closed；Macro4/Vital 补测进 builtins | DEC-013/015 | Done | options 枚举（select 专属）+ 闭合白名单 add 全红 + name_regex 编译 fail-closed；Vital macro 角色钉选（Macro 4 证伪不编）；ARCH §6 同步 |
 | TSK-605 | WAL/journal + DEC-027 配置迁移 | 实现 | 6 | TSK-501/205 | P1 | M | 崩溃注入后任务可重放；`config_version` migrate 单测；用户目录不可写回退工程相对目录并提示 | DEC-009/027 | Done | journal 重放（kill 中链重放 + 去重 resubmission）；migrate 等/旧/新矩阵 + 未知/损坏 fail-closed（无回显）；不可写回退工程相对目录（指纹 + 相对路径提示）；dispatch/daemon 接线单测绿 |
-| TSK-606 | 检索 RRF 多路与 audio_ref 输入形状落定 | 实现 | 6 | TSK-601/602 | P1 | S | 文本+音频双索引 RRF 单测；试听引用格式定稿并写进 CandidateCard | DEC-014/018/019 | Todo | |
+| TSK-606 | 检索 RRF 多路与 audio_ref 输入形状落定 | 实现 | 6 | TSK-601/602 | P1 | S | 文本+音频双索引 RRF 单测；试听引用格式定稿并写进 CandidateCard | DEC-014/018/019 | Done | 双路 RRF 稳定融合 + 去重（601/304 同语义）+ 空路退化；audio_ref preview-<stem>.wav 定稿（卡片校验 + UI 只读）；残留：fusion 私有待重导出、渲染侧碰撞 fail-closed 未覆盖 |
 
 ## Phase 7（真实面扩大）
 
