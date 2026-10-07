@@ -68,7 +68,7 @@
 
 ## 6 核心数据结构
 
-- `PluginProfile { schema_version, fx_ident_match, groups[], params[{ident, role, ui, scale, group}] }`：ident 持久化，裸索引永不落盘；Kontakt slot 子集；矩阵类 `preset-only`（B §4，DEC-015）。
+- `PluginProfile { schema_version, fx_ident_match, groups[], params[{ident, name_regex?, options?[], role, ui, scale, group}] }`：ident 持久化，裸索引永不落盘；`name_regex` 存文本、加载即编译校验（非法 fail-closed）；`options` 仅 `select` 可带（枚举标签集，无真值不编）；Kontakt slot 子集；矩阵类 `preset-only`（B §4，DEC-015）。
 - `PatchPlan { snapshot_id, ops[{op, ident, value, reason_role}], model_tier, consent_tier }`：RFC6902 子集 + whitelist 角色枚举；云端/本地共用一 schema（DEC-013）。
 - `Candidate { id, patch, render_ref, score, diff_summary_zh, confidence, delta_lufs, changed_params }`：3–5 个，去重阈值 + 强制方向覆盖（DEC-018）。
 - `Score { spec_l1, mel_l1, clap_cos, transient_f1, lufs_i, true_peak, delta_lufs }`：LUFS 归一后算分；`+6dB` 回归门禁（DEC-016）。
