@@ -4,7 +4,7 @@
 - 适用范围：ROADMAP M5–M7（TSK-501–506、601–606、701–707）。
 - 状态：Accepted（待人类确认）
 - 最后核验日期：2026-10-07
-- 依赖文档：docs/TASK-INDEX.md（63 Done＋F/B-001/002 冻结，0 活动行）、docs/ROADMAP.md、docs/DECISIONS.md（27 DECs intact）。
+- 依赖文档：docs/TASK-INDEX.md（Phase 0–7 计 64 Done＋F/B-001/002 冻结，0 活动行；2026-10-07 更正，原写 63；当日另开 Phase 8 评估整改行）、docs/ROADMAP.md、docs/DECISIONS.md（27 DECs intact）。
 
 ## 1 完成
 
@@ -37,4 +37,14 @@
 - F/B-001（reesch／分发冻结）、F/B-002 持续有效，本报告不解除。
 - 待人类（无截止，按需）：704 双用户 `runas` 手动观测；706 第二台目标机（或以 CI／用户机为准）；回滚按钮亲手一点；mel 标定 spike；Demucs FT／6s 钉选＋RTF 基线；fusion 公开重导出；渲染侧 audio_ref 碰撞 fail-closed；reacontrolmidi 三条目重探（b-matrix 重跑或已知参数表对照，禁猜）；CI 机装 `protoc`（真 crate 特性门）。
 - 代码内 `TODO(M57-handoff)` 标记（文档漂移收口时由死任务号转 tag）：bridge 真机 floor 项（chunk 上限／MIDI 格式／GUID 花括号／null-dirty／40601，v7.82 证据之外待 v7.60 floor）；planner Retry-After 日期形；dsp 懒下载／sidecar／六 stem 映射；candidate 嵌入距离替换。认领任一即开对应 TSK。
-- 本报告落盘后 TSK-707 关闭，Phase 5–7 无剩余活动行。
+- 本报告落盘后 TSK-707 关闭，Phase 5–7 无剩余活动行（Phase 8 评估整改行于 2026-10-07 另开，见 TASK-INDEX）。
+
+## 6 更正（2026-10-07，来自 `docs/ASSESSMENT-2026-10-07.md`）
+
+本报告初版有三处与仓库/外部事实不符，此处不改写原文，只做更正记录：
+
+1. **计数（历史引文，原文 63 为误）**：§头部与 TSK-707 证据栏写「63 Done」，实际 `docs/TASK-INDEX.md` 当时为 **Phase 0–7 计 64 Done + 2 Blocked**（Phase 0–4 45 + Phase 5–7 19）。
+2. **CI 状态**：§2 只声明「本地五项绿」（该声明属实，2026-10-07 复跑仍绿：clippy/test/fmt/doc/check-docs）。但 GitHub Actions 侧当时为**红**——run #60（本报告落盘提交 `d108b43`）macOS/Ubuntu 的 `clippy -D warnings` 失败；63 次运行中 44 次失败，其中 #10–#43 连续 34 次失败。AGENTS §5「任一红即 BLOCKED」的约束在本轮关闭时**未被遵守也未被记录**。HEAD `fdd81fe`(#63) 已三 OS 全绿。
+3. **TSK-706 证据**：该行数字（write 1–2ms / undo 2ms / redo 2–3ms）无仓库内产物（out.txt 已还原），现存 `experiments/perf-budget.out.txt` 属 TSK-403（3.0/4.0/2.0ms）；已在该行标注并转 TSK-801。
+
+其余 §3「新事实」与 §5「阻塞与移交」内容经复核仍然成立；§5 残留债（21 处 `TODO(M57-handoff)`、9 项待人类事项）未转 F/B，已转 TSK-801/805/806/807 登记。

@@ -2,8 +2,8 @@
 
 - 目的：把 ROADMAP 拆成一次会话可完成、可验证的任务，供后续 Agent 会话逐项执行。
 - 适用范围：Phase 0–4；约束：非商业、无分发、不购证；三档授权；本地端点测试递延实现阶段。
-- 状态：Accepted（Phase 0–4 Done；Phase 5–7 见下表，F/B 单独冻结；2026-10-07）
-- 最后核验日期：2026-10-06
+- 状态：Accepted（Phase 0–7 已关闭；Phase 8=评估整改见下表，F/B-001/002/003 单独冻结；2026-10-07）
+- 最后核验日期：2026-10-07
 - 依赖文档：docs/ROADMAP.md、docs/DECISIONS.md、docs/EVALUATION.md、docs/ARCHITECTURE.md。
 
 粒度规则：每行=一次会话；P0 必有可自动化验收；Blocked 必写原因与解除条件；完成必更状态 + 证据链接。
@@ -12,10 +12,10 @@
 
 | ID | 标题 | 类型 | 阶段 | 依赖 | 优先级 | 规模 | 验收标准(可测) | 关联决策 | 状态 | 证据链接 |
 |---|---|---|---|---|---|---|---|---|---|---|
-| TSK-000 | Research Pass A/B/C/D 落盘 | 调研 | 0 | — | P0 | L | `docs/research/*.md` 计 10 且头字段全（脚本计数） | L11 | Done | docs/research/ |
+| TSK-000 | Research Pass A/B/C/D 落盘 | 调研 | 0 | — | P0 | L | `docs/research/*.md` 计 11 且头字段全（脚本计数） | L11 | Done | docs/research/（2026-10-07 复核更正：11 篇，原写 10） |
 | TSK-001 | 编写根目录 AGENTS.md（8 章齐备） | 文档 | 0 | DEC/ARCH | P0 | S | grep 得 8 章标题 + 红线清单齐，`cargo doc` 不告警 | DEC全 | Done | AGENTS.md（8 章 grep 验证通过） |
 | TSK-002 | Cargo workspace 骨架 + CI 绿灯 | 实现 | 0 | TSK-001 | P0 | S | `cargo clippy -- -D warnings && cargo test && cargo fmt --check && cargo doc` 全绿 | DEC-022/024 | Done | 8 crates + CI yml，本地五项全绿 |
-| TSK-003 | 文档同步检查脚本（头字段/稳定 ID） | 实现 | 0 | TSK-002 | P0 | S | 故意缺头字段的 fixture 必红，正常全绿 | L11 | Done | scripts/check-docs.py（16 docs + 27 DECs 门禁，本地绿） |
+| TSK-003 | 文档同步检查脚本（头字段/稳定 ID） | 实现 | 0 | TSK-002 | P0 | S | 故意缺头字段的 fixture 必红，正常全绿 | L11 | Done | scripts/check-docs.py + scripts/check-contract.py（文档头字段/DEC 计数/证据存在性/计数一致性/绝对路径/裸链接棘轮；本地绿） |
 | TSK-004 | DECISIONS 27 条转 Accepted（人类拍板记录） | 文档 | 0 | — | P0 | S | 每条状态 Accepted + 拍板日期落盘 | DEC全 | Done | 人类 2026-10-06 全部确认（含 Gemma 4 12B 唯一候选） |
 | TSK-005 | Phase 0 阶段报告（含未决 + 拍板项） | 文档 | 0 | TSK-004 | P0 | S | 报告含完成/验证/新事实/修正/阻塞五节 | — | Done | docs/PHASE0-REPORT.md（含 DoD 对照表） |
 
@@ -27,10 +27,10 @@
 | TSK-102 | undo 事务封装 + 写后指针重取 | 实现 | 1 | TSK-002 | P0 | S | spike03c/f 复现：T1_delta=1、undo 后 ValidatePtr2=false→重取成功 | DEC-008 | Done | Lua 验收通过（spike03c/f）+ undo.rs 8 单测绿；扩展真机归 TSK-114 |
 | TSK-103 | 显式快照 + 一键整体回滚 | 实现 | 1 | TSK-102 | P0 | M | 故障注入 100 次应用/回滚零残留（计数器归零） | DEC-004/020 | Done | Lua 100/0 零残留（fault-inject-100.out.txt）+ snapshot.rs 9 单测绿；扩展真机归 TSK-114 |
 | TSK-104 | 42230 渲染线 + null-test 门禁 + 兜底链 | 实现 | 1 | TSK-103 | P0 | M | 同参三次渲染方差 <阈值；全速失败自动进小块→1x→online；M7（BOUNDSFLAG=4 + 单文件开关）文件清单验证 | DEC-005 | Done | Lua 核心绿（隔离 3/3 + M7 2×2）；变速键仅 chunk（RENDER_1X 0/1/2，无 stock setter），Rust harness 落实留 Phase 3 |
-| TSK-105 | 三档 consent 弹窗 + 设置页 + 档位持久化 | 实现 | 1 | TSK-002 | P0 | S | 三档切换单测全过；缺授权调用即 `consent_required` BLOCKED | DEC-010/011 | Done | consent.rs（11 单测绿：fail-closed/原子写/文本 prompt；零新依赖；图形渲染留 TSK-306） |
+| TSK-105 | 三档 consent 弹窗 + 设置页 + 档位持久化 | 实现 | 1 | TSK-002 | P0 | S | 三档切换单测全过；缺授权调用即 `consent_required` BLOCKED | DEC-010/011 | Done | consent.rs（20 单测绿，2026-10-07 复核更正：原写 11；fail-closed/原子写/文本 prompt；零新依赖；图形渲染留 TSK-306） |
 | TSK-106 | 上传字段白名单审计单测 | 测试 | 1 | TSK-105 | P0 | S | PCM 越界用例必红，白名单用例全绿；审计日志无 Key/PCM | DEC-011/026 | Done | upload_audit.rs（12 单测绿，复用 canonical 无第二套；裁决：精确匹配 fail-closed 保留，tier 门禁归调用方 TSK-301） |
-| TSK-107 | IPC hello/帧 + 超时重连（三 OS） | 实现 | 1 | TSK-002 | P0 | M | Win/macOS/Linux 建连/断线/权限用例全绿 | DEC-023 | Done | 帧/握手/分类/脱敏/回环全绿 + CI 三 OS jobs 全绿；权限用例与 shm 通道拆至 TSK-115 |
-| TSK-108 | `.env` Key 读取 + 缺失 BLOCKED | 实现 | 1 | TSK-105 | P0 | S | 无 `.env` 启动即 BLOCKED + 指引；grep 证明 Key 不进日志/快照 | DEC-010/026 | Done | config.rs（33 单测绿，全注入式零 unsafe；Debug 全 redacted；零新依赖）；fail-safe 裁决：无已存 consent 不得出网（TSK-105/301 落实门禁） |
+| TSK-107 | IPC hello/帧 + 超时重连（三 OS） | 实现 | 1 | TSK-002 | P0 | M | Win/macOS/Linux 建连/断线/权限用例全绿 | DEC-023 | Done | 帧/握手/分类/脱敏/回环全绿；权限用例与 shm 通道拆至 TSK-115。（2026-10-07 复核更正：「CI 三 OS jobs 全绿」仅对 HEAD `fdd81fe`(#63) 成立；#10–#43 与 #55–#62 期间 unix/macos clippy 长期红，见 TSK-801） |
+| TSK-108 | `.env` Key 读取 + 缺失 BLOCKED | 实现 | 1 | TSK-105 | P0 | S | 无 `.env` 启动即 BLOCKED + 指引；grep 证明 Key 不进日志/快照 | DEC-010/026 | Done | config.rs（18 单测绿，2026-10-07 复核更正：原写 33；全注入式零 unsafe；Debug 全 redacted；零新依赖）；fail-safe 裁决：无已存 consent 不得出网（TSK-105/301 落实门禁） |
 | TSK-109 | Action ID 人工复核（40362/40601/渲染系） | 调研 | 1 | — | P1 | S | Action list 截图/导出对照表落盘 | A04 §7 | Done | A03 §7 对照表 + probe 证据；人类 2026-10-06 eyeball 确认 |
 | TSK-110 | P_EXT 跨工程跟随 + redo 干净重测（隔离 tab） | 测试 | 1 | TSK-102 | P1 | S | 独立 tab 下 undo/redo 后 P_EXT 值符合预期（对称往返） | DEC-027 | Done | 05d 对称干净（v1→空→v1）+ 人工跨工程 paste 通过（hello-manual）；夹具已清理 |
 | TSK-111 | CopyToTake NCH 携带 + glue 后 P_EXT 保留 | 测试 | 1 | TSK-102 | P1 | S | 目标 chunk NCH 一致；glue 新 take provenance 齐全或显式重写 | A04 §M3/M6 | Done | M3：复制带 FX 不带 NCH→须显式回写；M6：glue 丢 take P_EXT→须重写（undo 可恢复）；M7 并入 TSK-104 |
@@ -44,8 +44,8 @@
 | ID | 标题 | 类型 | 阶段 | 依赖 | 优先级 | 规模 | 验收标准(可测) | 关联决策 | 状态 | 证据链接 |
 |---|---|---|---|---|---|---|---|---|---|---|
 | TSK-201 | Profile schema + 首批白名单（≥5 款） | 实现 | 2 | TSK-112 | P0 | M | 白名单覆盖 ≥80% 目标声设参数；ident 回查 -1 迁移单测过 | DEC-015 | Done | schema+builtins 20 单测绿；7 插件各 8–16 条（Macro 4/Vital 待补测；name_regex 编译延后；13 doc 坏链已修） |
-| TSK-202 | MIR v1 链（48k/STFT/mel/CLAP/LUFS） | 实现 | 2 | TSK-104 | P0 | M | 参数变更即 golden 失配（敏感性）；固定输入评分落区间 | DEC-012/016 | Done | mir.rs+score.rs+golden（13+5 全绿；+6dB 归零 ΔLUFS=-6.021；CLAP 缝留待接入；3341 归 TSK-208） |
-| TSK-203 | 检索后端原型二选一（10k 基准） | 实现 | 2 | TSK-202 | P0 | M | 构建 <30min、P95 <100ms；落选者归档理由 | DEC-014 | Done | 双后端 trait + 10k harness 全绿（0.14s/P95~30ms）；默认后端锁定 LanceDb（人类 2026-10-06 批准；反转：真 crate 下 P95 回退 >20% 即翻转）；注：harness 每次重写 BENCH.md，CI 侧如脏树需门禁 |
+| TSK-202 | MIR v1 链（48k/STFT/mel/CLAP/LUFS） | 实现 | 2 | TSK-104 | P0 | M | 参数变更即 golden 失配（敏感性）；固定输入评分落区间 | DEC-012/016 | Done | mir.rs+score.rs+golden（15+9 单测全绿，2026-10-07 复核更正：原写 13+5；+6dB 归零 ΔLUFS=-6.021；CLAP 缝留待接入；3341 归 TSK-208） |
+| TSK-203 | 检索后端原型二选一（10k 基准） | 实现 | 2 | TSK-202 | P0 | M | 构建 <30min、P95 <100ms；落选者归档理由 | DEC-014 | Done | 双后端 trait + 10k harness 全绿（BENCH.md：build 0.11s/0.10s，P95 31.163ms/28.472ms；2026-10-07 复核更正：原写「0.14s/P95~30ms」在 BENCH.md 中无出处）；「默认后端 LanceDb」指 pattern 原型，真 crate 由 TSK-602 定为非默认；注：harness 每次重写 BENCH.md，CI 侧如脏树需门禁 |
 | TSK-204 | 评价器 + `+6dB` 防作弊回归 | 测试 | 2 | TSK-202 | P0 | M | `+6dB` 用例必不涨分；三次方差门禁 | DEC-016/L5 | Done | golden 5→9（低频作弊/削波告警/位一致/多分辨率 ordering）；权重 0.30/0.45/0.25 初值，标定归 TSK-402 |
 | TSK-205 | stem 后台队列 + 内容寻址缓存 + GC | 实现 | 2 | TSK-104 | P1 | M | 缓存命中率/水位指标上报；超 50GB 自动 GC | DEC-009 | Done | dsp 新 crate（23 单测绿：状态机/寻址/GC/指针；零新外部依赖）；WAL/journal 与 DEC-027 迁移留后续 |
 | TSK-206 | symphonia/FFmpeg fallback 阈值实测 | 测试 | 2 | TSK-202 | P1 | S | 破损/异形格式矩阵：触发 fallback 的条件清单 | C-dsp §1 | Done | 8 格式矩阵全绿（唯一触发：截断 wav；AAC 46080 帧须 priming 修齐，转消费侧）；symphonia 已登记 |
@@ -56,7 +56,7 @@
 
 | ID | 标题 | 类型 | 阶段 | 依赖 | 优先级 | 规模 | 验收标准(可测) | 关联决策 | 状态 | 证据链接 |
 |---|---|---|---|---|---|---|---|---|---|---|
-| TSK-301 | model-gw 三档路由 + 熔断降级链 | 实现 | 3 | TSK-105/106 | P0 | M | 故障注入：Tier1  down→Tier2→Tier3→BLOCKED 路径全覆盖；无已存 consent 即 consent_required BLOCKED（先弹窗，AGENTS §8） | DEC-010/011 | Done | model_gw.rs（14 单测绿：全降级链/401 跳云/熔断/审计脱敏）；零网络（真传输归 TSK-116） |
+| TSK-301 | model-gw 三档路由 + 熔断降级链 | 实现 | 3 | TSK-105/106 | P0 | M | 故障注入：Tier1  down→Tier2→Tier3→BLOCKED 路径全覆盖；无已存 consent 即 consent_required BLOCKED（先弹窗，AGENTS §8） | DEC-010/011 | Done | model_gw.rs（37 单测绿，2026-10-07 复核更正：原写 14：全降级链/401 跳云/熔断/审计脱敏）；零网络（真传输归 TSK-116） |
 | TSK-116 | model-gw 真 HTTPS 传输（responses 格式） | 实现 | 3 | TSK-301 | P1 | S | 30s hard/P95 10s 超时接线；401/429/5xx 真映射；MockTransport 回归保留 | DEC-010/011 | Done | HttpsTransport（blocking rustls，无 openssl；127 stub 全绿，Mock 回归全过）；真端点验证转 TSK-117（推理 POST 系统性 400） |
 | TSK-118 | 音频上传字段 + Tier3 纯文本强制 | 实现 | 3 | TSK-106 | P1 | S | `audio_ref` 白名单增补全绿；Tier3 带音频字段即拒绝；审计无 PCM | DEC-010/011 | Done | 白名单 4 成员 + TierAudioUnsupported（code AudioCapabilityMissing，BLOCKED，传输零调用）；Tier1 音频直通全绿 |
 | TSK-119 | 主 UI 脚手架（egui + CJK + 事件驱动重绘） | 实现 | 3 | TSK-306 | P1 | M | CJK 无 tofu 回归截图；100Hz 工况 CPU 回归；HiDPI 复核记录 | DEC-002 | Done | 事件驱动无定时器（guard 单测）；CJK 61 字符全覆盖；CPU 100Hz 约 1/5 核（偏高可接受，后续可抽稀）；HiDPI 沿用未测声明 |
@@ -94,7 +94,7 @@
 | ID | 标题 | 类型 | 阶段 | 依赖 | 优先级 | 规模 | 验收标准(可测) | 关联决策 | 状态 | 证据链接 |
 |---|---|---|---|---|---|---|---|---|---|---|
 | TSK-601 | CLAP ONNX 接线（score `clap_cos` + 候选距离） | 实现 | 6 | TSK-202/304 | P0 | M | `clap_cos` 不再恒 `None`；+6dB 回归仍不涨分；同质/异质 fixture 去重行为符合预期；ONNX 许可登记 | DEC-012/016/018 | Done | 谱指纹后端 `score_pair` 出 `Some`（identical 1.0/异质 0.856）；+6dB 距离 0；去重半径 0.02 同质坍缩/异质全留；ort 可选依赖 + 权重 manifest 登记；残留：`OnnxClapEmbedder::embed` 待 mel 标定 spike（BLOCKED，不出伪数） |
-| TSK-602 | LanceDB 真后端接入 + 10k 真 crate 基准 | 实现 | 6 | TSK-203 | P0 | M | 真 crate 构建/P95 达标（<30min / <100ms）或按 DEC-014/203 反转记录；BENCH 重写不污染 CI（门禁或缓存） | DEC-014 | Done | 真 crate 接入（pin + TempDir 表 + SQL 下推证明）；10k 独立复现 build 0.61s/P95 40.27ms/self-hit 100%；+41% 触发 TSK-203 反转：pattern 保持默认、real 常闭 opt-in（BENCH 手工追加）；代理矩阵/私网段 stub 留后续 |
+| TSK-602 | LanceDB 真后端接入 + 10k 真 crate 基准 | 实现 | 6 | TSK-203 | P0 | M | 真 crate 构建/P95 达标（<30min / <100ms）或按 DEC-014/203 反转记录；BENCH 重写不污染 CI（门禁或缓存） | DEC-014 | Done | 真 crate 接入（pin + TempDir 表 + SQL 下推证明）；10k 复现 build 0.56s/P95 40.316ms/self-hit 100%（2026-10-07 复核更正：原写 0.61s/40.27ms，实测值以 BENCH.md 为准）；+41.6% 触发 TSK-203 反转：pattern 保持默认、real 常闭 opt-in；**产品侧未使用该后端**（见 TSK-805） |
 | TSK-603 | Demucs ONNX 后端接线（懒下载 + stem 进缓存） | 实现 | 6 | TSK-205 | P1 | M | stub→真后端一条 stem 跑通；内容寻址命中；GC 水位指标；权重科研条款已登记 | DEC-009/025 | Done | 真权重单 stem 跑通（本地 CPU，cache 二次命中；GC/水位单测）；ort 复用 eval 同版本 + Demucs 科研权重登记；残留：FT/6s 未钉选、非 44.1k 拒绝、RTF 基线待补 |
 | TSK-604 | patch 残留校验（SELECT 枚举 + add 存在性 + name_regex 编译） | 实现 | 6 | TSK-201/302 | P1 | S | 非法 SELECT/add fixture 必红；name_regex 编译失败 fail-closed；Macro4/Vital 补测进 builtins | DEC-013/015 | Done | options 枚举（select 专属）+ 闭合白名单 add 全红 + name_regex 编译 fail-closed；Vital macro 角色钉选（Macro 4 证伪不编）；ARCH §6 同步 |
 | TSK-605 | WAL/journal + DEC-027 配置迁移 | 实现 | 6 | TSK-501/205 | P1 | M | 崩溃注入后任务可重放；`config_version` migrate 单测；用户目录不可写回退工程相对目录并提示 | DEC-009/027 | Done | journal 重放（kill 中链重放 + 去重 resubmission）；migrate 等/旧/新矩阵 + 未知/损坏 fail-closed（无回显）；不可写回退工程相对目录（指纹 + 相对路径提示）；dispatch/daemon 接线单测绿 |
@@ -109,8 +109,23 @@
 | TSK-703 | HiDPI 复核 + UI CPU 抽稀 | 测试 | 7 | TSK-506/119 | P1 | S | HiDPI 截图无 tofu；100Hz 工况 CPU 相对基线下降并记录 | DEC-002 | Done | 重绘抽稀（数据 100Hz + 重绘每 3 推 ~33Hz，仍事件驱动零 timer）；100Hz 工况单核 56.6%→16.7%（-70.6%，20 核机）；96DPI 截图零 tofu（CJK 覆盖单测与 scale 无关，egui 矢量字） |
 | TSK-704 | 跨用户 / 真多进程 IPC | 测试 | 7 | TSK-502/115 | P2 | M | 跨用户 ACL 用例绿或显式 BLOCKED+指引；真双进程 shm 压测达标 | DEC-023 | Done | 真双进程压测绿（200x4KiB 零丢零错序 p95 4.71ms；3x4MiB p95 58.9ms；批准内 2 unsafe）；跨用户拒绝单用户机不可观测→BLOCKED（perm.rs 指引 runas 双用户手动，ignored 用例 pin 机制） |
 | TSK-705 | 盲听扩大样本 + 权重复标定 | 测试 | 7 | TSK-601/402 | P1 | M | 样本 ≥ 当前 2 倍；Spearman ≥0.5 维持或记录权重反转（走 DEC-016） | DEC-016 | Done | 第二轮 11 clips 人类盲听三组全对（B2/W/T2 ρ=1.0×3，累计 n=21≥2 倍）；权重维持无反转（0.30/0.45/0.25）；映射仅 TEMP key，人耳结论无回显 |
-| TSK-706 | 性能预算跨机复测（500 参数/撤销） | 测试 | 7 | TSK-505/403 | P2 | S | 目标机（非仅开发机）报告；超预算则分片方案落地 | DEC-007/008 | Done | 单机复测（用户定）：Pro-Q4 VST3 3 次 write 1-2ms/undo 2ms/redo 2-3ms，全在预算两个量级内，无需分片；缺口：无第二台目标机，跨机以 CI/用户机为准（out.txt 已还原，数字见本行） |
-| TSK-707 | Phase 5–7 终验报告 + 文档收口 | 文档 | 7 | TSK-505/506 | P0 | S | 五节报告；TASK-INDEX 无未解释活动行；残留债清零或转 F/B（含解除条件） | ROADMAP M5–M7 | Done | M57-REPORT 落盘；63 Done＋F/B-001/002 冻结，0 活动行；残留见报告 §5（人类按需认领） |
+| TSK-706 | 性能预算跨机复测（500 参数/撤销） | 测试 | 7 | TSK-505/403 | P2 | S | 目标机（非仅开发机）报告；超预算则分片方案落地 | DEC-007/008 | Done | 单机复测（用户定）：Pro-Q4 VST3 3 次 write 1-2ms/undo 2ms/redo 2-3ms，全在预算两个量级内，无需分片。**2026-10-07 复核：本行无仓库内产物**（out.txt 已还原，现存 `experiments/perf-budget.out.txt` 是 TSK-403 的 3.0/4.0/2.0ms）；缺口：无第二台目标机 → 证据补测转 TSK-801 |
+| TSK-707 | Phase 5–7 终验报告 + 文档收口 | 文档 | 7 | TSK-505/506 | P0 | S | 五节报告；TASK-INDEX 无未解释活动行；残留债清零或转 F/B（含解除条件） | ROADMAP M5–M7 | Done | M57-REPORT 落盘；**2026-10-07 复核更正：关闭时 Phase 0–7 计 64 Done（历史引文：原写 63），且关闭提交 `d108b43` 的 CI 为红**（见 TSK-801）；残留债未转 F/B（21 处 TODO(M57-handoff)）→ 转 TSK-805/806 |
+
+## Phase 8（评估整改，2026-10-07）
+
+来源：`docs/ASSESSMENT-2026-10-07.md`（工作区评估）。本阶段只做「真值对齐 + 门禁落地 + 泄漏清除」；**不改架构、不改遗留决策、不扩范围**。
+
+| ID | 标题 | 类型 | 阶段 | 依赖 | 优先级 | 规模 | 验收标准(可测) | 关联决策 | 状态 | 证据链接 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| TSK-801 | 文档/证据真值修复（计数、数字、口径、CI 红事实） | 文档 | 8 | — | P0 | M | `check-contract.py` 计数一致性绿；M57/TASK-INDEX 的 63→64 与 CI 红期关闭事实已记录 | DEC-026 | Done | 本行 + M57-REPORT §6 更正；逐行更正见 TASK-INDEX TSK-000/003/105/107/108/202/203/301/602/706/707 |
+| TSK-802 | DEC-022 依赖方向门禁（脚本 + CI） | 实现 | 8 | TSK-002 | P0 | S | `scripts/check-deps.py` 违规 fixture 必红；CI 三 OS 跑通 | DEC-022 | Done | scripts/check-deps.py + `.github/workflows/ci.yml`；本地绿（违规样例只手测） |
+| TSK-803 | 文档契约门禁强化（头字段位置/计数一致/证据存在/绝对路径/裸链接棘轮） | 实现 | 8 | TSK-003 | P0 | M | `scripts/check-contract.py` 对 5 类缺陷各造 1 例必红；本地全绿 | L11/§8 | Done | scripts/check-contract.py + CI；本地绿（`docs/ASSESSMENT-2026-10-07.md` §0 为方法来源） |
+| TSK-804 | §8 绝对路径清除（源码常量 + 证据日志 + 字号登记） | 修复 | 8 | — | P0 | S | 跟踪文件扫描 0 处个人绝对路径（`C:\Users\<用户名>` / `/Users/<名>` / `/home/<名>`）；FFmpeg 走 `FFMPEG_BIN`/PATH | §8/RSK-006 | Done | eval 两个测试常量删除（`FFMPEG_BIN`→PATH→`ffmpeg -version` 探测，缺失打印 `FFMPEG-SKIP`）；experiments 5 文件 9 处替换（roundtrip 字节级证明仅路径子串变化）；LICENSES 字体 222,524 B、FFmpeg 行去绝对路径；`check-contract.py` 第 4 项持续门禁 |
+| TSK-805 | 真实技术接线决策与实施（dsp→acrd / acrd serve live / 检索默认 / CLAP 真嵌入） | 实现 | 8 | TSK-204/602/603 | P1 | L | 任一接线使产品路径可观测（`clap_cos != None` 或 dsp 被依赖）；或人类书面降级宣称 | DEC-012/014/022 | Todo | 需人类定范围（评估 §7 Q7）；未接线前 Done 行已标注 TSK-805 |
+| TSK-806 | 裸 intra-doc 链接债清理（宽口径 439 处 / 41 文件） | 文档 | 8 | — | P2 | M | 棘轮计数单调下降至 0；`cargo doc` 仍零警告 | §4 | Todo | 基线由 `check-contract.py --links` 固定 |
+| TSK-807 | 人工见证类验收可复核化（runbook 见证行 / 盲听评分单 / HiDPI 150% 补测） | 测试 | 8 | TSK-505/703 | P1 | M | runbook 表出现人类见证行；盲听原始排序落盘；150% 截图入库 | DEC-002/016 | Todo | 评估 §4 P1-1 |
+| TSK-808 | 测试诚实化（FFmpeg 显式 SKIP、真 crate 断言 CI 矩阵、断言计数门禁） | 测试 | 8 | — | P1 | M | CI 输出含真技术断言计数；skip 有显式 token 且可计数 | §5 | Todo | 已完成：eval 两文件改 `FFMPEG-SKIP` 显式 token + PATH 探测（本机 ffmpeg 在 PATH，分支仍真实执行）；`live_tier2.rs` 离线用例去 `#[ignore]`（套件 460→461 passed，ignored 4→3）。待办：真 crate/Demucs 断言的 CI 矩阵与计数门禁 |
 
 ## 冻结/阻塞（F/B-nnn，原因 + 解除条件）
 
@@ -120,3 +135,4 @@
 |---|---|---|---|---|---|---|---|---|---|---|
 | F/B-001 | RB/JUCE/权重商用采购与分发 | 合规 | — | — | P3 | S | 不适用（冻结） | DEC-025 | Blocked | 阻塞原因：不购买许可 + 无分发约束；解除条件：人类书面解除约束并立项采购 |
 | F/B-002 | 云端计费声明与预算立项 | 合规 | — | — | P3 | S | 不适用（冻结） | DEC-010 | Blocked | 阻塞原因：人类明确不声明计费；解除条件：人类书面要求立项 |
+| F/B-003 | 公开仓库分发口径与 git 历史处置 | 合规 | — | — | P0 | S | 不适用（冻结） | §1/DEC-025/RSK-006 | Blocked | 阻塞原因：`github.com/antifield26/SynthLM` 为 public，与 AGENTS 锁定约束「无分发」存在张力，且历史提交含个人绝对路径（2026-10-07 评估 P1-4/P1-5）；属 §1「许可/分发」必须问人项，Agent 不得自行改写历史或变更可见性。解除条件：人类书面确认 ① public/private 口径 ② 是否需要重写历史清除已提交路径（破坏性操作需另行批准） |

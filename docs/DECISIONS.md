@@ -2,8 +2,8 @@
 
 - 目的：基于 Research Pass（A/B/C/D）定稿 ≥25 条决策，每条给具体默认值与反转条件，供 ARCHITECTURE/ROADMAP/TASK-INDEX 约束实现。
 - 适用范围：SynthLM 全工程；约束条件：非商业、无分发、不上传、不购买许可；目标最低 REAPER v7.60，实测基线 v7.82。
-- 状态：Accepted（人类 2026-10-06 全部确认；DEC-010 Tier3 本地模型于 2026-10-06 由 Gemma 4 12B 更换为 Bonsai-2-27B，Gemma 废弃）
-- 最后核验日期：2026-10-06
+- 状态：Accepted（人类 2026-10-06 全部确认；DEC-010 Tier3 本地模型于 2026-10-06 由 Gemma 4 12B 更换为 Bonsai-2-27B，Gemma 废弃；修正记录见 DEC-010 补记 2026-10-07）
+- 最后核验日期：2026-10-07（DEC-010 补立修正记录；其余 26 条沿用 2026-10-06 核验）
 - 依赖文档：docs/research/A01–A06、B-plugin-semantics、C-models-retrieval-eval、C-dsp-toolchain、D-eng-eco。
 
 > 格式硬要求：无“视情况而定”；每条有推荐默认值 + 可观察反转条件。核验依据引用 research 文档与 spike。
@@ -103,6 +103,7 @@ DEC-010：模型选型（云端 OpenCode Go 为主 + 本地端点保留）
 反转条件：云端连通性实测连续失败率 >20%、或延迟 P95 >10s、或用户撤回上传授权，则切 Tier3（Bonsai-2-27B 本地）为主；Tier3 本地模型更换须人类另行拍板（当前唯一候选）。
 影响面：DEC-011/013/017、L3、TSK-model-harness。
 核验依据：人类 2026-10-06 决策（用户给定预设，置信度高）；连通性与 responses 格式 ⚠️需实测；C-models-retrieval-eval §1-2（本地档保留依据）。
+补记：DEC-010 修正记录（2026-10-07 补立）。变更内容：Tier3 本地候选由 `Gemma 4 12B` 改为 `Bonsai-2-27B`（唯一候选；人类 2026-10-06 拍板，属 AGENTS §1 人类专属权限）；后端由多候选收束为 llama.cpp only（vLLM/MLX LM/LM Studio 不再覆盖）；Tier3 能力限定纯文本（多模态输入端实测不可用，音频能力缺失即 BLOCKED，不静默降级）。该变更当时以原地改写本 DEC 的"推荐/反转条件"两行落地（commit `f1cbcf3`），无 Superseded 链、无修正痕迹，与 AGENTS §6 状态机留痕要求不符，故补立本记录；本 DEC 的决策实质（A：云端主路径 + 本地端点保留为可切换后端）与状态 Accepted 均未变。事实来源：本文件头行（"DEC-010 Tier3 本地模型于 2026-10-06 由 Gemma 4 12B 更换为 Bonsai-2-27B，Gemma 废弃"）、EVALUATION §2、TASK-INDEX TSK-305 行（"现 Tier3=Bonsai-2-27B 服务中（text+image only）；Tier3 音频 BLOCKED 维持"）。不新开 DEC 号的理由：①变更由人类直接拍板且未反转本 DEC 推荐方向，无 §7 意义上的备选方案之争；②无继任决策，补写 `Superseded by DEC-yyy` 会伪造不存在的链；③Tier3 候选更换属同一决策内的参数更新，补记即可满足留痕。后续 Tier3 模型更换一律按本格式补记（须人类拍板 + 日期）。
 
 DEC-011：云端后端协议与降级（OpenCode Go responses + 本地回退）
 状态：Accepted（人类 2026-10-06 确认）

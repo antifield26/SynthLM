@@ -3,7 +3,7 @@
 - 目的： closure Phase 0（立项、调研与设计），记录完成项、验证结果、新事实、决策修正与移交 Phase 1 的阻塞点。
 - 适用范围：Phase 0 DoD 对照；后续阶段入口。
 - 状态：Accepted（Phase 0 于 2026-10-06 关闭；Edition 2024 切换已验证全绿）
-- 最后核验日期：2026-10-06
+- 最后核验日期：2026-10-07（§4 增更正记录；Phase 0 结论仍为 2026-10-06 快照）
 - 依赖文档：docs/research/、DECISIONS、EVALUATION、ARCHITECTURE、ROADMAP、TASK-INDEX、AGENTS.md。
 
 ## 1 完成了什么
@@ -22,6 +22,7 @@
 ## 4 决策修正（人类拍板链）
 
 - 本地主路径 → 云端三档（Tier1 训练保留 / Tier2 ZDR mimo-v2.6-flash / Tier3 本地 Gemma 4 12B 唯一候选），L3 部分触发（限推理链）；不上传→原始音频默认不出网 + 白名单审计；本地端点实测递延实现阶段（TSK-305）；不声明计费；F/B-001/002 冻结（原 TSK-901/902 改号）。
+- 更正（2026-10-07）：上文"Tier3 本地 Gemma 4 12B 唯一候选"已被替代——人类 2026-10-06 拍板改为 `Bonsai-2-27B`（唯一候选，llama.cpp only、纯文本；音频能力缺失即 BLOCKED，TSK-305）。上文为 Phase 0 当时记录，保留不改；事实来源：DECISIONS.md 头行 + DEC-010 修正记录、EVALUATION §2、TASK-INDEX TSK-305 行。
 
 ## 5 阻塞点（移交 Phase 1）
 

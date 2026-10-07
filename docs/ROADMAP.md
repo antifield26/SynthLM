@@ -3,7 +3,7 @@
 - 目的：定义 Phase 0–7 目标、交付物、可验证验收、依赖、规模、Kill/反转条件，以及里程碑演示脚本、偿债计划与资源假设。
 - 适用范围：SynthLM 全工程；约束：非商业、无分发、不购买许可；三档授权（Tier1 训练保留 / Tier2 ZDR / Tier3 本地）；本地端点测试递延到实现阶段（人类 2026-10-06）。
 - 状态：Accepted（Phase 0–4 已关闭；Phase 5–7 规划见 §2，2026-10-07）
-- 最后核验日期：2026-10-06
+- 最后核验日期：2026-10-07（Phase 3 交付物与计数更正；其余沿用 2026-10-06 结论）
 - 依赖文档：docs/DECISIONS.md、docs/EVALUATION.md、docs/ARCHITECTURE.md。
 
 ## 1 长期愿景与非目标
@@ -15,8 +15,8 @@
 
 ### Phase 0 立项调研设计（本阶段，S）
 - 目标：工程契约齐备，可长期执行。
-- 交付物：research 10 篇 + DECISIONS（27 条 Accepted）+ EVALUATION + ARCHITECTURE + ROADMAP + TASK-INDEX + AGENTS.md + Cargo 骨架 + CI 绿灯 + 阶段报告。
-- 验收（自动优先）：`docs/` 13 文件存在且头字段全；DEC 27 条无禁用语；EVAL H≥5/RSK≥12；ARCH 11 章；`cargo clippy/rustfmt/test/doc` 绿。
+- 交付物：research 10 篇（2026-10-07 复核更正：现 11 篇，新增 `docs/research/C-live-endpoint.md`；"10 篇"为 Phase 0 当时计数）+ DECISIONS（27 条 Accepted）+ EVALUATION + ARCHITECTURE + ROADMAP + TASK-INDEX + AGENTS.md + Cargo 骨架 + CI 绿灯 + 阶段报告。
+- 验收（自动优先）：`docs/**/*.md` 全量存在且头字段全（2026-10-07 复核更正：原写"`docs/` 13 文件存在"，该计数口径未定义且与实测不符；按整树 `.md` 口径 2026-10-07 实测 21 个＝顶层 10 + research 11，由 `scripts/check-docs.py` 逐文件校验头字段）；DEC 27 条无禁用语；EVAL H≥5/RSK≥12；ARCH 11 章；`cargo clippy/rustfmt/test/doc` 绿。
 - 依赖：REAPER v7.82 实测机（已具备）。
 - 规模：S。Kill：连续两里程碑不可复现即回 Research。
 
@@ -36,10 +36,11 @@
 
 ### Phase 3 搜索与 UX 闭环（M，可重写模块）
 - 目标：5 分钟 3 候选完整闭环。
-- 交付物：model-gw 三档路由（Tier1/Tier2 responses + Tier3 本地兼容端点 + 音频探测报错）+ Patch schema 双校验 + TPE/CMA-ES 粗搜 + Nelder-Mead 收尾 + 多样性去重 + 候选卡片 6 字段 + 本地端点实测（vLLM/llama.cpp/MLX LM/LM Studio，无量化限制）。
+- 交付物：model-gw 三档路由（Tier1/Tier2 responses + Tier3 本地兼容端点 + 音频探测报错）+ Patch schema 双校验 + TPE/CMA-ES 粗搜 + Nelder-Mead 收尾 + 多样性去重 + 候选卡片 6 字段 + 本地端点实测（Tier3 唯一候选 `Bonsai-2-27B`，llama.cpp only、纯文本；人类 2026-10-06 锁定）。
 - 验收：端到端 ≤5min 出 3 可用候选；Patch 首轮有效率 ≥95%（2 轮修复 ≥99%）；云端 P95 ≤10s/候选；本地探测缺音频即 BLOCKED。
 - 依赖：Phase 2。规模：M。Kill：K1（双链撑不起闭环→转纯检索 + 人工确认）。
 - 反转：有效率不达标则收紧 schema（DEC-013）；本阶段允许重写检索后端/权重/UI 引擎/本地档。
+- 更正（2026-10-07）：上文"本地端点实测（vLLM/llama.cpp/MLX LM/LM Studio，无量化限制）"与人类锁定约束冲突，已按锁定约束改写为"Tier3 唯一候选 `Bonsai-2-27B`，llama.cpp only、纯文本"（依据：AGENTS.md 头行、DEC-010、EVALUATION §2）；原短语留此存档，"无量化限制"无来源支撑一并移除。
 
 ### Phase 4 加固与标定（M）
 - 目标：达到产品级成功标准 S1–S4。
@@ -84,7 +85,7 @@
 
 ## 3 里程碑与演示脚本（可复现）
 
-- M0 Phase 0 门禁：`ls docs/research/*.md` 计 10 + `cargo clippy -- -D warnings && cargo test && cargo doc` 绿 + DEC 计数 27。复现：全新 clone 按顺序跑同一命令。
+- M0 Phase 0 门禁：`ls docs/research/*.md` 计 11（2026-10-07 实测；Phase 0 关闭时 10，新增 `C-live-endpoint`）+ `cargo clippy -- -D warnings && cargo test && cargo doc` 绿 + DEC 计数 27。复现：全新 clone 按顺序跑同一命令。
 - M1 安全底座：在空工程跑 `spike02→spike03f`（快照→改速→undo→P_EXT 回滚→删轨归零），History 恰增预期点数，工程 track/item 计数归零。复现：`-nonewinst` 依次跑三脚本读 `.out.txt`。
 - M2 语义评价：对 5 款目标插件跑 20 行枚举脚本 + NCH `2.0→8.0` + `+6dB` 不涨分回归绿。复现：同一脚本同一工程跑三次。
 - M3 闭环：在参考工程输入固定意图 + 固定参考音频，计时 ≤5min 得 3 候选，各试听正常，一键应用后一键回滚，审计日志字段齐全。复现：种子固定 + 授权档 Tier3（本地）可离线重跑。
