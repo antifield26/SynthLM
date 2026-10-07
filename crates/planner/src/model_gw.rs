@@ -892,10 +892,13 @@ fn parse_retry_after_ms(headers: &reqwest::header::HeaderMap) -> Option<u64> {
 
 /// Whether `base_url` targets loopback (stubs, hermetic probes).
 ///
-/// Proxy policy (DEC-011 / ARCH §5): cloud hosts honor the system proxy
-/// (`http_proxy`/`https_proxy`); loopback never does. Without this split a
-/// local proxy answers TCP-refused targets with 502 and the client would
-/// mis-file `ConnectionFailed` as [`TransportKind::ServerError`].
+/// Production proxy policy (DEC-011 / ARCH §5, locked by TSK-702): cloud
+/// hosts follow the system proxy (`http_proxy`/`https_proxy`, including the
+/// uppercase `HTTP_PROXY`/`HTTPS_PROXY` spellings; `no_proxy`/`NO_PROXY`
+/// exemptions are honored by the reqwest system matcher); loopback never
+/// does. Without this split a local proxy answers TCP-refused targets with
+/// 502 and the client would mis-file `ConnectionFailed` as
+/// [`crate::model_gw::TransportKind::ServerError`].
 fn is_loopback_base(base_url: &str) -> bool {
     let Some(rest) = base_url
         .strip_prefix("http://")
@@ -911,6 +914,19 @@ fn is_loopback_base(base_url: &str) -> bool {
         host_port.split(':').next().unwrap_or_default()
     };
     matches!(host, "127.0.0.1" | "localhost" | "::1" | "0.0.0.0")
+}
+
+/// Whether `base_url` follows the system proxy under the production policy.
+///
+/// Pure decision function behind [`crate::model_gw::HttpsTransport::new`]:
+/// everything except loopback (see `is_loopback_base`) follows the system
+/// proxy so corporate egress keeps working; loopback (stubs, local probes)
+/// is always direct. A `SYNTHLM_NO_PROXY`-style explicit override is reserved
+/// for a follow-up task — this function intentionally takes no override
+/// input and no new environment key is read here (TSK-702 scope: follow +
+/// declare only).
+fn should_use_system_proxy(base_url: &str) -> bool {
+    !is_loopback_base(base_url)
 }
 
 /// Real blocking HTTPS transport for cloud tiers (TSK-116, DEC-010/011).
@@ -959,9 +975,15 @@ impl HttpsTransport {
     /// (never read from environment or files here), `base_url` is the
     /// DEC-010 base URL (a loopback URL keeps tests hermetic).
     ///
-    /// Proxy: non-loopback bases honor the system proxy so corporate egress
-    /// keeps working; loopback bases always skip it (same host set as the
-    /// private `is_loopback_base` helper).
+    /// Proxy (production policy, ARCH §5): non-loopback bases follow the
+    /// system proxy (`http_proxy`/`https_proxy`/`HTTP_PROXY`/`HTTPS_PROXY`;
+    /// `no_proxy`/`NO_PROXY` exemptions apply via the reqwest system
+    /// matcher) so corporate egress keeps working; loopback bases always go
+    /// direct (same host set as the private `is_loopback_base` helper), as
+    /// do `HttpsTransport::new_hermetic` transports on any base and Tier3
+    /// local endpoints (which never construct this type, so `.env` intranet
+    /// addresses stay off the network). A `SYNTHLM_NO_PROXY`-style explicit
+    /// override is reserved for a follow-up task and is not implemented here.
     /// Tier3 local endpoints never construct this type.
     ///
     /// # Errors
@@ -969,7 +991,7 @@ impl HttpsTransport {
     /// Returns [`TransportKind::ConnectionFailed`] when the HTTP client
     /// cannot be constructed.
     pub fn new(api_key: String, base_url: String) -> Result<Self, TransportError> {
-        let use_system_proxy = !is_loopback_base(&base_url);
+        let use_system_proxy = should_use_system_proxy(&base_url);
         Self::with_proxy_policy(api_key, base_url, use_system_proxy)
     }
 
@@ -977,7 +999,10 @@ impl HttpsTransport {
     ///
     /// Use for fault-injection tests that must observe raw socket errors
     /// (connection refused, reset) rather than a local proxy's synthesized
-    /// status codes.
+    /// status codes. Chosen over setting `no_proxy` in the test process
+    /// because per-test construction cannot leak into parallel tests, while
+    /// process-wide proxy variables can (a proxy set by one test would
+    /// hijack another test's loopback stub and mis-file its failures).
     ///
     /// # Errors
     ///
@@ -985,6 +1010,45 @@ impl HttpsTransport {
     /// cannot be constructed.
     pub fn new_hermetic(api_key: String, base_url: String) -> Result<Self, TransportError> {
         Self::with_proxy_policy(api_key, base_url, false)
+    }
+
+    /// Explicit-proxy injection for the TSK-702 proxy matrix (test-only).
+    ///
+    /// `proxy_url` simulates a system `http_proxy` value (e.g. the blackhole
+    /// `http://127.0.0.1:9/`) *without touching process environment*, so
+    /// parallel tests cannot observe each other's proxy state. The production
+    /// loopback bypass applies unchanged: loopback bases ignore the injected
+    /// proxy and go direct (proving [`crate::model_gw::HttpsTransport::new`]
+    /// stays correctly classified with a proxy present); non-loopback bases
+    /// honor the injected proxy only (reqwest disables the system proxy once
+    /// an explicit proxy is added, so the construction stays hermetic).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TransportKind::ConnectionFailed`] when the injected proxy
+    /// URL is malformed or the HTTP client cannot be constructed.
+    #[cfg(test)]
+    fn with_explicit_proxy(
+        api_key: String,
+        base_url: String,
+        proxy_url: &str,
+    ) -> Result<Self, TransportError> {
+        let proxy = reqwest::Proxy::all(proxy_url)
+            .map_err(|_| TransportError::new(TransportKind::ConnectionFailed))?;
+        if is_loopback_base(&base_url) {
+            Self::with_proxy_policy(api_key, base_url, false)
+        } else {
+            let client = reqwest::blocking::Client::builder()
+                .proxy(proxy)
+                .build()
+                .map_err(|_| TransportError::new(TransportKind::ConnectionFailed))?;
+            Ok(Self {
+                api_key,
+                base_url,
+                session_id: None,
+                client,
+            })
+        }
     }
 
     fn with_proxy_policy(
@@ -2342,6 +2406,101 @@ mod tests {
         assert!(!is_loopback_base("https://opencode.ai/zen/go/v1"));
         assert!(!is_loopback_base("http://10.0.0.2:8080/"));
         assert!(!is_loopback_base("not-a-url"));
+        // Production decision mirrors the classifier: loopback goes direct,
+        // everything else follows the system proxy (TSK-702 follow + declare).
+        assert!(!should_use_system_proxy("http://127.0.0.1:9/"));
+        assert!(!should_use_system_proxy("https://localhost:8080/v1"));
+        assert!(!should_use_system_proxy("http://[::1]:1/"));
+        assert!(should_use_system_proxy("https://opencode.ai/zen/go/v1"));
+        assert!(should_use_system_proxy("http://10.0.0.2:8080/"));
+    }
+
+    /// TSK-702 proxy matrix: proxy off (hermetic, no proxy) vs proxy on
+    /// (injected blackhole `http://127.0.0.1:9/` simulating a system
+    /// `http_proxy`, loopback bypass applied) × connection-refused /
+    /// timeout / 401 → classification must be identical.
+    ///
+    /// Hermetic by construction: 127.0.0.1 stubs (or a released loopback
+    /// port), the synthetic `STUB_KEY`, and explicit proxy injection — no
+    /// process-environment proxy variable is read or written, so parallel
+    /// tests cannot observe each other. Each leg serves a *fresh* stub (the
+    /// helper answers exactly one connection). Without the loopback bypass
+    /// the proxy-on timeout/401 legs would collapse to `ConnectionFailed`
+    /// (the request would die at the blackhole proxy instead of reaching the
+    /// stub), and with a synthesizing proxy the refused leg would collapse
+    /// to `TransportKind::ServerError`.
+    #[test]
+    fn proxy_matrix_refused_timeout_unauthorized_stable() {
+        const BLACKHOLE_PROXY: &str = "http://127.0.0.1:9/";
+        // Fresh released loopback port (nothing listens: refused).
+        fn refused_base() -> String {
+            let probe = std::net::TcpListener::bind("127.0.0.1:0").expect("probe binds loopback");
+            let port = probe.local_addr().expect("probe reads its port").port();
+            drop(probe);
+            format!("http://127.0.0.1:{port}/")
+        }
+        // One transport per matrix column: hermetic direct vs injected
+        // blackhole proxy (loopback bypass applies to the latter).
+        fn transport_for(proxy_on: bool, base: String) -> HttpsTransport {
+            if proxy_on {
+                HttpsTransport::with_explicit_proxy(STUB_KEY.to_owned(), base, BLACKHOLE_PROXY)
+                    .expect("explicit-proxy injection builds")
+            } else {
+                HttpsTransport::new_hermetic(STUB_KEY.to_owned(), base).expect("hermetic builds")
+            }
+        }
+
+        for proxy_on in [false, true] {
+            let column = if proxy_on { "proxy-on" } else { "proxy-off" };
+
+            // --- Connection refused: released loopback port, nothing listens. ---
+            let mut refused = transport_for(proxy_on, refused_base());
+            let err = refused
+                .send(&cloud_request(), &TimeoutConfig::default())
+                .expect_err("refused connection must fail");
+            assert_eq!(
+                err.kind,
+                TransportKind::ConnectionFailed,
+                "{column}/refused: refused must stay ConnectionFailed"
+            );
+            assert_eq!(err.code, ErrorCode::TransportClosed, "{column}/refused");
+            assert!(err.retryable(), "{column}/refused");
+
+            // --- Timeout: stub delays past the per-call hard budget. ---
+            let slow = StubReply {
+                delay_ms: 1500,
+                ..StubReply::status(200, r#"{"id":"resp_slow"}"#)
+            };
+            let (slow_base, _) = serve_once(slow);
+            let tight = TimeoutConfig::default().with_cloud_hard_ms(150);
+            let mut tardy = transport_for(proxy_on, slow_base);
+            let err = tardy
+                .send(&cloud_request(), &tight)
+                .expect_err("over-budget stub must time out");
+            assert_eq!(
+                err.kind,
+                TransportKind::Timeout,
+                "{column}/timeout: over-budget stub must stay Timeout"
+            );
+            assert_eq!(err.code, ErrorCode::Timeout, "{column}/timeout");
+            assert!(err.retryable(), "{column}/timeout");
+
+            // --- 401: stub rejects the synthetic key; terminal auth verdict. ---
+            let (denied_base, _) =
+                serve_once(StubReply::status(401, r#"{"error":"unauthorized"}"#));
+            let mut denied = transport_for(proxy_on, denied_base);
+            let err = denied
+                .send(&cloud_request(), &TimeoutConfig::default())
+                .expect_err("401 must fail");
+            assert_eq!(
+                err.kind,
+                TransportKind::Unauthorized,
+                "{column}/401: 401 must stay Unauthorized"
+            );
+            assert_eq!(err.code, ErrorCode::AuthDenied, "{column}/401");
+            assert!(!err.retryable(), "{column}/401");
+            assert_eq!(err.retry_after_ms, None, "{column}/401");
+        }
     }
 
     #[test]
