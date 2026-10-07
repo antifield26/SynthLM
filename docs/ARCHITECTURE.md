@@ -2,7 +2,7 @@
 
 - 目的：定义 SynthLM 进程/线程边界、数据流、IPC、核心数据结构、状态、错误恢复与安全边界，作为实现阶段的强制依据。
 - 适用范围：acrd 侧车、REAPER 桥接、独立 UI、本地/云端模型链；REAPER 最低 v7.60。
-- 状态：Draft
+- 状态：Accepted（人类 2026-10-06 确认实现依据；2026-10-07 补代理策略）
 - 最后核验日期：2026-10-06
 - 依赖文档：docs/research/A01–A06、B、C-models-retrieval-eval、C-dsp-toolchain、D-eng-eco；docs/DECISIONS.md（DEC-001–027）；docs/EVALUATION.md。
 
@@ -60,6 +60,7 @@
 - 消息类型：`snapshot.submit` / `plan.request|response` / `patch.apply|result` / `render.request|result` / `score.report` / `consent.get|set` / `audit.event` / `error`（`code, retryable, detail`，禁 Key/PCM）。
 - 错误语义：`retryable=true` 进退避重试（云端 30s 超时 + 2 次）；`retryable=false`（鉴权/白名单越界/音频能力缺失）直接 BLOCKED + 指引；`consent_required` 缺授权即弹窗。
 - 超时：云端 P95 预算 10s/候选；超限熔断 Tier1→Tier2→Tier3→缓存→BLOCKED。
+- 代理策略（2026-10-07 补记）：非 loopback 云端 Base URL 默认尊重系统代理（`http_proxy`/`https_proxy`）；loopback（stub/本地探测）与 `HttpsTransport::new_hermetic` 永不走代理，避免本机代理把 TCP refuse 合成 502/503 而误分类为 `ServerError`；Tier3 本地端点不经 `HttpsTransport`，自然不出网。
 
 ## 6 核心数据结构
 

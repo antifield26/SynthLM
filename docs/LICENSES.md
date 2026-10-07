@@ -36,7 +36,7 @@
 | OpenCode Go 云端（Tier1/ZDR-Tier2） | 用户确认条款（训练保留/ZDR；不声明计费） | 人类 2026-10-06 | 三档授权 + 审计；Key 仅 `.env` | 2026-10-06 |
 | FFmpeg（二进制，Gyan 9.0.2-essentials，`C:\tools\ffmpeg`） | GPL-2+（`--enable-gpl` + `--enable-librubberband`） | `ffmpeg -buildconf` 存档 experiments/ffmpeg-buildconf-9.0.2.txt | 仅内部运行；禁作 LGPL fallback；LGPL 构建另寻（TSK-206） | 2026-10-06 |
 
-注：当前 workspace 为零外部依赖骨架（`cargo tree --workspace` 验证，仅 path 内部 crates）；上表为 Phase 1 接入前的许可预登记，接入时补版本号。
+注（2026-10-07 校正）：workspace **并非**零外部依赖骨架。直接依赖已接入（reaper-rs git、serde/serde_json、thiserror、interprocess、shared_memory、reqwest+rustls、realfft/rustfft/ebur128、symphonia、eframe/egui 等），传递依赖以 `Cargo.lock` 为准；上表为接入后的许可登记（TSK-113 起持续维护）。新增依赖仍必须同步本表（AGENTS 红线 6）。
 
 ## 附：2026-10-06 TSK-113 核验记录
 

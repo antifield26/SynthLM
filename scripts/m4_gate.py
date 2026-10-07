@@ -2,8 +2,8 @@
 
 Does NOT re-run long suites; asserts:
 1. doc-sync gate passes (headers, DEC count, banned phrases, chapters);
-2. every non-frozen TASK-INDEX row is Done (Blocked allowed only for
-   TSK-901/902 freeze rows);
+2. every non-frozen Phase 0–4 TASK-INDEX row is Done (Blocked allowed only for
+   TSK-901/902 freeze rows). Phase 5+ rows may be open by design;
 3. key evidence artifacts exist on disk.
 The interactive 5-minute E2E loop is TSK-405 (needs human + live stack).
 """
@@ -47,7 +47,11 @@ for line in text.splitlines():
     if not line.startswith("| TSK-"):
         continue
     cols = [c.strip() for c in line.split("|")]
-    tid, status = cols[1], cols[10]
+    tid, phase, status = cols[1], cols[4], cols[10]
+    # M4 certifies Phase 0–4 only. Phase 5+ rows may stay open (product loop
+    # / capability work); they are gated by their own milestone checks.
+    if phase.isdigit() and int(phase) >= 5:
+        continue
     if status == "Done":
         continue
     if status == "Blocked" and tid in ("TSK-901", "TSK-902"):
@@ -62,4 +66,4 @@ if FAILURES:
     for entry in FAILURES:
         print(f"  - {entry}")
     sys.exit(1)
-print(f"M4 GATE OK ({len(EVIDENCE)} evidence files, 0 open tasks).")
+print(f"M4 GATE OK ({len(EVIDENCE)} evidence files, 0 open Phase 0–4 tasks).")

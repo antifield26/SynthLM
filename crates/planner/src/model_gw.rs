@@ -669,6 +669,29 @@ fn parse_retry_after_ms(headers: &reqwest::header::HeaderMap) -> Option<u64> {
     secs.checked_mul(1000)
 }
 
+/// Whether `base_url` targets loopback (stubs, hermetic probes).
+///
+/// Proxy policy (DEC-011 / ARCH §5): cloud hosts honor the system proxy
+/// (`http_proxy`/`https_proxy`); loopback never does. Without this split a
+/// local proxy answers TCP-refused targets with 502 and the client would
+/// mis-file `ConnectionFailed` as [`TransportKind::ServerError`].
+fn is_loopback_base(base_url: &str) -> bool {
+    let Some(rest) = base_url
+        .strip_prefix("http://")
+        .or_else(|| base_url.strip_prefix("https://"))
+    else {
+        return false;
+    };
+    let authority = rest.split('/').next().unwrap_or_default();
+    let host_port = authority.rsplit('@').next().unwrap_or_default();
+    let host = if let Some(bracketed) = host_port.strip_prefix('[') {
+        bracketed.split(']').next().unwrap_or_default()
+    } else {
+        host_port.split(':').next().unwrap_or_default()
+    };
+    matches!(host, "127.0.0.1" | "localhost" | "::1" | "0.0.0.0")
+}
+
 /// Real blocking HTTPS transport for cloud tiers (TSK-116, DEC-010/011).
 ///
 /// Client choice: `reqwest::blocking` matches the synchronous
@@ -715,12 +738,46 @@ impl HttpsTransport {
     /// (never read from environment or files here), `base_url` is the
     /// DEC-010 base URL (a loopback URL keeps tests hermetic).
     ///
+    /// Proxy: non-loopback bases honor the system proxy so corporate egress
+    /// keeps working; loopback bases always skip it (same host set as the
+    /// private `is_loopback_base` helper).
+    /// Tier3 local endpoints never construct this type.
+    ///
     /// # Errors
     ///
     /// Returns [`TransportKind::ConnectionFailed`] when the HTTP client
     /// cannot be constructed.
     pub fn new(api_key: String, base_url: String) -> Result<Self, TransportError> {
-        let client = reqwest::blocking::Client::builder()
+        let use_system_proxy = !is_loopback_base(&base_url);
+        Self::with_proxy_policy(api_key, base_url, use_system_proxy)
+    }
+
+    /// Hermetic transport that ignores `http_proxy`/`https_proxy`/`ALL_PROXY`.
+    ///
+    /// Use for fault-injection tests that must observe raw socket errors
+    /// (connection refused, reset) rather than a local proxy's synthesized
+    /// status codes.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TransportKind::ConnectionFailed`] when the HTTP client
+    /// cannot be constructed.
+    pub fn new_hermetic(api_key: String, base_url: String) -> Result<Self, TransportError> {
+        Self::with_proxy_policy(api_key, base_url, false)
+    }
+
+    fn with_proxy_policy(
+        api_key: String,
+        base_url: String,
+        use_system_proxy: bool,
+    ) -> Result<Self, TransportError> {
+        let builder = reqwest::blocking::Client::builder();
+        let builder = if use_system_proxy {
+            builder
+        } else {
+            builder.no_proxy()
+        };
+        let client = builder
             .build()
             .map_err(|_| TransportError::new(TransportKind::ConnectionFailed))?;
         Ok(Self {
@@ -1690,7 +1747,8 @@ mod tests {
     }
 
     fn stub_transport(base_url: String) -> HttpsTransport {
-        HttpsTransport::new(STUB_KEY.to_owned(), base_url).expect("stub transport builds")
+        // Hermetic: stub tests must not observe a developer machine's proxy.
+        HttpsTransport::new_hermetic(STUB_KEY.to_owned(), base_url).expect("stub transport builds")
     }
 
     fn recv_captured(rx: std::sync::mpsc::Receiver<CapturedRequest>) -> CapturedRequest {
@@ -1857,16 +1915,31 @@ mod tests {
     #[test]
     fn https_connection_refused_maps_to_retryable() {
         // Reserve then release a loopback port so nothing listens on it.
+        // Hermetic client: a system proxy would synthesize 502/503 and the
+        // kind would collapse to ServerError instead of ConnectionFailed.
         let probe = std::net::TcpListener::bind("127.0.0.1:0").expect("probe binds loopback");
         let port = probe.local_addr().expect("probe reads its port").port();
         drop(probe);
-        let mut transport = stub_transport(format!("http://127.0.0.1:{port}/"));
+        let mut transport =
+            HttpsTransport::new_hermetic(STUB_KEY.to_owned(), format!("http://127.0.0.1:{port}/"))
+                .expect("hermetic transport builds");
         let err = transport
             .send(&cloud_request(), &TimeoutConfig::default())
             .expect_err("refused connection must fail");
         assert_eq!(err.kind, TransportKind::ConnectionFailed);
         assert_eq!(err.code, ErrorCode::TransportClosed);
         assert!(err.retryable());
+    }
+
+    #[test]
+    fn loopback_bases_skip_system_proxy() {
+        assert!(is_loopback_base("http://127.0.0.1:9/"));
+        assert!(is_loopback_base("https://localhost:8080/v1"));
+        assert!(is_loopback_base("http://[::1]:1/"));
+        assert!(is_loopback_base("http://127.0.0.1"));
+        assert!(!is_loopback_base("https://opencode.ai/zen/go/v1"));
+        assert!(!is_loopback_base("http://10.0.0.2:8080/"));
+        assert!(!is_loopback_base("not-a-url"));
     }
 
     #[test]

@@ -23,6 +23,7 @@
 ## 4 修正
 
 - 无权重/决策反转；DEC-010 Tier3→Bonsai 与分层调整已于前期落定。
+- 2026-10-07 评估补记：本机 `http_proxy` 环境下 `HttpsTransport` 曾把连接拒绝误分类为 `ServerError`；已改为 loopback/hermetic 永不走系统代理（ARCH §5）。产品闭环与能力缺口转入 Phase 5，不在本报告内伪关闭。
 
 ## 5 阻塞与移交
 

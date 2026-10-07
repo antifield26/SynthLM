@@ -31,6 +31,10 @@ dec = (ROOT / "docs" / "DECISIONS.md").read_text(encoding="utf-8")
 dec_ids = re.findall(r"^DEC-\d{3}", dec, flags=re.M)
 if len(set(dec_ids)) < 25:
     fail(f"DECISIONS.md: only {len(set(dec_ids))} unique DEC ids (<25)")
+# Body status must match the header-level Accepted (catches Proposed drift).
+for i, line in enumerate(dec.splitlines(), 1):
+    if line.startswith("状态：") and "Proposed" in line:
+        fail(f"DECISIONS.md:{i}: body status still 'Proposed' (header is Accepted)")
 dec_lines = [
     line
     for line in dec.splitlines()
@@ -52,6 +56,7 @@ for token in ("TSK-", "Blocked", "Done"):
         fail(f"TASK-INDEX.md: missing token '{token}'")
 active = [t for t in ("Todo", "In-Progress") if t in tasks]
 print(f"active-rows: {active if active else 'none (all closed or frozen)'}")
+# Phase 5 rows may be Todo; that is expected while the phase is open.
 
 if FAILURES:
     print("doc-sync FAILED:")

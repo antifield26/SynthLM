@@ -2,7 +2,7 @@
 
 - 目的：基于 Research Pass 与 DECISIONS，对技术可行性做可证伪评估，登记风险、kill criteria 与许可矩阵，决定是否进入架构设计。
 - 适用范围：SynthLM 全工程；约束：非商业、无分发、不上传（模型推理链经 2026-10-06 人类授权例外）、不购买许可；REAPER 最低 v7.60，基线 v7.82。
-- 状态：Draft
+- 状态：Accepted（风险登记与 kill criteria 持续有效；§8 对账见 2026-10-07 更新）
 - 最后核验日期：2026-10-06
 - 依赖文档：docs/research/A01–A06、B、C-models-retrieval-eval、C-dsp-toolchain、D-eng-eco；docs/DECISIONS.md（DEC-001–027，其中 DEC-010/011/013 已按云端预设更新）。
 
@@ -89,10 +89,11 @@
 - 推理算力：主路径云端按次计费（单价/限额未核验，⚠️需实测首账单；审计字节数即成本 proxy）；本地回退零边际（CLAP ort CPU 可忽略；llama-server 按需起停）。
 - 存储：CLAP 按需（<1GB）；Tier3 Bonsai-2-27B 服务中（llama.cpp :8080）；Demucs ONNX 166MB–1.26GB 懒下载；索引（10k 预设 × 512维 ≈ 20MB 级 + 载荷）；产物缓存设 50GB 水位 + GC。
 
-## 8 未决问题清单
+## 8 未决问题清单（2026-10-07 对账）
 
-1. 首轮连通性实测（Tier1/Tier2/本地三档切换、401/超时/重试/审计字段、本地音频能力探测报错）→ 关闭 RSK-005/006 的“未核验”部分（条款部分已由人类确认，不声明计费）。
-2. 费用模型确认（单价、限额、告警阈值）→ 写入 DEC-011 附录。
-3. 本地回退端点地址与模型档二选一（llama-server 地址 + Q4/Q5）→ 写入 DEC-010 附录。
-4. 上传字段白名单终稿（prompt/MIR/元数据允许，PCM 默认禁）→ 写入 DEC-011/017 附录并做审计单测。
-5. 本评估通过后进入 ARCHITECTURE（线程模型、IPC 帧、数据结构、崩溃恢复）——是否放行？
+1. ~~首轮连通性实测~~ → **已关闭（部分）**：Tier2 真 200（TSK-117）；Tier1 未点火、4xx 超出 401/429 分类仍待真端点（TSK-116 TODO / Phase 5 TSK-521）。
+2. 费用模型确认（单价、限额、告警阈值）→ 仍开放；人类维持不声明计费，审计字节数作 proxy；解除需人类书面立项（TSK-902 冻结）。
+3. ~~本地回退端点地址与模型档~~ → **已关闭**：Tier3=`Bonsai-2-27B` llama.cpp `:8080`，纯文本；音频能力缺失即 BLOCKED（TSK-305）。
+4. ~~上传字段白名单终稿~~ → **已关闭**：`prompt/mir/meta/audio_ref` + fail-closed 审计单测（TSK-106/118）。
+5. ~~是否放行 ARCHITECTURE~~ → **已放行并 Accepted**（2026-10-07 状态对齐）。
+6. **新增（2026-10-07 评估）**：产品闭环缺口（acrd 未接线成守护进程、E2E 为 seeded demo）、能力补全（CLAP/Demucs/真检索后端）、代理策略测试隔离 → 全部转入 Phase 5（ROADMAP §2b / TASK-INDEX Phase 5）。

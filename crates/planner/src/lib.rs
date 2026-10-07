@@ -6,6 +6,7 @@
 //! [`model_gw::Transport`] trait plus the [`model_gw::MockTransport`]
 //! fault-injection double (no network) and the real blocking
 //! [`model_gw::HttpsTransport`] responses client (cloud tiers only).
+//! Cloud bases honor the system proxy; loopback/hermetic builds never do.
 
 /// Candidate assembly: distance dedup with direction coverage plus the
 /// six-field candidate card (TSK-304, DEC-018/019).
