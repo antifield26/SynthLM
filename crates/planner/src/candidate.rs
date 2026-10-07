@@ -19,7 +19,7 @@
 //! clock, no panicking accessors, and no unsafe blocks. Never call it from an
 //! audio thread anyway (AGENTS.md red line 2); this is a control-plane helper.
 //!
-//! TODO(TSK-304/CLAP): [`crate::candidate::param_distance`] is a parameter-space
+//! TODO(M57-handoff:TSK-304/CLAP): [`crate::candidate::param_distance`] is a parameter-space
 //! Euclidean proxy. Replace it with CLAP512 cosine distance once the
 //! retrieval/eval embedding reaches the planner input shape, and recalibrate
 //! [`crate::candidate::DEFAULT_DEDUP_DISTANCE`] there (cosine and Euclidean
@@ -57,7 +57,7 @@ pub const MAX_CANDIDATES: usize = 5;
 /// Calibrated so near-duplicate fixtures (per-lane drift around 1e-3 over a
 /// handful of normalized lanes) collapse while clearly separated candidates
 /// (per-lane gaps around 1.0) survive. Recalibrate together with the
-/// TODO(TSK-304/CLAP) replacement.
+/// TODO(M57-handoff:TSK-304/CLAP) replacement.
 pub const DEFAULT_DEDUP_DISTANCE: f64 = 0.2;
 
 // ---------------------------------------------------------------------------
@@ -549,7 +549,7 @@ impl CandidateCard {
 ///
 /// `params` holds normalized control values today (one lane per whitelisted
 /// role parameter, 0.0..=1.0 by the patch value rules); it becomes the
-/// embedding lane once TODO(TSK-304/CLAP) lands. Only finiteness is enforced
+/// embedding lane once TODO(M57-handoff:TSK-304/CLAP) lands. Only finiteness is enforced
 /// so the future embedding shape fits without changing this constructor.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -653,7 +653,7 @@ impl DiversifyOutcome {
 ///
 /// Vectors of unequal length compare lane by lane with missing lanes read as
 /// 0.0, so padded and unpadded encodings stay comparable. See the
-/// TODO(TSK-304/CLAP) module note for the planned embedding replacement.
+/// TODO(M57-handoff:TSK-304/CLAP) module note for the planned embedding replacement.
 #[must_use]
 pub fn param_distance(a: &[f64], b: &[f64]) -> f64 {
     let mut sum = 0.0;

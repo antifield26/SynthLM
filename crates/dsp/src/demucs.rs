@@ -70,7 +70,7 @@ impl DemucsModel {
     }
 
     /// Approximate weight volume in bytes, for cache budgeting and the
-    /// lazy-download progress UI (`TODO(TSK-205后续)` to wire).
+    /// lazy-download progress UI (`TODO(M57-handoff:TSK-205后续)` to wire).
     ///
     /// Figures follow C-dsp-toolchain §5: ~166 MB per FP16 single-stem
     /// pack at the low end, up to ~1.26 GB for a full bag at the high end.
@@ -137,7 +137,7 @@ impl StemSeparator for DemucsStub {
     }
 
     fn ensure_model_available(&self) -> Result<(), DspError> {
-        // TODO(TSK-205后续): lazy-download weights (~166MB–1.26GB per
+        // TODO(M57-handoff:TSK-205后续): lazy-download weights (~166MB–1.26GB per
         // DemucsModel::approx_weight_bytes) into model_dir on first use,
         // with progress + checksum verification. This task must not download.
         Err(DspError::BackendNotWired {
@@ -146,7 +146,7 @@ impl StemSeparator for DemucsStub {
     }
 
     fn separate(&self, _job: &Job) -> Result<Vec<ArtifactRef>, DspError> {
-        // TODO(TSK-205后续): run ONNX sidecar / local batch on the job's
+        // TODO(M57-handoff:TSK-205后续): run ONNX sidecar / local batch on the job's
         // cached input, then put stems through ContentStore and return
         // ArtifactRefs. Never runs in the DAW process (L8).
         Err(DspError::BackendNotWired {

@@ -247,7 +247,7 @@ impl ReaperUndo for LiveUndo<'_> {
         //   this call. Caller obligation: never cache it across undo/redo —
         //   pointers invalidate then and must be re-resolved (A04 §3).
         // - `item = null`: asks REAPER to mark the whole track's items dirty.
-        //   TODO(TSK-102): 需真机 — confirm a null item marks all items of
+        //   TODO(M57-handoff): 需真机 — confirm a null item marks all items of
         //   the track on the v7.60 floor and v7.82 (vs requiring a per-item
         //   loop); until proven, MIDI writes keep passing an explicit item
         //   where one is at hand.
@@ -270,7 +270,7 @@ impl ReaperUndo for LiveUndo<'_> {
         //   `ProjectContext::CurrentProject.to_raw()`.
         // - `&guid` outlives the call; a null return (take gone) maps to
         //   `None` via `MediaItemTake::new` and is never dereferenced.
-        // TODO(TSK-102): 需真机 — verify the `{xyz-...}` brace format
+        // TODO(M57-handoff): 需真机 — verify the `{xyz-...}` brace format
         // round-trips through `string_to_guid` on the v7.60 floor (current
         // spike evidence is v7.82 only).
         let ptr = unsafe {

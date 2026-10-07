@@ -19,38 +19,33 @@
 //!
 //! # Live mapping (deferred)
 //!
-//! Live adapter work stays in a later task; every live-only behaviour below
-//! is marked `TODO(TSK-103)`.
+//! Live adapter verification status (TSK-103 is closed): behaviours since
+//! verified live name their evidence inline (e2e-live TSK-505, M7 matrix
+//! TSK-104, M3/M6 spikes TSK-111); still-open v7.60-floor items are marked
+//! `TODO(M57-handoff)` and listed in `docs/M57-REPORT.md` §5.
 //!
 //! - Param ident ↔ index: `TrackFX_GetParamFromIdent` returns `-1` for unknown
 //!   idents (DEC-013); `-1` always takes the migration-removal branch (skip +
 //!   report), never an error.
-//!   // TODO(TSK-103): 需真机 — verify `FromIdent == -1` semantics + the
-//!   // `instantiate<0` query rule on the v7.60 floor (current evidence is
-//!   // ReaScript docs + A01, no live take-FX param sweep yet).
 //! - Chunk: `GetSetMediaItemTakeInfo_String` take-chunk round-trip; large
 //!   snapshots go to the external content-addressed cache with only a
 //!   `P_EXT` pointer in the project (DEC-027, ARCHITECTURE §7).
-//!   // TODO(TSK-103): 需真机 — measure `.rpp` bloat / save latency for KB–MB
+//!   // TODO(M57-handoff): 需真机 — measure `.rpp` bloat / save latency for KB–MB
 //!   // chunk snapshots (A03 §2: no official capacity promise) before storing
 //!   // full chunks in `SetProjExtState`.
 //! - MIDI bytes/hash: `MIDI_GetAllEvts` is the verdict, `MIDI_GetHash` only a
 //!   fast screen (A04 §1, juliansader: hash not fully reliable); restore via
 //!   `MIDI_SetAllEvts` + `MarkTrackItemsDirty` (v7.60 needs the manual dirty,
 //!   A04 §3).
-//!   // TODO(TSK-103): 需真机 — confirm `SetAllEvts` buffer format + hash
+//!   // TODO(M57-handoff): 需真机 — confirm `SetAllEvts` buffer format + hash
 //!   // stability on the v7.60 floor.
 //! - `RENDER_*`: backup before `Main_OnCommand(42230)` candidate renders and
 //!   restore after (A03 §3–§4); `FORMAT` base64 is never mutated blindly.
-//!   // TODO(TSK-103): 需真机 — verify the numeric `RENDER_*` key set +
-//!   // `BOUNDSFLAG` round-trip on the target machine (M7余项).
 //! - Take FX channel count: `I_TAKEFX_NCH` via
 //!   `Get/SetMediaItemTakeInfo_Value` (A04 §6); copy/glue drops it (M3) and
 //!   drops take `P_EXT` (M6), so restore/derive always re-writes both (see
 //!   [`chunk_has_takefx_nch`](crate::snapshot::chunk_has_takefx_nch) and
 //!   [`DerivedTake`](crate::snapshot::DerivedTake)).
-//!   // TODO(TSK-103): 需真机 — re-run the M3/M6 spikes on the v7.60 floor
-//!   // (`TakeFX_AddByName` with `instantiate<0`, then set NCH, then copy).
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -164,9 +159,6 @@ impl ParamEntry {
 /// `RENDER_SETTINGS/BOUNDSFLAG/CHANNELS/SRATE/STARTPOS/ENDPOS/TAILFLAG/TAILMS/
 /// ADDTOPROJ/DITHER`. Captured before the `42230` render, restored after
 /// (ARCHITECTURE §3 step 6).
-/// // TODO(TSK-103): 需真机 — confirm the numeric key list + `FORMAT`
-/// // base64/`FORMAT2` round-trip on the v7.60 floor before trusting a blind
-/// // restore (A03 §3 marks new values ⚠️需实测).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct RenderBackup {
     /// `RENDER_FILE` string (render target path template).
@@ -332,7 +324,7 @@ impl DerivedTake {
 /// mock stores the chunk inline, live stores big payloads in the external
 /// content-addressed cache with only a pointer in `P_EXT`/ProjExtState
 /// (DEC-027, ARCHITECTURE §7).
-/// // TODO(TSK-103): 需真机 — measure chunk sizes that force the external
+/// // TODO(M57-handoff): 需真机 — measure chunk sizes that force the external
 /// // cache (A03 §2: no capacity promise; KB–MB snapshots risk `.rpp` bloat).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Snapshot {
@@ -405,14 +397,14 @@ pub trait SnapshotBackend: ReaperUndo {
     /// GUID of the take this backend is scoped to (persisted key, A04 §5).
     ///
     /// Live: `GetMediaItemTakeGUID` string form.
-    /// // TODO(TSK-103): 需真机 — confirm the `{brace}` format round-trips
+    /// // TODO(M57-handoff): 需真机 — confirm the `{brace}` format round-trips
     /// // through `string_to_guid` on the v7.60 floor.
     fn current_take_guid(&self) -> String;
 
     /// Full take chunk (`GetSetMediaItemTakeInfo_String` take-chunk).
     ///
     /// Live large chunks divert to the external cache (DEC-027).
-    /// // TODO(TSK-103): 需真机 — measure inline-vs-pointer cutoff.
+    /// // TODO(M57-handoff): 需真机 — measure inline-vs-pointer cutoff.
     fn read_chunk(&self) -> String;
 
     /// Live `I_TAKEFX_NCH` value, or `None` when the take holds no FX
@@ -430,7 +422,6 @@ pub trait SnapshotBackend: ReaperUndo {
     fn read_midi_bytes(&self) -> Option<Vec<u8>>;
 
     /// Current project `RENDER_*` settings (A03 §3 key set).
-    /// // TODO(TSK-103): 需真机 — verify key coverage on v7.60.
     fn read_render(&self) -> RenderBackup;
 
     /// Provenance triple read back from `P_EXT:SYNTHLM_PROV_*`, or `None`
@@ -456,7 +447,7 @@ pub trait SnapshotBackend: ReaperUndo {
     fn write_param(&mut self, ident: &str, value: f64) -> bool;
 
     /// Restore MIDI bytes (`MIDI_SetAllEvts` live).
-    /// // TODO(TSK-103): 需真机 — confirm buffer-format round-trip on v7.60.
+    /// // TODO(M57-handoff): 需真机 — confirm buffer-format round-trip on v7.60.
     fn write_midi_bytes(&mut self, bytes: &[u8]);
 
     /// Restore the `RENDER_*` backup after candidate renders.
@@ -646,7 +637,7 @@ pub fn apply_derived<B: SnapshotBackend + ?Sized>(
     // Live: `40601` render-as-new-take (source preserved) + `P_EXT` triple on
     // the new take (A04 §7); default derives a new item instead of touching
     // the user source take.
-    // TODO(TSK-103): 需真机 — wire `40601` + new-take `P_EXT` write against
+    // TODO(M57-handoff): 需真机 — wire `40601` + new-take `P_EXT` write against
     // the v7.60 floor (current evidence: A04 §7 + M6 spike on v7.82 only).
     let mut guard = UndoBlock::begin(&mut *backend, "derive", 0)?;
     let inner: &mut B = guard.backend_mut();

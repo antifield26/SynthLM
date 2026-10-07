@@ -881,7 +881,7 @@ fn status_kind(status: reqwest::StatusCode) -> TransportKind {
 /// Parse a `Retry-After` header value into milliseconds.
 ///
 /// Accepts the delta-seconds form; the HTTP-date form is unhandled and yields
-/// `None` (TODO(TSK-116): 需对真端点验证 — which form the live endpoint
+/// `None` (TODO(M57-handoff): 需对真端点验证 — which form the live endpoint
 /// emits).
 fn parse_retry_after_ms(headers: &reqwest::header::HeaderMap) -> Option<u64> {
     let raw = headers.get(reqwest::header::RETRY_AFTER)?;

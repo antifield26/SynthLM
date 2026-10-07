@@ -14,7 +14,7 @@ use crate::key::CacheKey;
 ///
 /// Four-stem Demucs layout (`vocals`/`drums`/`bass`/`other`) is the default
 /// vocabulary; six-stem variants map onto it in the Demucs adapter when it
-/// is wired (`TODO(TSK-205后续)`).
+/// is wired (`TODO(M57-handoff:TSK-205后续)`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ArtifactKind {
     /// Isolated vocal stem.

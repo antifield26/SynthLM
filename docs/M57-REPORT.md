@@ -36,4 +36,5 @@
 
 - F/B-001（reesch／分发冻结）、F/B-002 持续有效，本报告不解除。
 - 待人类（无截止，按需）：704 双用户 `runas` 手动观测；706 第二台目标机（或以 CI／用户机为准）；回滚按钮亲手一点；mel 标定 spike；Demucs FT／6s 钉选＋RTF 基线；fusion 公开重导出；渲染侧 audio_ref 碰撞 fail-closed；reacontrolmidi 三条目重探（b-matrix 重跑或已知参数表对照，禁猜）；CI 机装 `protoc`（真 crate 特性门）。
+- 代码内 `TODO(M57-handoff)` 标记（文档漂移收口时由死任务号转 tag）：bridge 真机 floor 项（chunk 上限／MIDI 格式／GUID 花括号／null-dirty／40601，v7.82 证据之外待 v7.60 floor）；planner Retry-After 日期形；dsp 懒下载／sidecar／六 stem 映射；candidate 嵌入距离替换。认领任一即开对应 TSK。
 - 本报告落盘后 TSK-707 关闭，Phase 5–7 无剩余活动行。
