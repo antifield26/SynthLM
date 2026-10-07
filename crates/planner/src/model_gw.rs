@@ -26,6 +26,16 @@
 //!   [`validate_upload_fields`](synthlm_common::config::validate_upload_fields)
 //!   before any transport use; a violation is `whitelist_violation` BLOCKED
 //!   and nothing is sent.
+//! - Live prompt context ([`crate::model_gw::Gateway::set_live_prompt`],
+//!   [`crate::model_gw::Gateway::set_live_profile_idents`]): the planning layer
+//!   stages the user intent plus the profile whitelist idents on the gateway
+//!   before [`crate::model_gw::Gateway::route`]. Each attempt clones them into
+//!   its [`crate::model_gw::ModelRequest`] (`prompt: None` in tests and mock
+//!   paths keeps the legacy synthetic body). Intent is authorized Tier1/Tier2
+//!   upload content (consent Tier1 "提示词与特征可上传" / Tier2
+//!   "仅为本次推理上传必要字段"), but it never enters audit events (names plus
+//!   byte count only), errors, or [`std::fmt::Debug`] renderings (AGENTS.md
+//!   §8).
 //! - Key gate: any chain containing a cloud tier requires
 //!   `cloud_key_present`; otherwise `auth_denied` BLOCKED before any attempt.
 //!   The gateway only ever sees key *presence* (a `bool`): key material never
@@ -286,10 +296,14 @@ impl GatewayError {
 
 /// Outbound model request: tier + resolved model + whitelisted fields.
 ///
-/// Holds field *names* and a body *byte count* only — never prompt text,
-/// PCM, paths, or key material — so requests, errors, and audit events built
-/// from it are secret-free by construction.
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// Holds field *names* and a body *byte count* only — never PCM, paths, or
+/// key material — so requests, errors, and audit events built from it are
+/// secret-free by construction. The live `prompt` (user intent verbatim) is
+/// authorized Tier1/Tier2 upload content, but [`std::fmt::Debug`] never
+/// renders it (see the manual impl below) and audit events are built from
+/// `fields`/`byte_count` only, so the intent never reaches logs or audit
+/// records (AGENTS.md §8).
+#[derive(Clone, PartialEq, Eq)]
 pub struct ModelRequest {
     /// Tier this request targets.
     pub tier: ConsentTier,
@@ -302,11 +316,40 @@ pub struct ModelRequest {
     pub fields: Vec<String>,
     /// Request body size in bytes (synthetic in tests; never PCM).
     pub byte_count: u64,
+    /// User intent verbatim for the live path (`None` on mock/test paths,
+    /// which keep the legacy synthetic body). Authorized Tier1/Tier2 upload
+    /// content: rendered onto the wire by `request_body`, never into audit
+    /// events, errors, or [`std::fmt::Debug`] output.
+    pub prompt: Option<String>,
+    /// Profile whitelist idents (`param/` tails) staged by the caller from
+    /// the solving profile; rendered into the live system text by
+    /// `request_body` (empty on mock/test paths). Non-secret whitelist
+    /// vocabulary, safe to log.
+    pub profile_idents: Vec<String>,
+}
+
+impl std::fmt::Debug for ModelRequest {
+    /// Secret-safe rendering: every field except `prompt` (the user intent
+    /// is omitted entirely, mirroring the [`synthlm_common::config::ApiKey`]
+    /// redaction pattern but without even a presence marker).
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ModelRequest")
+            .field("tier", &self.tier)
+            .field("model", &self.model)
+            .field("endpoint", &self.endpoint)
+            .field("fields", &self.fields)
+            .field("byte_count", &self.byte_count)
+            .field("profile_idents", &self.profile_idents)
+            .finish()
+    }
 }
 
 impl ModelRequest {
     /// Build a request for `tier`, validating `fields` against the DEC-011
-    /// whitelist *before* any transport use.
+    /// whitelist *before* any transport use. The live `prompt` stays `None`
+    /// (legacy synthetic body); the live path stages it afterwards via
+    /// [`crate::model_gw::ModelRequest::with_prompt`] (or direct field
+    /// assignment, the field is public like the rest).
     ///
     /// # Errors
     ///
@@ -327,6 +370,23 @@ impl ModelRequest {
         Ok(Self::for_tier(tier, fields, byte_count))
     }
 
+    /// Stage the user intent verbatim for the live path (authorized Tier1/Tier2
+    /// upload content; never rendered into audit events, errors, or
+    /// [`std::fmt::Debug`] output).
+    #[must_use]
+    pub fn with_prompt(mut self, prompt: String) -> Self {
+        self.prompt = Some(prompt);
+        self
+    }
+
+    /// Stage the caller-supplied profile whitelist idents rendered into the
+    /// live system text by `request_body` (non-secret vocabulary).
+    #[must_use]
+    pub fn with_profile_idents(mut self, profile_idents: Vec<String>) -> Self {
+        self.profile_idents = profile_idents;
+        self
+    }
+
     /// Build a request for `tier` without re-validating (the caller already
     /// passed [`crate::model_gw::ModelRequest::new`] or an equivalent whitelist gate).
     fn for_tier(tier: ConsentTier, fields: Vec<String>, byte_count: u64) -> Self {
@@ -337,6 +397,8 @@ impl ModelRequest {
             endpoint: resolved.endpoint,
             fields,
             byte_count,
+            prompt: None,
+            profile_idents: Vec::new(),
         }
     }
 }
@@ -640,35 +702,88 @@ fn cloud_path_suffix(tier: ConsentTier) -> &'static str {
     }
 }
 
+/// Live system text shared by the Tier1/Tier2 wire shapes: the JSON Patch
+/// output schema plus the caller-supplied profile whitelist idents.
+///
+/// Schema要点 (DEC-013 wire contract): output ONLY a JSON Patch object;
+/// every op is `replace`; every path is `param/<ident>` (ident from the
+/// whitelist below) or `macro/<name>`; every value is a normalized finite
+/// number in `[0, 1]`, a boolean, or a legal label string; no prose, no
+/// fences, no extra keys. Pure string building: no I/O, no secrets beyond
+/// the caller-supplied intent/whitelist (both authorized Tier1/Tier2 upload
+/// content).
+fn live_system_text(profile_idents: &[String]) -> String {
+    const SCHEMA: &str = "SynthLM patch planner. Output ONLY a JSON array of \
+        exactly 3 Patch objects [{...},{...},{...}] with no prose. Each Patch \
+        MUST be {\"ops\":[...]}: each op is \
+        {\"op\":\"replace\",\"path\":...,\"value\":...}: op is always \"replace\" \
+        (no add/remove); path is \"param/<ident>\" with <ident> taken from the \
+        whitelist below or \"macro/<name>\"; value is a normalized finite number \
+        in [0,1], a boolean, or a legal label string; no prose, no code fences, \
+        no extra keys. Make the three patches diverse (e.g. brighter, darker, \
+        wider).";
+    if profile_idents.is_empty() {
+        format!("{SCHEMA} Whitelisted param idents: (none).")
+    } else {
+        format!(
+            "{SCHEMA} Whitelisted param idents: {}.",
+            profile_idents.join(", ")
+        )
+    }
+}
+
 /// Build the minimal request body for `request` (tier-aware wire shape).
 ///
-/// Tier1 sends `model` plus a synthetic `input` string naming the whitelisted
-/// fields and the body byte count. Tier2 sends the same synthetic content as
-/// a single `messages[0]` user turn plus `max_tokens` (shape verified live
-/// 2026-10-06). [`crate::model_gw::ModelRequest`] carries no prompt
-/// text, PCM, paths, or key material, so the wire body is secret-free by
-/// construction; real prompt/MIR payload wiring lands with the caller that
-/// owns that content.
+/// - Live (`prompt: Some`): Tier1 sends `model` plus `input` (the system
+///   schema text from [`live_system_text`](crate::model_gw::live_system_text)
+///   with the profile whitelist idents, followed by the user intent);
+///   Tier2 sends the same system text as a `system` turn plus the intent as
+///   the `user` turn, with `max_tokens: 256` (shape verified live
+///   2026-10-06). Without the intent the model can only return prose, so the
+///   live shape is what unbreaks the planning chain.
+/// - Fallback (`prompt: None`, mock/test paths): the legacy synthetic body —
+///   Tier1 `input` naming the whitelisted fields plus the body byte count,
+///   Tier2 the same synthetic content as a single `messages[0]` user turn
+///   plus `max_tokens: 256`. Byte-identical to the pre-prompt shape, so
+///   existing mock/stub behavior is unchanged.
 ///
-/// Tier1 responses extras verified live 2026-10-06 (human-approved call):
-/// 2xx + `output[]` envelope with the marker text back (131 output tokens
-/// incl. reasoning). Sampling knobs/`stream` remain at server defaults.
-fn request_body(request: &ModelRequest) -> serde_json::Value {
-    let synthetic = format!(
-        "synthetic fields=[{}] bytes={}",
-        request.fields.join(","),
-        request.byte_count,
-    );
-    match request.tier {
-        ConsentTier::Tier2 => serde_json::json!({
-            "model": request.model,
-            "messages": [{"role": "user", "content": synthetic}],
-            "max_tokens": 256,
-        }),
-        _ => serde_json::json!({
-            "model": request.model,
-            "input": synthetic,
-        }),
+/// The wire body is authorized Tier1/Tier2 upload content under the stored
+/// consent tier; audit events still carry field *names* plus the byte count
+/// only, never the intent (AGENTS.md §8).
+fn request_body(request: &ModelRequest, profile_idents: &[String]) -> serde_json::Value {
+    if let Some(intent) = request.prompt.as_deref() {
+        let system = live_system_text(profile_idents);
+        match request.tier {
+            ConsentTier::Tier2 => serde_json::json!({
+                "model": request.model,
+                "messages": [
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": intent},
+                ],
+                "max_tokens": 256,
+            }),
+            _ => serde_json::json!({
+                "model": request.model,
+                "input": format!("{system}\nIntent: {intent}"),
+            }),
+        }
+    } else {
+        let synthetic = format!(
+            "synthetic fields=[{}] bytes={}",
+            request.fields.join(","),
+            request.byte_count,
+        );
+        match request.tier {
+            ConsentTier::Tier2 => serde_json::json!({
+                "model": request.model,
+                "messages": [{"role": "user", "content": synthetic}],
+                "max_tokens": 256,
+            }),
+            _ => serde_json::json!({
+                "model": request.model,
+                "input": synthetic,
+            }),
+        }
     }
 }
 
@@ -932,7 +1047,7 @@ impl Transport for HttpsTransport {
             .post(self.endpoint_url(request.tier))
             .bearer_auth(&self.api_key)
             .timeout(Duration::from_millis(hard_ms))
-            .json(&request_body(request));
+            .json(&request_body(request, &request.profile_idents));
         if let Some(session_id) = self.session_id.as_deref() {
             post = post.header(OPENCODE_SESSION_HEADER, session_id);
         }
@@ -1021,9 +1136,15 @@ pub struct RouteResult {
 /// Tier1→Tier2→Tier3 failover with per-tier retry and circuit breaking.
 ///
 /// Owns one [`synthlm_common::ipc::CircuitBreaker`] per tier plus the [`synthlm_common::ipc::RetryPolicy`] and
-/// [`TimeoutConfig`] in force. Time is injected per [`crate::model_gw::Gateway::route`] call
+/// [`TimeoutConfig`] in force, plus the staged live prompt context (user
+/// intent + profile whitelist idents, set via
+/// [`crate::model_gw::Gateway::set_live_prompt`] /
+/// [`crate::model_gw::Gateway::set_live_profile_idents`] before
+/// [`crate::model_gw::Gateway::route`]). Time is injected per [`crate::model_gw::Gateway::route`] call
 /// (`now_ms`), so breaker behavior is deterministic under test.
-#[derive(Clone, Debug)]
+///
+/// [`std::fmt::Debug`] never renders the staged intent (AGENTS.md §8).
+#[derive(Clone)]
 pub struct Gateway {
     /// Backoff policy for retryable failures within a tier.
     retry: RetryPolicy,
@@ -1031,6 +1152,28 @@ pub struct Gateway {
     timeout: TimeoutConfig,
     /// Per-tier breakers, indexed by [`tier_index`].
     breakers: [CircuitBreaker; 3],
+    /// Staged user intent verbatim for the live path (`None` = legacy
+    /// synthetic body). Authorized Tier1/Tier2 upload content; cloned into
+    /// each attempt's [`crate::model_gw::ModelRequest`], never into audit
+    /// events, errors, or debug output.
+    live_prompt: Option<String>,
+    /// Staged profile whitelist idents rendered into the live system text
+    /// (empty = no whitelist attached). Non-secret vocabulary.
+    live_profile_idents: Vec<String>,
+}
+
+impl std::fmt::Debug for Gateway {
+    /// Secret-safe rendering: breaker/policy state plus the (non-secret)
+    /// whitelist idents; the staged intent is omitted entirely, mirroring
+    /// the [`crate::model_gw::ModelRequest`] redaction.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Gateway")
+            .field("retry", &self.retry)
+            .field("timeout", &self.timeout)
+            .field("breakers", &self.breakers)
+            .field("live_profile_idents", &self.live_profile_idents)
+            .finish()
+    }
 }
 
 impl Default for Gateway {
@@ -1055,7 +1198,27 @@ impl Gateway {
                 CircuitBreaker::new(failure_threshold, cooldown_ms),
                 CircuitBreaker::new(failure_threshold, cooldown_ms),
             ],
+            live_prompt: None,
+            live_profile_idents: Vec::new(),
         }
+    }
+
+    /// Stage the user intent verbatim for the next [`crate::model_gw::Gateway::route`]
+    /// calls (`None` clears back to the legacy synthetic body).
+    ///
+    /// Authorized Tier1/Tier2 upload content under the stored consent tier
+    /// (Tier1 "提示词与特征可上传" / Tier2 "仅为本次推理上传必要字段");
+    /// it rides the wire body only and never enters audit events, errors, or
+    /// debug output (AGENTS.md §8). The planning layer calls this with the
+    /// live intent before routing; mock/test paths leave it `None`.
+    pub fn set_live_prompt(&mut self, prompt: Option<String>) {
+        self.live_prompt = prompt;
+    }
+
+    /// Stage the profile whitelist idents rendered into the live system text
+    /// (non-secret vocabulary; empty clears).
+    pub fn set_live_profile_idents(&mut self, idents: Vec<String>) {
+        self.live_profile_idents = idents;
     }
 
     /// Backoff policy in force.
@@ -1079,6 +1242,12 @@ impl Gateway {
     }
 
     /// Route one request through the consent-ceiling chain.
+    ///
+    /// Each attempt's [`crate::model_gw::ModelRequest`] carries the staged
+    /// live prompt context ([`crate::model_gw::Gateway::set_live_prompt`]:
+    /// `None` keeps the legacy synthetic body); one
+    /// [`synthlm_common::ipc::AuditEvent`] is recorded per transport attempt
+    /// from field names plus the byte count only, never the intent.
     ///
     /// Gate order (all pre-attempt failures produce zero transport calls and
     /// zero audit events): consent → whitelist → key. Then each tier in
@@ -1151,7 +1320,14 @@ impl Gateway {
             if !breaker.can_attempt(params.now_ms) {
                 continue;
             }
-            let request = ModelRequest::for_tier(tier, params.fields.clone(), params.byte_count);
+            let mut request =
+                ModelRequest::for_tier(tier, params.fields.clone(), params.byte_count);
+            // Live context staged via set_live_prompt / set_live_profile_idents:
+            // cloned per attempt (retries included) so the wire body carries
+            // the intent + whitelist; audits below still record field names
+            // plus the byte count only, never the intent.
+            request.prompt.clone_from(&self.live_prompt);
+            request.profile_idents.clone_from(&self.live_profile_idents);
             let mut attempts_used: u32 = 0;
             loop {
                 attempts_used = attempts_used.saturating_add(1);
@@ -1846,6 +2022,27 @@ mod tests {
         .expect("whitelisted fields build")
     }
 
+    /// Synthetic intent marker: clearly fake, only asserted for presence on
+    /// the wire and absence everywhere else (audit/error/debug).
+    const SECRET_INTENT: &str = "tsk505-synthetic-intent-7f3aQQ";
+
+    /// Synthetic whitelist idents for body/stub tests (real reaeq shapes,
+    /// never a live profile read).
+    fn stub_idents() -> Vec<String> {
+        vec![
+            "4:_Gain_Band_2".to_owned(),
+            "7:_Gain_Band_3".to_owned(),
+            "17:wet".to_owned(),
+        ]
+    }
+
+    fn live_request(tier: ConsentTier) -> ModelRequest {
+        ModelRequest::new(tier, vec!["prompt".to_owned()], 64)
+            .expect("whitelisted fields build")
+            .with_prompt(SECRET_INTENT.to_owned())
+            .with_profile_idents(stub_idents())
+    }
+
     fn stub_transport(base_url: String) -> HttpsTransport {
         // Hermetic: stub tests must not observe a developer machine's proxy.
         HttpsTransport::new_hermetic(STUB_KEY.to_owned(), base_url).expect("stub transport builds")
@@ -1863,8 +2060,9 @@ mod tests {
             r#"{"id":"resp_stub","model":"muse-spark-1.3-contributor","output":[]}"#,
         ));
         let mut transport = stub_transport(base);
+        let request = live_request(ConsentTier::Tier1);
         let response = transport
-            .send(&cloud_request(), &TimeoutConfig::default())
+            .send(&request, &TimeoutConfig::default())
             .expect("stub 200 serves");
         assert_eq!(response.tier, ConsentTier::Tier1);
         assert_eq!(response.model, DEFAULT_TIER1_MODEL);
@@ -1889,10 +2087,24 @@ mod tests {
             .get("input")
             .and_then(|input| input.as_str())
             .expect("responses input field");
+        // Live Tier1 shape: system schema text (JSON Patch contract +
+        // whitelist) followed by the user intent — the TSK-505 unbreak.
         assert!(
-            input.contains("prompt") && input.contains("mir"),
-            "whitelisted fields must ride the wire: {input}"
+            input.contains(SECRET_INTENT),
+            "user intent must ride the wire: {input}"
         );
+        for marker in ["replace", "param/<ident>", "macro/<name>", "Patch objects"] {
+            assert!(
+                input.contains(marker),
+                "system schema must constrain {marker}: {input}"
+            );
+        }
+        for ident in stub_idents() {
+            assert!(
+                input.contains(&ident),
+                "profile whitelist must ride the wire: {input}"
+            );
+        }
         assert!(
             !captured.body.contains(STUB_KEY),
             "key material must never appear in the body"
@@ -1910,8 +2122,7 @@ mod tests {
             r#"{"id":"chatcmpl-stub","object":"chat.completion","choices":[]}"#,
         ));
         let mut transport = stub_transport(base).with_session_id("stub-session-1".to_owned());
-        let request = ModelRequest::new(ConsentTier::Tier2, vec!["prompt".to_owned()], 64)
-            .expect("whitelisted fields build");
+        let request = live_request(ConsentTier::Tier2);
         transport
             .send(&request, &TimeoutConfig::default())
             .expect("stub 200 serves");
@@ -1925,11 +2136,46 @@ mod tests {
             Some(DEFAULT_TIER2_MODEL),
             "DEC-010 Tier2 preset model must ride the wire"
         );
+        // Live Tier2 shape: system turn (schema + whitelist) + user turn
+        // (intent verbatim), max_tokens pinned at 256.
+        let messages = wire
+            .get("messages")
+            .and_then(|messages| messages.as_array())
+            .expect("Tier2 wire shape must carry messages");
+        assert_eq!(messages.len(), 2, "system + user turns: {messages:?}");
+        assert_eq!(
+            messages[0].get("role").and_then(|role| role.as_str()),
+            Some("system")
+        );
+        let system = messages[0]
+            .get("content")
+            .and_then(|content| content.as_str())
+            .expect("system content");
+        for marker in ["replace", "param/<ident>", "macro/<name>"] {
+            assert!(
+                system.contains(marker),
+                "system turn must constrain {marker}: {system}"
+            );
+        }
         assert!(
-            wire.get("messages")
-                .and_then(|messages| messages.as_array())
-                .is_some(),
-            "Tier2 wire shape must carry messages"
+            system.contains("4:_Gain_Band_2"),
+            "system turn must carry the whitelist: {system}"
+        );
+        assert_eq!(
+            messages[1].get("role").and_then(|role| role.as_str()),
+            Some("user")
+        );
+        assert_eq!(
+            messages[1]
+                .get("content")
+                .and_then(|content| content.as_str()),
+            Some(SECRET_INTENT),
+            "user turn must carry the intent verbatim"
+        );
+        assert_eq!(
+            wire.get("max_tokens").and_then(|max| max.as_u64()),
+            Some(256),
+            "max_tokens stays pinned"
         );
     }
 
@@ -2108,5 +2354,200 @@ mod tests {
             transport.endpoint_url(ConsentTier::Tier2),
             "https://opencode.ai/zen/go/v1/chat/completions"
         );
+    }
+
+    #[test]
+    fn request_body_falls_back_without_prompt() {
+        // Legacy synthetic shape, byte-identical with or without staged
+        // idents: mock/old-test behavior is unchanged when no intent rides.
+        for idents in [Vec::new(), stub_idents()] {
+            let tier1 = ModelRequest::new(
+                ConsentTier::Tier1,
+                vec!["prompt".to_owned(), "mir".to_owned()],
+                64,
+            )
+            .expect("whitelisted fields build");
+            assert_eq!(tier1.prompt, None);
+            let body = request_body(&tier1, &idents);
+            assert_eq!(
+                body,
+                serde_json::json!({
+                    "model": DEFAULT_TIER1_MODEL,
+                    "input": "synthetic fields=[prompt,mir] bytes=64",
+                }),
+                "tier1 fallback must stay synthetic"
+            );
+            let tier2 = ModelRequest::new(ConsentTier::Tier2, vec!["prompt".to_owned()], 64)
+                .expect("whitelisted fields build");
+            let body = request_body(&tier2, &idents);
+            assert_eq!(
+                body,
+                serde_json::json!({
+                    "model": DEFAULT_TIER2_MODEL,
+                    "messages": [{"role": "user", "content": "synthetic fields=[prompt] bytes=64"}],
+                    "max_tokens": 256,
+                }),
+                "tier2 fallback must stay synthetic"
+            );
+        }
+    }
+
+    #[test]
+    fn request_body_live_carries_schema_and_intent() {
+        let idents = stub_idents();
+        let tier1 = live_request(ConsentTier::Tier1);
+        let body = request_body(&tier1, &tier1.profile_idents.clone());
+        let input = body
+            .get("input")
+            .and_then(|input| input.as_str())
+            .expect("tier1 live input");
+        assert!(input.contains(SECRET_INTENT), "intent rides: {input}");
+        for marker in ["replace", "param/<ident>", "macro/<name>", "Patch objects"] {
+            assert!(
+                input.contains(marker),
+                "schema constrains {marker}: {input}"
+            );
+        }
+        for ident in &idents {
+            assert!(input.contains(ident.as_str()), "whitelist rides: {input}");
+        }
+
+        let tier2 = live_request(ConsentTier::Tier2);
+        let body = request_body(&tier2, &tier2.profile_idents.clone());
+        let messages = body
+            .get("messages")
+            .and_then(|messages| messages.as_array())
+            .expect("tier2 live messages");
+        assert_eq!(messages.len(), 2);
+        assert_eq!(
+            messages[1]
+                .get("content")
+                .and_then(|content| content.as_str()),
+            Some(SECRET_INTENT)
+        );
+        assert_eq!(
+            body.get("max_tokens").and_then(|max| max.as_u64()),
+            Some(256)
+        );
+    }
+
+    #[test]
+    fn live_system_text_names_schema_and_whitelist() {
+        let system = live_system_text(&stub_idents());
+        for marker in ["Patch objects", "replace", "param/<ident>", "macro/<name>"] {
+            assert!(system.contains(marker), "schema names {marker}: {system}");
+        }
+        for ident in stub_idents() {
+            assert!(system.contains(&ident), "whitelist attached: {system}");
+        }
+        let bare = live_system_text(&[]);
+        assert!(
+            bare.contains("replace"),
+            "empty whitelist keeps the schema: {bare}"
+        );
+        assert!(!bare.contains("4:_Gain_Band_2"));
+    }
+
+    #[test]
+    fn model_request_debug_omits_prompt_but_compares_it() {
+        let request = live_request(ConsentTier::Tier2);
+        let rendered = format!("{request:?}");
+        assert!(
+            !rendered.contains(SECRET_INTENT),
+            "request debug leaked intent: {rendered}"
+        );
+        for ident in stub_idents() {
+            assert!(
+                rendered.contains(&ident),
+                "non-secret whitelist stays debuggable: {rendered}"
+            );
+        }
+        // PartialEq still distinguishes prompts (equality is not redaction).
+        let mut other = live_request(ConsentTier::Tier2);
+        other.prompt = Some("another-synthetic-intent".to_owned());
+        assert_ne!(request, other);
+        let fallback = ModelRequest::new(ConsentTier::Tier2, vec!["prompt".to_owned()], 64)
+            .expect("whitelisted fields build");
+        assert_ne!(request, fallback);
+    }
+
+    #[test]
+    fn gateway_debug_omits_staged_prompt() {
+        let mut gateway = Gateway::default();
+        gateway.set_live_prompt(Some(SECRET_INTENT.to_owned()));
+        gateway.set_live_profile_idents(stub_idents());
+        let rendered = format!("{gateway:?}");
+        assert!(
+            !rendered.contains(SECRET_INTENT),
+            "gateway debug leaked intent: {rendered}"
+        );
+        assert!(
+            rendered.contains("4:_Gain_Band_2"),
+            "non-secret whitelist stays debuggable: {rendered}"
+        );
+        // Clearing restores the prompt-free state.
+        gateway.set_live_prompt(None);
+        gateway.set_live_profile_idents(Vec::new());
+        let cleared = format!("{gateway:?}");
+        assert!(!cleared.contains(SECRET_INTENT));
+    }
+
+    #[test]
+    fn routed_audits_never_carry_prompt() {
+        let mut gateway = Gateway::default();
+        gateway.set_live_prompt(Some(SECRET_INTENT.to_owned()));
+        gateway.set_live_profile_idents(stub_idents());
+        let mut transport = MockTransport::all_ok();
+        let outcome = gateway
+            .route(
+                &decided(ConsentTier::Tier1),
+                params(&["prompt", "mir", "meta"]),
+                &mut transport,
+            )
+            .expect("staged prompt routes");
+        assert!(!outcome.audits.is_empty());
+        for audit in &outcome.audits {
+            // Audit construction still uses fields/bytes only.
+            assert_eq!(audit.fields, vec!["prompt", "mir", "meta"]);
+            assert_eq!(audit.byte_count, 4096);
+            let rendered = serde_json::to_string(audit).expect("audit serializes");
+            assert!(
+                !rendered.contains(SECRET_INTENT),
+                "audit leaked intent: {rendered}"
+            );
+            assert!(
+                !format!("{audit:?}").contains(SECRET_INTENT),
+                "audit debug leaked intent"
+            );
+        }
+    }
+
+    #[test]
+    fn routed_errors_never_carry_prompt() {
+        // Whitelist gate with a staged prompt: BLOCKED before any call, and
+        // the value-free error cannot echo the intent.
+        let mut gateway = Gateway::default();
+        gateway.set_live_prompt(Some(SECRET_INTENT.to_owned()));
+        let mut transport = MockTransport::all_ok();
+        let err = gateway
+            .route(
+                &decided(ConsentTier::Tier1),
+                params(&["prompt", "pcm"]),
+                &mut transport,
+            )
+            .expect_err("pcm must BLOCK");
+        assert!(transport.calls().is_empty());
+        assert!(!format!("{err}").contains(SECRET_INTENT));
+        assert!(!format!("{err:?}").contains(SECRET_INTENT));
+        assert!(!err.guidance().contains(SECRET_INTENT));
+
+        // Exhaustion with a staged prompt: the terminal error carries the
+        // taxonomy code only.
+        let mut down = MockTransport::all_down();
+        let err = gateway
+            .route(&decided(ConsentTier::Tier1), params(&["prompt"]), &mut down)
+            .expect_err("all tiers down must BLOCK");
+        assert!(!format!("{err}").contains(SECRET_INTENT));
+        assert!(!format!("{err:?}").contains(SECRET_INTENT));
     }
 }

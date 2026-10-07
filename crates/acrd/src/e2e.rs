@@ -16,11 +16,13 @@
 //!
 //! Honesty and gate contract (no silent fallback):
 //!
-//! - The only model path is
+//! - The model paths are
 //!   [`synthlm_planner::planning::ModelBackend::LiveTier2`] (consent gate ->
-//!   whitelist gate -> key gate -> Tier2 chat). A missing stored consent, a
-//!   non-Tier2 stored tier, or a missing cloud key is `BLOCKED` with
-//!   guidance; the call never degrades to
+//!   whitelist gate -> key gate -> Tier2 chat) and
+//!   [`synthlm_planner::planning::ModelBackend::LiveTier1`] (same gates,
+//!   Tier1 responses; human-approved for e2e despite training retention).
+//!   A missing stored consent, a Tier3 stored tier, or a missing cloud key is
+//!   `BLOCKED` with guidance; the call never degrades to
 //!   [`synthlm_planner::planning::ModelBackend::MockSeeded`]. The seeded path
 //!   stays exclusive to the explicit `acrd demo` harness
 //!   ([`crate::demo::run_demo`]).
@@ -31,9 +33,8 @@
 //!   and no real consent file.
 //! - [`crate::e2e::run_e2e_live`] is the CLI path: it loads the real stored
 //!   consent and the real key presence, builds the real
-//!   [`synthlm_planner::model_gw::HttpsTransport`], and requires a Tier2
-//!   serving tier. Tier1 is refused up front so this command never places
-//!   training-retention traffic while looking for a Tier2 result.
+//!   [`synthlm_planner::model_gw::HttpsTransport`], and requires a Tier1 or
+//!   Tier2 serving tier (Tier1 use is human-approved; Tier3 stays refused).
 //! - Render execution stays REAPER-side Lua (L8): this module only formats
 //!   text and writes files, exactly like the [`crate::demo`] harness.
 //!
@@ -64,8 +65,11 @@ pub const DEFAULT_E2E_OUT_DIR: &str = "experiments/e2e";
 /// Default fixed intent when `--intent` is omitted (brighter mix).
 pub const DEFAULT_INTENT_ZH: &str = "更亮的混音";
 
-/// Upload field names for the live leg (DEC-011 whitelist subset; names plus
-/// a byte count only, never prompt text or PCM).
+/// Upload field names for the live leg (DEC-011 whitelist subset). The live
+/// wire body additionally carries the user intent plus the profile whitelist
+/// idents on authorized Tier1/Tier2 calls (consent Tier1 "提示词与特征可上传"
+/// / Tier2 "仅为本次推理上传必要字段"); audits still record names plus a
+/// byte count only, never prompt text or PCM.
 const E2E_UPLOAD_FIELDS: [&str; 3] = ["prompt", "mir", "meta"];
 
 /// Shortlist size the e2e contract promises (matches DEC-018 default).
@@ -335,11 +339,10 @@ pub fn run_e2e_with_backend<T: Transport>(
 }
 
 /// Run the CLI live path: real stored consent plus real key presence into the
-/// Tier2 text backend, then [`crate::e2e::run_e2e_with_backend`].
+/// Tier1/Tier2 text backend, then [`crate::e2e::run_e2e_with_backend`].
 ///
-/// Gate order: stored consent must be decided Tier2 (Tier1 would risk
-/// training-retention traffic on the Tier1-first chain, Tier3 is text-local
-/// only) and a cloud key must be configured. Any missing piece is `BLOCKED`
+/// Gate order: stored consent must be decided Tier1 or Tier2 (Tier1 use is
+/// human-approved for e2e; Tier3 is text-local only) and a cloud key must
 /// with remediation guidance and places zero transport calls.
 ///
 /// # Errors
@@ -356,16 +359,17 @@ pub fn run_e2e_live(intent_text: &str, seed: u64, out_dir: &Path) -> Result<E2eS
         ConsentState::Undecided => {
             return Err(E2eError::Consent(
                 "no upload consent stored: complete the first-run choice (1/2/3) or change it in \
-                 settings; e2e needs a stored Tier2 choice and cloud calls stay BLOCKED until \
+                 settings; e2e needs a stored Tier1/Tier2 choice and cloud calls stay BLOCKED until \
                  then (see DEC-010)"
                     .to_owned(),
             ));
         }
     };
-    if stored != ConsentTier::Tier2 {
+    // Human-approved (TSK-505 witness): stored Tier1 routes the Tier1 chain
+    // (training-retained traffic); Tier3 stays text-local and is refused.
+    if !matches!(stored, ConsentTier::Tier1 | ConsentTier::Tier2) {
         return Err(E2eError::Tier(format!(
-            "e2e needs a stored Tier2 choice, stored tier is {}: Tier1 would place \
-             training-retention traffic on the Tier1-first chain and Tier3 is text-local only; \
+            "e2e needs a stored Tier1/Tier2 choice, stored tier is {}: Tier3 is text-local only; \
              switch the tier in settings, then retry (see DEC-010)",
             tier_label(stored)
         )));
@@ -389,14 +393,31 @@ pub fn run_e2e_live(intent_text: &str, seed: u64, out_dir: &Path) -> Result<E2eS
         .map(|field| (*field).to_owned())
         .collect();
     run_e2e_with_backend(
-        ModelBackend::LiveTier2 {
-            gateway: &mut gateway,
-            transport: &mut transport,
-            consent: &consent,
-            fields,
-            byte_count: u64::try_from(intent_text.len()).unwrap_or(u64::MAX),
-            cloud_key_present: true,
-            now_ms: now_ms(),
+        match stored {
+            ConsentTier::Tier1 => ModelBackend::LiveTier1 {
+                gateway: &mut gateway,
+                transport: &mut transport,
+                consent: &consent,
+                fields,
+                byte_count: u64::try_from(intent_text.len()).unwrap_or(u64::MAX),
+                // Live path stages the real user intent (authorized Tier1/Tier2
+                // upload content); E2E_UPLOAD_FIELDS (names only) is unchanged.
+                prompt: Some(intent_text.to_owned()),
+                cloud_key_present: true,
+                now_ms: now_ms(),
+            },
+            _ => ModelBackend::LiveTier2 {
+                gateway: &mut gateway,
+                transport: &mut transport,
+                consent: &consent,
+                fields,
+                byte_count: u64::try_from(intent_text.len()).unwrap_or(u64::MAX),
+                // Live path stages the real user intent (authorized Tier1/Tier2
+                // upload content); E2E_UPLOAD_FIELDS (names only) is unchanged.
+                prompt: Some(intent_text.to_owned()),
+                cloud_key_present: true,
+                now_ms: now_ms(),
+            },
         },
         &profile,
         intent_text,
@@ -484,9 +505,24 @@ fn direction_label(backend_label: &str, id: &str) -> &'static str {
 /// Project one candidate patch to Lua-appliable `(ident, value)` pairs.
 ///
 /// The applier speaks `TrackFX_SetParam` over `param/` idents with finite
-/// normalized numbers only: `macro/` addresses and non-numeric values are
-/// refused with the candidate and op indices (never values or prompt text).
+/// normalized numbers only. Value mapping mirrors
+/// `planning::lane_value` deterministically: finite numbers pass through,
+/// bools map to `1.0`/`0.0` (toggle semantics), parseable numeric strings
+/// coerce; anything else (labels without enum tables, `macro/` addresses)
+/// is refused with the candidate and op indices (never values or prompt
+/// text).
 fn project_lua_params(candidate: &Candidate, index: usize) -> Result<Vec<(String, f64)>, E2eError> {
+    fn coerce_number(value: &serde_json::Value) -> Option<f64> {
+        match value {
+            serde_json::Value::Number(number) => number.as_f64().filter(|v| v.is_finite()),
+            serde_json::Value::Bool(true) => Some(1.0),
+            serde_json::Value::Bool(false) => Some(0.0),
+            serde_json::Value::String(text) => {
+                text.trim().parse::<f64>().ok().filter(|v| v.is_finite())
+            }
+            _ => None,
+        }
+    }
     let plan: &PatchPlan = candidate.patch_summary();
     if plan.ops.is_empty() {
         return Err(E2eError::NonNumericOp(format!(
@@ -502,7 +538,7 @@ fn project_lua_params(candidate: &Candidate, index: usize) -> Result<Vec<(String
                 index + 1
             ))
         })?;
-        let value = op.value.as_f64().filter(|v| v.is_finite()).ok_or_else(|| {
+        let value = coerce_number(&op.value).ok_or_else(|| {
             E2eError::NonNumericOp(format!(
                 "candidate at rank {} op {op_index}: non-numeric value",
                 index + 1
@@ -925,6 +961,7 @@ mod tests {
             consent,
             fields,
             byte_count: 64,
+            prompt: None,
             cloud_key_present: key_present,
             now_ms: 1_789_000_000_000,
         }
@@ -1119,6 +1156,48 @@ mod tests {
             "audit carries exactly the five IPC fields"
         );
         assert_eq!(transport.calls().len(), 1);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn stub_live_with_staged_prompt_plans_and_audits_stay_secret_free() {
+        const SECRET: &str = "tsk505-synthetic-intent-5e5eEE";
+        let dir = scratch_dir("stub-prompt");
+        let _ = fs::remove_dir_all(&dir);
+        let profile = test_profile();
+        let consent = decided(ConsentTier::Tier2);
+        let mut gateway = Gateway::default();
+        let mut transport = mock_text_transport(stub_three_doc_text());
+        let summary = run_e2e_with_backend(
+            ModelBackend::LiveTier2 {
+                gateway: &mut gateway,
+                transport: &mut transport,
+                consent: &consent,
+                fields: vec!["prompt".to_owned()],
+                byte_count: 64,
+                prompt: Some(SECRET.to_owned()),
+                cloud_key_present: true,
+                now_ms: 1_789_000_000_000,
+            },
+            &profile,
+            DEFAULT_INTENT_ZH,
+            7,
+            &dir,
+        )
+        .expect("staged prompt must plan");
+        assert_eq!(summary.backend, LIVE_BACKEND_LABEL);
+        assert_eq!(summary.ranked_ids.len(), E2E_SHORTLIST);
+        // Audits record the five IPC fields only; the staged intent never
+        // lands in the plan artifact's audit section.
+        let text = fs::read_to_string(dir.join("e2e-plan.json")).expect("plan readable");
+        let plan: serde_json::Value = serde_json::from_str(&text).expect("plan parses");
+        let audits = plan["audit"].as_array().expect("audit array");
+        assert_eq!(audits.len(), 1);
+        let rendered = serde_json::to_string(audits).expect("audits render");
+        assert!(
+            !rendered.contains(SECRET),
+            "audit leaked staged intent: {rendered}"
+        );
         let _ = fs::remove_dir_all(&dir);
     }
 

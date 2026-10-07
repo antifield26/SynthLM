@@ -29,10 +29,13 @@
 //!   mirroring [`crate::model_gw::RouteParams`]; key material never enters
 //!   this module.
 //! - Prompt custody: `intent_text` selects the deterministic snapshot stem
-//!   and stays local; only whitelisted field *names* plus a byte count ride
-//!   the gateway request (the synthetic body owned by
-//!   [`crate::model_gw`]). Rich prompt/MIR payload wiring lands with the
-//!   caller that owns that content.
+//!   and — on the live variants via their staged `prompt` — rides the
+//!   authorized Tier1/Tier2 wire body together with the profile whitelist
+//!   idents (see [`crate::model_gw::Gateway::set_live_prompt`]); audits still
+//!   record whitelisted field *names* plus a byte count only, and errors plus
+//!   [`std::fmt::Debug`] renderings never echo the intent (AGENTS.md §8).
+//!   Mock/seeded paths never stage a prompt, so their (absent) bodies are
+//!   unchanged.
 //! - Snapshot binding (DEC-004): plans solve against a deterministic
 //!   `intent-<hash>` stem. The dispatch layer rebinds the surviving plan to
 //!   the frozen snapshot id before journaling; ops are untouched by the
@@ -63,10 +66,12 @@ use crate::patch::{DEFAULT_MAX_REPAIR_ROUNDS, PatchPlan, validate_with_repair};
 /// Wire `backend` label for the seeded path: contains both the `mock` marker
 /// (asserted never erasable) and the `seeded-demo` watermark.
 pub const MOCK_BACKEND_LABEL: &str = "mock-seeded-demo";
-
 /// Wire `backend` label for the live Tier2 path. Only ever emitted on a
 /// result actually served by Tier2 (see [`crate::planning::plan_for_intent`]).
 pub const LIVE_BACKEND_LABEL: &str = "live-tier2";
+/// Wire `backend` label for the live Tier1 path. Only ever emitted on a
+/// result actually served by Tier1 (human-approved for e2e; training-retained tier).
+pub const LIVE_TIER1_BACKEND_LABEL: &str = "live-tier1";
 
 /// Marker model id for seeded outcomes: no model ran.
 pub const MOCK_SEEDED_MODEL: &str = "seeded-demo-no-model-call";
@@ -78,7 +83,9 @@ pub const MOCK_SEEDED_MODEL: &str = "seeded-demo-no-model-call";
 /// Which planning backend may run. The caller constructs exactly one variant
 /// — there is no default, no ambient flag, and no silent upgrade from seeded
 /// to live — so a mock result can never be mistaken for a model result.
-#[derive(Debug)]
+///
+/// [`std::fmt::Debug`] never renders a staged live `prompt` (AGENTS.md §8);
+/// see the manual impl below.
 pub enum ModelBackend<'a, T: Transport> {
     /// Deterministic seeded candidates: no consent needed, no key needed, no
     /// transport calls, no network. Carries [`crate::planning::MOCK_BACKEND_LABEL`].
@@ -101,6 +108,11 @@ pub enum ModelBackend<'a, T: Transport> {
         fields: Vec<String>,
         /// Request body size in bytes (synthetic in tests; never PCM).
         byte_count: u64,
+        /// User intent verbatim for the live wire body (`None` on mock/test
+        /// paths, which keep the legacy synthetic body). Authorized Tier1/Tier2
+        /// upload content; never rendered into audit events, errors, or
+        /// [`std::fmt::Debug`] output.
+        prompt: Option<String>,
         /// Whether a cloud API key is configured (presence only; key
         /// material never enters this module).
         cloud_key_present: bool,
@@ -108,6 +120,84 @@ pub enum ModelBackend<'a, T: Transport> {
         /// timestamps deterministically).
         now_ms: u64,
     },
+    /// Live Tier1 text path (human-approved for e2e; training-retained tier).
+    /// Same contract as [`crate::planning::ModelBackend::LiveTier2`] but
+    /// serves Tier1 only; carries [`crate::planning::LIVE_TIER1_BACKEND_LABEL`].
+    LiveTier1 {
+        /// Gateway owning retry/timeout policy and per-tier breakers.
+        gateway: &'a mut Gateway,
+        /// Transport placing the call (real HTTPS or a loopback stub in
+        /// tests; never a real endpoint outside human-authorized probes).
+        transport: &'a mut T,
+        /// Stored consent state (consent gate runs first: undecided BLOCKEDs
+        /// with zero transport calls).
+        consent: &'a ConsentState,
+        /// Whitelisted upload field names (subset of
+        /// `[prompt, mir, meta, audio_ref]`).
+        fields: Vec<String>,
+        /// Request body size in bytes (synthetic in tests; never PCM).
+        byte_count: u64,
+        /// User intent verbatim for the live wire body (`None` on mock/test
+        /// paths, which keep the legacy synthetic body). Authorized Tier1/Tier2
+        /// upload content; never rendered into audit events, errors, or
+        /// [`std::fmt::Debug`] output.
+        prompt: Option<String>,
+        /// Whether a cloud API key is configured (presence only; key
+        /// material never enters this module).
+        cloud_key_present: bool,
+        /// Current time in milliseconds (drives breaker cooldowns and audit
+        /// timestamps deterministically).
+        now_ms: u64,
+    },
+}
+
+impl<T: Transport + std::fmt::Debug> std::fmt::Debug for ModelBackend<'_, T> {
+    /// Secret-safe rendering: every context field except the live `prompt`
+    /// (the user intent is omitted entirely, mirroring the
+    /// [`crate::model_gw::ModelRequest`] redaction).
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ModelBackend::MockSeeded => f.debug_struct("MockSeeded").finish(),
+            ModelBackend::LiveTier2 {
+                gateway,
+                transport,
+                consent,
+                fields,
+                byte_count,
+                cloud_key_present,
+                now_ms,
+                ..
+            } => f
+                .debug_struct("LiveTier2")
+                .field("gateway", gateway)
+                .field("transport", transport)
+                .field("consent", consent)
+                .field("fields", fields)
+                .field("byte_count", byte_count)
+                .field("cloud_key_present", cloud_key_present)
+                .field("now_ms", now_ms)
+                .finish(),
+            ModelBackend::LiveTier1 {
+                gateway,
+                transport,
+                consent,
+                fields,
+                byte_count,
+                cloud_key_present,
+                now_ms,
+                ..
+            } => f
+                .debug_struct("LiveTier1")
+                .field("gateway", gateway)
+                .field("transport", transport)
+                .field("consent", consent)
+                .field("fields", fields)
+                .field("byte_count", byte_count)
+                .field("cloud_key_present", cloud_key_present)
+                .field("now_ms", now_ms)
+                .finish(),
+        }
+    }
 }
 
 /// Backend kind without transport lifetimes: what actually ran, recorded on
@@ -118,6 +208,8 @@ pub enum ModelBackendKind {
     MockSeeded,
     /// Live Tier2 path (only when Tier2 served).
     LiveTier2,
+    /// Live Tier1 path (only when Tier1 served; human-approved for e2e).
+    LiveTier1,
 }
 
 impl ModelBackendKind {
@@ -127,13 +219,17 @@ impl ModelBackendKind {
         match self {
             ModelBackendKind::MockSeeded => MOCK_BACKEND_LABEL,
             ModelBackendKind::LiveTier2 => LIVE_BACKEND_LABEL,
+            ModelBackendKind::LiveTier1 => LIVE_TIER1_BACKEND_LABEL,
         }
     }
 
     /// Whether this kind is a live-model result.
     #[must_use]
     pub fn is_live(self) -> bool {
-        matches!(self, ModelBackendKind::LiveTier2)
+        matches!(
+            self,
+            ModelBackendKind::LiveTier2 | ModelBackendKind::LiveTier1
+        )
     }
 }
 
@@ -144,13 +240,14 @@ impl<T: Transport> ModelBackend<'_, T> {
         match self {
             ModelBackend::MockSeeded => ModelBackendKind::MockSeeded,
             ModelBackend::LiveTier2 { .. } => ModelBackendKind::LiveTier2,
+            ModelBackend::LiveTier1 { .. } => ModelBackendKind::LiveTier1,
         }
     }
 
     /// Whether this backend performs a live-model call.
     ///
-    /// Type-level query: only [`crate::planning::ModelBackend::LiveTier2`]
-    /// returns `true`, and constructing that variant requires the full live
+    /// Type-level query: only the `LiveTier1`/`LiveTier2` variants return
+    /// `true`, and constructing either variant requires the full live
     /// context (gateway, transport, consent), so mock code paths cannot drift
     /// into claiming a model result.
     #[must_use]
@@ -396,9 +493,10 @@ pub fn plan_for_intent<T: Transport>(
             consent,
             fields,
             byte_count,
+            prompt,
             cloud_key_present,
             now_ms,
-        } => plan_live_tier2(
+        } => plan_live_tier(
             gateway,
             transport,
             consent,
@@ -406,8 +504,34 @@ pub fn plan_for_intent<T: Transport>(
             &stem,
             fields,
             byte_count,
+            prompt,
             cloud_key_present,
             now_ms,
+            ConsentTier::Tier2,
+            ModelBackendKind::LiveTier2,
+        ),
+        ModelBackend::LiveTier1 {
+            gateway,
+            transport,
+            consent,
+            fields,
+            byte_count,
+            prompt,
+            cloud_key_present,
+            now_ms,
+        } => plan_live_tier(
+            gateway,
+            transport,
+            consent,
+            profile,
+            &stem,
+            fields,
+            byte_count,
+            prompt,
+            cloud_key_present,
+            now_ms,
+            ConsentTier::Tier1,
+            ModelBackendKind::LiveTier1,
         ),
     }
 }
@@ -553,13 +677,18 @@ fn mock_pool(plan: &PatchPlan, stem: &str) -> Result<(Vec<Candidate>, bool), Pla
 }
 
 // ---------------------------------------------------------------------------
-// LiveTier2 path (gateway → text → patch → diversify)
+// Live-text path shared by LiveTier1/LiveTier2 (gateway → text → patch → diversify)
 // ---------------------------------------------------------------------------
 
-/// Run the live Tier2 path: gateway route, Tier2-service check, lenient
-/// parse, per-plan repair (≤ 2 rounds), diversification.
+/// Run the live-text path for `expected`: stage the live prompt context
+/// (user intent + profile whitelist idents) on the gateway, route, check the
+/// serving tier, lenient parse, per-plan repair (≤ 2 rounds), diversification.
+///
+/// `prompt: None` (mock/test paths) keeps the legacy synthetic body; the
+/// gateway audits still record field names plus the byte count only, never
+/// the intent.
 #[allow(clippy::too_many_arguments)]
-fn plan_live_tier2<T: Transport>(
+fn plan_live_tier<T: Transport>(
     gateway: &mut Gateway,
     transport: &mut T,
     consent: &ConsentState,
@@ -567,9 +696,17 @@ fn plan_live_tier2<T: Transport>(
     stem: &str,
     fields: Vec<String>,
     byte_count: u64,
+    prompt: Option<String>,
     cloud_key_present: bool,
     now_ms: u64,
+    expected: ConsentTier,
+    kind: ModelBackendKind,
 ) -> Result<PlanOutcome, PlanningError> {
+    // Stage the live wire context before routing: the user intent plus the
+    // profile whitelist idents the model may address. `None` clears back to
+    // the synthetic body (mock/test paths).
+    gateway.set_live_prompt(prompt);
+    gateway.set_live_profile_idents(profile_idents_list(profile));
     let route = gateway.route(
         consent,
         RouteParams {
@@ -581,7 +718,7 @@ fn plan_live_tier2<T: Transport>(
         },
         transport,
     )?;
-    if route.response.tier != ConsentTier::Tier2 {
+    if route.response.tier != expected {
         return Err(PlanningError::NoLiveModel);
     }
     let docs = extract_plan_docs(&route.response.text);
@@ -644,7 +781,7 @@ fn plan_live_tier2<T: Transport>(
         return Err(PlanningError::EmptyPlan);
     }
     Ok(PlanOutcome {
-        backend: ModelBackendKind::LiveTier2,
+        backend: kind,
         plan: primary,
         candidates,
         direction_gap,
@@ -652,9 +789,20 @@ fn plan_live_tier2<T: Transport>(
         removed_total,
         replaced_total,
         audits: route.audits,
-        serving_tier: Some(ConsentTier::Tier2),
+        serving_tier: Some(expected),
         model: route.response.model,
     })
+}
+
+/// Profile whitelist idents (`param/` tails) the live model may address,
+/// in profile order; entries without a live `ident` (preset-only /
+/// name-regex-only) contribute nothing. Pure projection: no I/O.
+fn profile_idents_list(profile: &Profile) -> Vec<String> {
+    profile
+        .params
+        .iter()
+        .filter_map(|entry| entry.ident.clone())
+        .collect()
 }
 
 /// Build one candidate per surviving plan. Lanes project op values to finite
@@ -871,6 +1019,24 @@ mod tests {
         synthlm_profile::builtins::load_builtin("reaeq").expect("reaeq builtin loads")
     }
 
+    fn live_tier1_backend<'a, T: Transport>(
+        gateway: &'a mut Gateway,
+        transport: &'a mut T,
+        consent: &'a ConsentState,
+        key_present: bool,
+    ) -> ModelBackend<'a, T> {
+        ModelBackend::LiveTier1 {
+            gateway,
+            transport,
+            consent,
+            fields: vec!["prompt".to_owned()],
+            byte_count: 64,
+            prompt: None,
+            cloud_key_present: key_present,
+            now_ms: 1_789_000_000_000,
+        }
+    }
+
     fn live_backend<'a, T: Transport>(
         gateway: &'a mut Gateway,
         transport: &'a mut T,
@@ -883,6 +1049,7 @@ mod tests {
             consent,
             fields: vec!["prompt".to_owned()],
             byte_count: 64,
+            prompt: None,
             cloud_key_present: key_present,
             now_ms: 1_789_000_000_000,
         }
@@ -904,9 +1071,9 @@ mod tests {
         format!(" patch suggestion below:\n```json\n{raw}\n```")
     }
 
-    /// Serve exactly one loopback connection with a canned Tier2 chat
-    /// envelope carrying `content`, then return the base URL.
-    fn serve_chat_once(content: String) -> String {
+    /// Serve exactly one loopback connection with `envelope` as the JSON
+    /// body, then return the base URL.
+    fn serve_envelope_once(envelope: serde_json::Value) -> String {
         use std::io::{Read, Write};
         let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("stub binds loopback");
         let port = listener.local_addr().expect("stub reads its port").port();
@@ -945,16 +1112,6 @@ mod tests {
                 }
                 body.extend_from_slice(&chunk[..n]);
             }
-            let envelope = serde_json::json!({
-                "id": "chatcmpl-stub-503",
-                "object": "chat.completion",
-                "model": "mimo-v2.6-flash",
-                "choices": [{
-                    "index": 0,
-                    "message": {"role": "assistant", "content": content},
-                    "finish_reason": "stop",
-                }],
-            });
             let body_text = serde_json::to_string(&envelope).expect("stub envelope serializes");
             let response = format!(
                 "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body_text}",
@@ -963,6 +1120,35 @@ mod tests {
             let _ = stream.write_all(response.as_bytes());
         });
         format!("http://127.0.0.1:{port}/")
+    }
+
+    /// Serve exactly one loopback connection with a canned Tier2 chat
+    /// envelope carrying `content`, then return the base URL.
+    fn serve_chat_once(content: String) -> String {
+        serve_envelope_once(serde_json::json!({
+            "id": "chatcmpl-stub-503",
+            "object": "chat.completion",
+            "model": "mimo-v2.6-flash",
+            "choices": [{
+                "index": 0,
+                "message": {"role": "assistant", "content": content},
+                "finish_reason": "stop",
+            }],
+        }))
+    }
+
+    /// Serve exactly one loopback connection with a canned Tier1 responses
+    /// envelope carrying `content`, then return the base URL.
+    fn serve_responses_once(content: String) -> String {
+        serve_envelope_once(serde_json::json!({
+            "id": "resp-stub-t1",
+            "object": "response",
+            "model": "muse-spark-1.3-contributor",
+            "output": [{
+                "type": "message",
+                "content": [{"type": "output_text", "text": content}],
+            }],
+        }))
     }
 
     fn stub_transport(base_url: String) -> HttpsTransport {
@@ -1167,6 +1353,7 @@ mod tests {
                 consent: &consent,
                 fields: vec!["pcm".to_owned()],
                 byte_count: 64,
+                prompt: None,
                 cloud_key_present: true,
                 now_ms: 1_789_000_000_000,
             },
@@ -1230,6 +1417,51 @@ mod tests {
         assert_eq!(err, PlanningError::Unparsable);
         assert!(err.clone().blocked());
         assert!(!format!("{err}").contains(LIVE_BACKEND_LABEL));
+    }
+
+    #[test]
+    fn live_tier1_stub_serves_with_tier1_kind_and_label() {
+        let profile = test_profile();
+        let consent = decided(ConsentTier::Tier1);
+        let mut gateway = Gateway::default();
+        let mut transport = stub_transport(serve_responses_once(stub_patch_content()));
+        let outcome = plan_for_intent(
+            live_tier1_backend(&mut gateway, &mut transport, &consent, true),
+            &profile,
+            "brighter highs",
+        )
+        .expect("tier1 stub plans");
+        assert_eq!(outcome.backend(), ModelBackendKind::LiveTier1);
+        assert!(outcome.backend().is_live());
+        assert_eq!(outcome.backend_label(), LIVE_TIER1_BACKEND_LABEL);
+        assert_eq!(outcome.serving_tier(), Some(ConsentTier::Tier1));
+        assert!(!outcome.model().is_empty());
+        assert!(
+            validate(outcome.plan(), &profile).is_empty(),
+            "tier1 patch legal"
+        );
+        assert!(!outcome.candidates().is_empty());
+        assert!(!outcome.audits().is_empty(), "live call audited");
+    }
+
+    #[test]
+    fn live_tier1_unparsable_text_is_blocked_not_live() {
+        let profile = test_profile();
+        let consent = decided(ConsentTier::Tier1);
+        let mut gateway = Gateway::default();
+        let mut transport = MockTransport::new(vec![MockOutcome::SucceedWithText {
+            latency_ms: 1,
+            text: "no json here, just prose".to_owned(),
+        }]);
+        let err = plan_for_intent(
+            live_tier1_backend(&mut gateway, &mut transport, &consent, true),
+            &profile,
+            "brighter highs",
+        )
+        .expect_err("prose BLOCKEDs");
+        assert_eq!(err, PlanningError::Unparsable);
+        assert!(err.clone().blocked());
+        assert!(!format!("{err}").contains(LIVE_TIER1_BACKEND_LABEL));
     }
 
     #[test]
@@ -1300,5 +1532,146 @@ mod tests {
         assert_eq!(slice_between("abc", '{', '}'), None);
         assert!(intent_stem("x").starts_with("intent-"));
         assert_eq!(intent_stem("x"), intent_stem("x"));
+    }
+
+    /// Synthetic intent marker: clearly fake, only asserted for absence.
+    const SECRET_INTENT: &str = "tsk505-synthetic-intent-9f3aZZ";
+
+    /// Capturing [`crate::model_gw::Transport`] double: records the staged
+    /// live prompt + whitelist idents per call, then serves scripted text
+    /// with no network.
+    struct RecordingTransport {
+        text: String,
+        seen_prompts: Vec<Option<String>>,
+        seen_idents: Vec<Vec<String>>,
+    }
+
+    impl RecordingTransport {
+        fn new(text: String) -> Self {
+            Self {
+                text,
+                seen_prompts: Vec::new(),
+                seen_idents: Vec::new(),
+            }
+        }
+    }
+
+    impl Transport for RecordingTransport {
+        fn send(
+            &mut self,
+            request: &crate::model_gw::ModelRequest,
+            _timeout: &synthlm_common::ipc::TimeoutConfig,
+        ) -> Result<crate::model_gw::ModelResponse, crate::model_gw::TransportError> {
+            self.seen_prompts.push(request.prompt.clone());
+            self.seen_idents.push(request.profile_idents.clone());
+            Ok(crate::model_gw::ModelResponse {
+                tier: request.tier,
+                model: request.model.to_owned(),
+                latency_ms: 1,
+                text: self.text.clone(),
+            })
+        }
+    }
+
+    #[test]
+    fn profile_idents_list_projects_live_idents_in_order() {
+        let profile = test_profile();
+        let idents = profile_idents_list(&profile);
+        assert!(!idents.is_empty(), "reaeq profile must whitelist idents");
+        assert!(
+            idents.contains(&"4:_Gain_Band_2".to_owned()),
+            "known reaeq ident projected: {idents:?}"
+        );
+        // Profile order preserved (no sorting, no dedup guessing).
+        let expected: Vec<String> = profile
+            .params
+            .iter()
+            .filter_map(|entry| entry.ident.clone())
+            .collect();
+        assert_eq!(idents, expected);
+    }
+
+    #[test]
+    fn live_backend_debug_omits_prompt() {
+        let consent = decided(ConsentTier::Tier2);
+        let mut gateway = Gateway::default();
+        let mut transport = MockTransport::all_ok();
+        let backend = ModelBackend::LiveTier2 {
+            gateway: &mut gateway,
+            transport: &mut transport,
+            consent: &consent,
+            fields: vec!["prompt".to_owned()],
+            byte_count: 64,
+            prompt: Some(SECRET_INTENT.to_owned()),
+            cloud_key_present: true,
+            now_ms: 1_789_000_000_000,
+        };
+        let rendered = format!("{backend:?}");
+        assert!(
+            !rendered.contains(SECRET_INTENT),
+            "backend debug leaked intent: {rendered}"
+        );
+        let mut gateway = Gateway::default();
+        let mut transport = MockTransport::all_ok();
+        let backend = ModelBackend::LiveTier1 {
+            gateway: &mut gateway,
+            transport: &mut transport,
+            consent: &consent,
+            fields: vec!["prompt".to_owned()],
+            byte_count: 64,
+            prompt: Some(SECRET_INTENT.to_owned()),
+            cloud_key_present: true,
+            now_ms: 1_789_000_000_000,
+        };
+        let rendered = format!("{backend:?}");
+        assert!(
+            !rendered.contains(SECRET_INTENT),
+            "tier1 backend debug leaked intent: {rendered}"
+        );
+    }
+
+    #[test]
+    fn live_prompt_and_idents_reach_the_request_but_not_the_audit() {
+        let profile = test_profile();
+        let consent = decided(ConsentTier::Tier2);
+        let mut gateway = Gateway::default();
+        let mut transport = RecordingTransport::new(stub_patch_content());
+        let outcome = plan_for_intent(
+            ModelBackend::LiveTier2 {
+                gateway: &mut gateway,
+                transport: &mut transport,
+                consent: &consent,
+                fields: vec!["prompt".to_owned()],
+                byte_count: 64,
+                prompt: Some(SECRET_INTENT.to_owned()),
+                cloud_key_present: true,
+                now_ms: 1_789_000_000_000,
+            },
+            &profile,
+            "brighter highs",
+        )
+        .expect("recording text plans");
+        assert_eq!(outcome.backend_label(), LIVE_BACKEND_LABEL);
+        assert_eq!(transport.seen_prompts.len(), 1);
+        assert_eq!(
+            transport.seen_prompts[0].as_deref(),
+            Some(SECRET_INTENT),
+            "staged intent must reach the request"
+        );
+        assert!(
+            transport.seen_idents[0].contains(&"4:_Gain_Band_2".to_owned()),
+            "profile whitelist must reach the request: {:?}",
+            transport.seen_idents[0]
+        );
+        // Triple redaction at the planning layer: audits serialize the five
+        // IPC fields only (names + byte count), never the intent.
+        for event in outcome.audits() {
+            let value = serde_json::to_value(event).expect("audit serializes");
+            let rendered = serde_json::to_string(&value).expect("audit renders");
+            assert!(
+                !rendered.contains(SECRET_INTENT),
+                "audit leaked intent: {rendered}"
+            );
+        }
     }
 }

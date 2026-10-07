@@ -1,0 +1,51 @@
+seed=7 intent_hash=d78ba88f88a3e6ab snapshot=intent-d78ba88f88a3e6ab tracks_before=0
+fx=0 via=add
+resolve|10:_Gain_High_Shelf_4=10|from_ident|init=0.250000000
+resolve|9:_Freq_High_Shelf_4=9|from_ident|init=0.739350855
+resolve|1:_Gain_Low_Shelf=1|from_ident|init=0.250000000
+resolve|15:_Global_Gain=15|from_ident|init=1.000000000
+resolve|17:wet=17|from_ident|init=1.000000000
+resolve|16:bypass=16|from_ident|init=0.000000000
+resolve|0:_Freq_Low_Shelf=0|from_ident|init=0.141438067
+resolve|12:_Freq_High_Pass_5=12|from_ident|init=0.141438067
+resolve|7:_Gain_Band_3=7|from_ident|init=0.250000000
+resolve|6:_Freq_Band_3=6|from_ident|init=0.476048619
+resolve|4:_Gain_Band_2=4|from_ident|init=0.250000000
+refitems=1
+rendersetup|srate=0.0|channels=2.0|bounds=loop0-1
+render|baseline_a|fnv=9478f439
+render|baseline_b|fnv=9478f439
+settleset|stable=true|ref=9478f439
+loop|enter|intent-d78ba88f88a3e6ab-c1
+applied|intent-d78ba88f88a3e6ab-c1|10:_Gain_High_Shelf_4=0.680000007 9:_Freq_High_Shelf_4=0.620000005 1:_Gain_Low_Shelf=0.419999987 15:_Global_Gain=0.800000012 17:wet=1.000000000 16:bypass=0.000000000
+render|intent-d78ba88f88a3e6ab-c1|fnv=25cbe0c1
+loop|enter|intent-d78ba88f88a3e6ab-c2
+applied|intent-d78ba88f88a3e6ab-c2|10:_Gain_High_Shelf_4=0.850000024 9:_Freq_High_Shelf_4=0.779999971 1:_Gain_Low_Shelf=0.349999994 0:_Freq_Low_Shelf=0.200000003 12:_Freq_High_Pass_5=0.150000006 17:wet=0.950000000 16:bypass=0.000000000
+render|intent-d78ba88f88a3e6ab-c2|fnv=abeb41eb
+loop|enter|intent-d78ba88f88a3e6ab-c3
+applied|intent-d78ba88f88a3e6ab-c3|10:_Gain_High_Shelf_4=0.720000029 9:_Freq_High_Shelf_4=0.550000012 7:_Gain_Band_3=0.649999976 6:_Freq_Band_3=0.600000024 4:_Gain_Band_2=0.449999988 15:_Global_Gain=0.750000000 16:bypass=0.000000000
+render|intent-d78ba88f88a3e6ab-c3|fnv=43f5c483
+undo|intent-d78ba88f88a3e6ab-c3|popped
+undo|intent-d78ba88f88a3e6ab-c2|popped
+undo|intent-d78ba88f88a3e6ab-c1|popped
+undone_blocks=3
+explicit_restore=false
+restored|10:_Gain_High_Shelf_4=0.250000000|expect=0.250000000|ok=true
+restored|0:_Freq_Low_Shelf=0.141438067|expect=0.141438067|ok=true
+restored|17:wet=1.000000000|expect=1.000000000|ok=true
+restored|6:_Freq_Band_3=0.476048619|expect=0.476048619|ok=true
+restored|9:_Freq_High_Shelf_4=0.739350855|expect=0.739350855|ok=true
+restored|16:bypass=0.000000000|expect=0.000000000|ok=true
+restored|15:_Global_Gain=1.000000000|expect=1.000000000|ok=true
+restored|12:_Freq_High_Pass_5=0.141438067|expect=0.141438067|ok=true
+restored|4:_Gain_Band_2=0.250000000|expect=0.250000000|ok=true
+restored|1:_Gain_Low_Shelf=0.250000000|expect=0.250000000|ok=true
+restored|7:_Gain_Band_3=0.250000000|expect=0.250000000|ok=true
+restored_all=true
+render|restored_a|fnv=9478f439
+render|restored_b|fnv=9478f439
+restorestable|stable=true
+nulltest|ref=9478f439|restored=9478f439|match=true
+restore|ok=1
+tracks_after=0|tracks_zero=true
+e2e_apply_ok=true
