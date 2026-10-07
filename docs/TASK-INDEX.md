@@ -85,7 +85,7 @@
 | TSK-501 | acrd 守护进程骨架（IPC 服务循环 + 任务状态机 + WAL + watchdog） | 实现 | 5 | TSK-107/301 | P0 | M | 进程可起停；hello/帧服务循环回环绿；pending/running/done/failed 状态机单测；kill 后按 WAL 重放不丢任务 | DEC-009/023/027 | Done | daemon（serve/心跳自检/排空退出）+ task（WAL 原子提交/replay/崩溃模拟）19 单测绿；Windows 服务控制与真多进程 kill 演练留后续 |
 | TSK-502 | bridge↔acrd 真 IPC 接线（snapshot/plan/patch/render/score） | 实现 | 5 | TSK-501/101/102/103 | P0 | M | mock REAPER 下全消息类型 round-trip；错误 taxonomy（retryable/BLOCKED）与 ARCH §5 一致 | DEC-023 | Done | 分发器 6 handler + 客户端 5 帧 builder，全链 round-trip 全绿；渲染执行/真适配器留后续 |
 | TSK-503 | model-gw 真调用替换 demo 种子（Tier2 文本优先） | 实现 | 5 | TSK-502/117/302 | P0 | M | 同意图两次调用出合法 Patch（修复循环计入）；无模型时明示 `seeded-demo` 不得混入产品路径；审计五字段 | DEC-010/011/013 | Done | planning.rs（backend 显式标记 + Tier2 文本链 + 修复计数；Mock 水印不可擦除）；Tier1 点火归 TSK-701 |
-| TSK-504 | 42230 真渲染进评价环（替代 demo 合成预览） | 实现 | 5 | TSK-502/104/202/204 | P0 | M | 固定块渲染产物进 MIR/score；null-test 门禁接线；失败走小块→1x→online 兜底并记录 | DEC-005/012/016 | Todo | |
+| TSK-504 | 42230 真渲染进评价环（替代 demo 合成预览） | 实现 | 5 | TSK-502/104/202/204 | P0 | M | 固定块渲染产物进 MIR/score；null-test 门禁接线；失败走小块→1x→online 兜底并记录 | DEC-005/012/016 | Done | render.rs（摄入/null 门禁/兜底表全绿；44.1k 标记拒比不静默转采样；REAPER 侧执行接线留后续） |
 | TSK-505 | 单命令 E2E M3（真意图→候选→应用→回滚） | 实现 | 5 | TSK-503/504 | P0 | M | `acrd e2e --seed N` 一次跑通 ≤5min；3 候选差异句非空；应用/回滚零残留；runbook 表追加见证行 | ROADMAP M5 | Todo | |
 | TSK-506 | UI 主窗接线（卡片 6 字段 + 试听 + 应用/回滚） | 实现 | 5 | TSK-505/119/304 | P1 | M | 人工点选胜出候选可应用；回滚后工程计数归零；缺字段即红 | DEC-019/020 | Todo | |
 
