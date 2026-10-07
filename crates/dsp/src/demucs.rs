@@ -245,15 +245,15 @@ pub fn default_model_path() -> Option<PathBuf> {
     }
     #[cfg(not(windows))]
     {
-        if let Some(cache) = std::env::var_os("XDG_CACHE_HOME") {
-            if !cache.is_empty() {
-                return Some(
-                    PathBuf::from(cache)
-                        .join("synthlm")
-                        .join("demucs")
-                        .join(DEMUCS_ONNX_FILE),
-                );
-            }
+        if let Some(cache) = std::env::var_os("XDG_CACHE_HOME")
+            && !cache.is_empty()
+        {
+            return Some(
+                PathBuf::from(cache)
+                    .join("synthlm")
+                    .join("demucs")
+                    .join(DEMUCS_ONNX_FILE),
+            );
         }
         std::env::var_os("HOME").map(|home| {
             PathBuf::from(home)
