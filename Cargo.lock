@@ -7808,6 +7808,7 @@ dependencies = [
  "serde_json",
  "synthlm-bridge",
  "synthlm-common",
+ "synthlm-dsp",
  "synthlm-eval",
  "synthlm-planner",
  "synthlm-profile",
