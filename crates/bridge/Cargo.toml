@@ -16,6 +16,10 @@ reaper-medium = { git = "https://github.com/helgoboss/reaper-rs.git", rev = "659
 reaper-low = { git = "https://github.com/helgoboss/reaper-rs.git", rev = "659b22bfbc34bf4a5a40902e6fdf60ccfd34ca23" }
 thiserror = "2"
 serde = { version = "1", features = ["derive"] }
+# TSK-502: bridge IPC client packs snapshot/undo output into wire frames.
+# Same pinned version already in the workspace lockfile via synthlm-common
+# and registered in docs/LICENSES.md (MIT OR Apache-2.0); no new external
+# crate is introduced by this line.
+serde_json = "1"
 
 [dev-dependencies]
-serde_json = "1"

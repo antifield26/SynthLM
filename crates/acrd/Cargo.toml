@@ -7,6 +7,10 @@ edition.workspace = true
 name = "acrd"
 path = "src/main.rs"
 
+[lib]
+name = "synthlm_acrd"
+path = "src/lib.rs"
+
 [dependencies]
 synthlm-common = { path = "../common" }
 synthlm-profile = { path = "../profile" }
@@ -23,3 +27,9 @@ serde_json = "1.0.151"
 # introduced by this line.
 interprocess = "2.4.4"
 ctrlc = "3"
+
+[dev-dependencies]
+# TSK-502 round-trip tests drive bridge frame builders against the dispatcher
+# over loopback. rlib use of the workspace bridge crate; no new external
+# crate is introduced by this line.
+synthlm-bridge = { path = "../bridge" }

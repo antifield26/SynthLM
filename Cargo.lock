@@ -3978,6 +3978,7 @@ dependencies = [
  "ctrlc",
  "interprocess",
  "serde_json",
+ "synthlm-bridge",
  "synthlm-common",
  "synthlm-eval",
  "synthlm-planner",

@@ -25,6 +25,7 @@ use std::fs;
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
 
@@ -35,6 +36,7 @@ use synthlm_common::ipc::{
     set_stream_timeouts, write_frame,
 };
 
+use crate::dispatch::Dispatcher;
 use crate::task::{TaskLog, TaskState};
 
 /// Heartbeat file name inside the daemon state directory.
@@ -61,6 +63,8 @@ pub enum DaemonError {
     Heartbeat(String),
     /// The OS-signal hook (Ctrl-C/TERM) could not be installed.
     Signal(String),
+    /// The dispatch layer (planner chain) failed to open.
+    Dispatch(String),
 }
 
 impl std::fmt::Display for DaemonError {
@@ -71,6 +75,7 @@ impl std::fmt::Display for DaemonError {
             DaemonError::SessionTask(detail) => write!(f, "daemon session task: {detail}"),
             DaemonError::Heartbeat(detail) => write!(f, "daemon heartbeat: {detail}"),
             DaemonError::Signal(detail) => write!(f, "daemon signal: {detail}"),
+            DaemonError::Dispatch(detail) => write!(f, "daemon dispatch: {detail}"),
         }
     }
 }
@@ -170,7 +175,7 @@ pub fn error_code_as_str(code: ErrorCode) -> &'static str {
 }
 
 /// Build a secret-free `error` body for `code` + short `detail`.
-fn error_body(code: ErrorCode, detail: &str) -> serde_json::Value {
+pub(crate) fn error_body(code: ErrorCode, detail: &str) -> serde_json::Value {
     serde_json::json!({
         "code": error_code_as_str(code),
         "retryable": code.retryable(),
@@ -179,7 +184,7 @@ fn error_body(code: ErrorCode, detail: &str) -> serde_json::Value {
 }
 
 /// Skeleton hello body: our version plus the acrd role.
-fn hello_body() -> serde_json::Value {
+pub(crate) fn hello_body() -> serde_json::Value {
     serde_json::json!({
         "version": {"major": PROTOCOL_MAJOR, "minor": PROTOCOL_MINOR},
         "role": "acrd",
@@ -270,11 +275,51 @@ pub struct ConnectionStats {
     pub clean_eof: bool,
 }
 
+/// Apply one [`crate::daemon::StepOutcome`] to the stream.
+///
+/// Returns `false` when the connection must close (`Close`,
+/// `CloseWithReply`, or an unanswerable write failure); `true` keeps it open.
+fn pump_step(
+    stream: &mut Stream,
+    step: StepOutcome,
+    clean_eof: bool,
+    stats: &mut ConnectionStats,
+) -> bool {
+    match step {
+        StepOutcome::Reply(kind, body) => {
+            if write_frame(stream, kind, &body).is_err() {
+                return false;
+            }
+            stats.frames_replied = stats.frames_replied.saturating_add(1);
+            if kind == MessageType::Error {
+                stats.errors_replied = stats.errors_replied.saturating_add(1);
+            }
+            true
+        }
+        StepOutcome::Silent => true,
+        StepOutcome::Close => {
+            if clean_eof {
+                stats.clean_eof = true;
+            }
+            false
+        }
+        StepOutcome::CloseWithReply(kind, body) => {
+            let _ = write_frame(stream, kind, &body);
+            stats.errors_replied = stats.errors_replied.saturating_add(1);
+            false
+        }
+    }
+}
+
 /// Serve one connection: hello handshake (reusing
 /// [`synthlm_common::ipc::server_handshake`] semantics, which answers
 /// handshake failures best-effort), then answer frames per
 /// [`crate::daemon::decide`] until EOF, shutdown, or an unrecoverable
 /// stream state. Never panics on peer input.
+///
+/// The skeleton path: kept for the unit-tested handshake contract; the
+/// serving path ([`crate::daemon::serve_until_shutdown`]) uses
+/// [`crate::daemon::serve_connection_dispatched`] instead.
 pub fn serve_connection(stream: &mut Stream, shutdown: &Shutdown) -> ConnectionStats {
     let mut stats = ConnectionStats::default();
     match server_handshake(stream, EndpointRole::Acrd) {
@@ -286,28 +331,45 @@ pub fn serve_connection(stream: &mut Stream, shutdown: &Shutdown) -> ConnectionS
             break;
         }
         let outcome = read_frame(stream);
-        match decide(&outcome) {
-            StepOutcome::Reply(kind, body) => {
-                if write_frame(stream, kind, &body).is_err() {
-                    break;
-                }
-                stats.frames_replied = stats.frames_replied.saturating_add(1);
-                if kind == MessageType::Error {
-                    stats.errors_replied = stats.errors_replied.saturating_add(1);
-                }
-            }
-            StepOutcome::Silent => {}
-            StepOutcome::Close => {
-                if matches!(outcome, Err(IpcError::TransportClosed)) {
-                    stats.clean_eof = true;
-                }
-                break;
-            }
-            StepOutcome::CloseWithReply(kind, body) => {
-                let _ = write_frame(stream, kind, &body);
-                stats.errors_replied = stats.errors_replied.saturating_add(1);
-                break;
-            }
+        let clean = matches!(outcome, Err(IpcError::TransportClosed));
+        let step = decide(&outcome);
+        if !pump_step(stream, step, clean, &mut stats) {
+            break;
+        }
+    }
+    stats
+}
+
+/// Serve one connection through the true dispatcher
+/// ([`crate::dispatch::Dispatcher`]): hello handshake, then one
+/// `dispatch_outcome` per frame until EOF, shutdown, or an unrecoverable
+/// stream state. Never panics on peer input; a poisoned dispatch store
+/// answers `error` (internal) without dropping the connection.
+pub fn serve_connection_dispatched(
+    stream: &mut Stream,
+    shutdown: &Shutdown,
+    dispatcher: &Arc<Mutex<Dispatcher>>,
+) -> ConnectionStats {
+    let mut stats = ConnectionStats::default();
+    match server_handshake(stream, EndpointRole::Acrd) {
+        Ok(_) => stats.handshake_ok = true,
+        Err(_) => return stats,
+    }
+    loop {
+        if shutdown.is_requested() {
+            break;
+        }
+        let outcome = read_frame(stream);
+        let clean = matches!(outcome, Err(IpcError::TransportClosed));
+        let step = match dispatcher.lock() {
+            Ok(mut guard) => guard.dispatch_outcome(&outcome),
+            Err(_) => StepOutcome::Reply(
+                MessageType::Error,
+                error_body(ErrorCode::Internal, "dispatch store poisoned"),
+            ),
+        };
+        if !pump_step(stream, step, clean, &mut stats) {
+            break;
         }
     }
     stats
@@ -477,6 +539,11 @@ pub struct ServeReport {
 /// Accept loop: heartbeat thread plus one handler thread per connection.
 /// Returns when [`crate::daemon::Shutdown`] is requested; joins every
 /// handler (drain) before returning.
+///
+/// Connections share one [`crate::dispatch::Dispatcher`] (mutex-guarded, so
+/// the WAL file stays the single serialization point across connections).
+/// Opening the dispatcher journals nothing by itself; per-connection frames
+/// drive the planner chain.
 pub fn serve_until_shutdown(
     listener: Listener,
     opts: &ServeOptions,
@@ -507,6 +574,20 @@ pub fn serve_until_shutdown(
         frame_timeout_enforced: true,
         ..ServeReport::default()
     };
+    let dispatcher = match Dispatcher::open(&opts.state_dir) {
+        Ok(dispatcher) => dispatcher,
+        Err(crate::dispatch::DispatchError::Store) => {
+            return Err(DaemonError::Journal(
+                "dispatch journal not openable".to_owned(),
+            ));
+        }
+        Err(_) => {
+            return Err(DaemonError::Dispatch(
+                "dispatch profile not loadable".to_owned(),
+            ));
+        }
+    };
+    let dispatcher = Arc::new(Mutex::new(dispatcher));
     let mut handles = Vec::new();
     loop {
         if shutdown.is_requested() {
@@ -529,8 +610,9 @@ pub fn serve_until_shutdown(
                     report.frame_timeout_enforced = false;
                 }
                 let flag = shutdown.clone();
+                let bus = Arc::clone(&dispatcher);
                 handles.push(std::thread::spawn(move || {
-                    serve_connection(&mut stream, &flag)
+                    serve_connection_dispatched(&mut stream, &flag, &bus)
                 }));
             }
             Err(_) => {
@@ -834,14 +916,36 @@ mod tests {
 
         let mut client = connect_to_with_retry(&endpoint, &retry_policy()).expect("connect");
         client_handshake(&mut client, EndpointRole::Bridge).expect("handshake");
+        // The serving path dispatches for real: snapshot first, then plan.
+        send_frame(
+            &mut client,
+            MessageType::SnapshotSubmit,
+            &serde_json::json!({
+                "task_id": "t-shutdown-1",
+                "snapshot_id": "snap-shutdown-1",
+                "take_guid": "{take-shutdown-1}",
+            }),
+        )
+        .expect("send snapshot.submit");
+        let reply = recv_frame(&mut client).expect("recv snapshot ack");
+        assert_eq!(reply.kind, MessageType::AuditEvent);
         send_frame(
             &mut client,
             MessageType::PlanRequest,
-            &serde_json::json!({}),
+            &serde_json::json!({"task_id": "t-shutdown-1", "snapshot_id": "snap-shutdown-1"}),
         )
         .expect("send plan.request");
         let reply = recv_frame(&mut client).expect("recv plan.response");
         assert_eq!(reply.kind, MessageType::PlanResponse);
+        assert_eq!(
+            reply
+                .body
+                .get("mock")
+                .and_then(|mock| mock.get("transport"))
+                .and_then(serde_json::Value::as_str),
+            Some("MockTransport"),
+            "serving path must run the mock planner chain"
+        );
         drop(client);
 
         // Let the heartbeat tick at least once, then shut down gracefully.

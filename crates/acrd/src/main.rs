@@ -6,9 +6,7 @@
 //! daemon entrypoint is `acrd serve` (bind + hello + minimal replies +
 //! journal replay + heartbeat).
 
-mod daemon;
-mod demo;
-mod task;
+use synthlm_acrd::{daemon, demo};
 
 /// Default demo output directory (relative to the workspace root).
 const DEFAULT_DEMO_OUT_DIR: &str = "experiments/e2e-demo";
