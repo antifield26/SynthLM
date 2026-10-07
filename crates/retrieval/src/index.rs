@@ -157,12 +157,16 @@ pub trait VectorIndex {
         Ok(self
             .search(query, top_k)?
             .into_iter()
-            .filter(|hit| self.payload_of(hit.id).is_some_and(filter))
+            .filter(|hit| self.payload_of(hit.id).is_some_and(|owned| filter(&owned)))
             .collect())
     }
 
-    /// Looks up the payload stored under `id`, if present.
-    fn payload_of(&self, id: u64) -> Option<&Payload>;
+    /// Looks up a copy of the payload stored under `id`, if present.
+    ///
+    /// Returns an owned clone (rather than a borrow) so mutex-backed
+    /// implementations such as `RealLanceDbIndex` need no `unsafe` to satisfy
+    /// the signature (AGENTS.md §4 bans new `unsafe` outside `bridge/low`).
+    fn payload_of(&self, id: u64) -> Option<Payload>;
 
     /// Rough in-memory footprint in bytes (vectors + payloads + index
     /// overhead). Estimates feed the 10k benchmark memory column; see each
@@ -174,7 +178,11 @@ pub trait VectorIndex {
 ///
 /// Compiled only when a backend exists to serve (backends are the sole
 /// non-test users; the shared validation unit tests ship with them).
-#[cfg(any(feature = "usearch-backend", feature = "lancedb-backend"))]
+#[cfg(any(
+    feature = "usearch-backend",
+    feature = "lancedb-backend",
+    feature = "lancedb-real"
+))]
 pub(crate) fn check_vector(expected: usize, vector: &[f32]) -> Result<(), IndexError> {
     if vector.len() != expected {
         return Err(IndexError::DimMismatch {
@@ -191,7 +199,11 @@ pub(crate) fn check_vector(expected: usize, vector: &[f32]) -> Result<(), IndexE
 /// Validates a constructor dimension.
 ///
 /// See `check_vector` for why this is backend-gated.
-#[cfg(any(feature = "usearch-backend", feature = "lancedb-backend"))]
+#[cfg(any(
+    feature = "usearch-backend",
+    feature = "lancedb-backend",
+    feature = "lancedb-real"
+))]
 pub(crate) fn check_dim(dim: usize) -> Result<(), IndexError> {
     if dim == 0 || dim > MAX_DIM {
         return Err(IndexError::InvalidDim {
@@ -207,7 +219,11 @@ pub(crate) fn check_dim(dim: usize) -> Result<(), IndexError> {
 /// Callers must have validated equal lengths via `check_vector`.
 ///
 /// See `check_vector` for why this is backend-gated.
-#[cfg(any(feature = "usearch-backend", feature = "lancedb-backend"))]
+#[cfg(any(
+    feature = "usearch-backend",
+    feature = "lancedb-backend",
+    feature = "lancedb-real"
+))]
 pub(crate) fn cosine(a: &[f32], b: &[f32]) -> f32 {
     let mut dot = 0.0_f64;
     let mut na = 0.0_f64;
@@ -233,7 +249,11 @@ pub(crate) fn cosine(a: &[f32], b: &[f32]) -> f32 {
 /// with ascending id as deterministic tie-break.
 ///
 /// See `check_vector` for why this is backend-gated.
-#[cfg(any(feature = "usearch-backend", feature = "lancedb-backend"))]
+#[cfg(any(
+    feature = "usearch-backend",
+    feature = "lancedb-backend",
+    feature = "lancedb-real"
+))]
 pub(crate) fn select_top_k(mut scored: Vec<ScoredHit>, top_k: usize) -> Vec<ScoredHit> {
     if top_k == 0 {
         scored.clear();
@@ -252,7 +272,14 @@ pub(crate) fn select_top_k(mut scored: Vec<ScoredHit>, top_k: usize) -> Vec<Scor
     scored
 }
 
-#[cfg(all(test, any(feature = "usearch-backend", feature = "lancedb-backend")))]
+#[cfg(all(
+    test,
+    any(
+        feature = "usearch-backend",
+        feature = "lancedb-backend",
+        feature = "lancedb-real"
+    )
+))]
 mod tests {
     use super::*;
 
@@ -278,7 +305,7 @@ mod tests {
             check_vector(self.dim, query)?;
             Ok(Vec::new())
         }
-        fn payload_of(&self, _id: u64) -> Option<&Payload> {
+        fn payload_of(&self, _id: u64) -> Option<Payload> {
             None
         }
         fn estimated_bytes(&self) -> u64 {

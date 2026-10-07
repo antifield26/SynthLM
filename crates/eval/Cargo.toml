@@ -3,6 +3,13 @@ name = "synthlm-eval"
 version = "0.0.0"
 edition.workspace = true
 
+[features]
+# TSK-601 CLAP ONNX seam: opt-in only. Enabling `onnx` pulls the prebuilt
+# ONNX Runtime binaries at build time (ort `download-binaries`) and opens the
+# pinned local weight cache; the default build stays offline and dependency-
+# free beyond the MIR core. License row in docs/LICENSES.md.
+onnx = ["dep:ort"]
+
 [dependencies]
 synthlm-common = { path = "../common" }
 # TSK-202 (MIR v1): STFT via realfft/rustfft, LUFS via ebur128, errors via thiserror.
@@ -11,6 +18,12 @@ thiserror = "2"
 realfft = "3.5"
 rustfft = "6.4"
 ebur128 = "0.1"
+# TSK-601 (CLAP ONNX seam, `onnx` feature only): safe ONNX Runtime wrapper.
+# MIT OR Apache-2.0, https://github.com/pykeio/ort (docs.rs 2.0.0-rc.13
+# verified 2026-10-07). Default features keep `download-binaries` so a
+# feature-enabled build links without a system ORT install; `ort` internals
+# contain FFI unsafe, this crate adds none (boundary noted in src/clap.rs).
+ort = { version = "2.0.0-rc.13", optional = true }
 
 [dev-dependencies]
 # TSK-206 decode-matrix spike only (integration test `tests/decode_matrix.rs`).

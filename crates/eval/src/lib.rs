@@ -17,8 +17,12 @@
 //!   `mel_weighted` for ranking (weights tunable via
 //!   [`score::BandWeights`], calibration in TSK-402). Features from
 //!   different [`mir::MirParams`] are rejected as incomparable.
-//! - CLAP cosine similarity is a trait seam only
-//!   ([`score::ClapEmbedder`]); no model is wired yet.
+//! - CLAP cosine similarity is wired through
+//!   [`clap::SpectralClapEmbedder`] (pure-local 512-dim fingerprint, TSK-601)
+//!   with the ONNX audio encoder as an opt-in `onnx` feature seam
+//!   (pinned manifest, local weight cache, no audio upload); end-to-end
+//!   scoring goes through [`clap::score_pair`], candidate-distance dedup
+//!   through [`clap::dedup_by_clap`].
 //! - [`render::ingest_wav`] ingests 42230 true renders (TSK-504): wav file
 //!   → mono f32 PCM → [`mir::analyze`], accepting only 48 kHz natively and
 //!   44.1 kHz as resample-todo, with an explicit mono/stereo channel policy,
@@ -28,9 +32,19 @@
 //!
 //! All analysis runs off the DAW threads (L8); nothing here touches REAPER.
 
+pub mod clap;
 pub mod mir;
 pub mod render;
 pub mod score;
+
+pub use clap::{
+    CLAP_BINS_PER_FRAME, CLAP_DIM, CLAP_FINGERPRINT_SAMPLES, CLAP_FRAMES, CLAP_ONNX_BASE_MODEL,
+    CLAP_ONNX_BYTES, CLAP_ONNX_EXPECTED_INPUTS, CLAP_ONNX_EXPECTED_OUTPUTS, CLAP_ONNX_FILE,
+    CLAP_ONNX_INPUT_FEATURES, CLAP_ONNX_INPUT_IS_LONGER, CLAP_ONNX_LICENSE, CLAP_ONNX_OPSET,
+    CLAP_ONNX_OUTPUT, CLAP_ONNX_REPO, CLAP_ONNX_REV, CLAP_ONNX_SHA256, CLAP_ONNX_URL,
+    DEFAULT_CLAP_DEDUP_DISTANCE, SpectralClapEmbedder, clap_distance, dedup_by_clap,
+    dedup_by_clap_default, default_weight_path, score_pair, verify_cached_weight,
+};
 
 pub use mir::{MirFeatures, MirParams, analyze};
 pub use render::{
@@ -95,8 +109,9 @@ pub enum EvalError {
     /// embedding where a direction is required).
     #[error("invalid samples: {0}")]
     InvalidSamples(String),
-    /// A CLAP embedding was requested but no model backend is wired
-    /// (see `TODO(TSK-202)` on [`ClapEmbedder`]).
+    /// A CLAP embedding was requested but the backend is unavailable
+    /// (weights not cached, `onnx` feature disabled, or the ONNX inference
+    /// contract still uncalibrated — see [`clap::SpectralClapEmbedder`]).
     #[error("CLAP model unavailable: {0}")]
     ClapUnavailable(String),
     /// A render file could not be read (missing file or OS error).

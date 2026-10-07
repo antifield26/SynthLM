@@ -7,16 +7,56 @@ edition.workspace = true
 synthlm-common = { path = "../common" }
 thiserror = "2.0.21"
 
+## Optional real-crate backend (TSK-602, DEC-014; non-default feature).
+##
+## `lancedb-real` wires the real `lancedb =0.39.0` crate (exact pin: storage
+## format and query API are the compatibility-critical surface; Apache-2.0,
+## verified 2026-10-07) plus the minimal companions its API forces on callers:
+## `arrow-array`/`arrow-schema =58.4.0` (RecordBatch assembly; must satisfy
+## lancedb's `arrow ^58`), `futures 0.3` (`TryStreamExt` to drain batch
+## streams), `tempfile 3` (one table dir per index, auto-removed on drop),
+## `tokio 1` (`rt` only; a private current-thread runtime bridges the async
+## API to the sync trait). The `remote` feature is forced on (not used at
+## runtime: all tables are local tempdirs): `lancedb 0.39.0` fails to compile
+## without it because `Error::Http` is gated on `remote` while `job.rs` uses
+## it unconditionally (verified 2026-10-07 against the registry source). It
+## drags the cloud-client crates (tonic/reqwest/arrow-flight/…) into the lock
+## file but no cloud call is ever made. Default features of lancedb itself
+## pull no cloud vendors. Transitive
+## closure (arrow 58 / datafusion 54 / lance 12 / object_store …) is pinned by
+## the workspace `Cargo.lock`, and every direct entry is registered in
+## `docs/LICENSES.md` (AGENTS.md §3.6). The feature stays OFF by default so
+## `cargo clippy/test/doc` and CI keep the light exact-scan build; enabling it
+## additionally requires a `protoc` binary (`PROTOC` env) for
+## `lance-encoding`'s build script (found 2026-10-07: stock bench machine
+## has none; a temp-dir protoc 36.2 was used for the TSK-602 bench).
+lancedb = { version = "=0.39.0", features = ["remote"], optional = true }
+arrow-array = { version = "=58.4.0", optional = true }
+arrow-schema = { version = "=58.4.0", optional = true }
+futures = { version = "0.3", optional = true }
+tempfile = { version = "3", optional = true }
+tokio = { version = "1", default-features = false, features = ["rt"], optional = true }
+
 [features]
-## Backend selection (TSK-203, DEC-014).
+## Backend selection (TSK-203, DEC-014; TSK-602 adds the real-crate slot).
 ##
 ## Each backend is a pure-Rust pattern prototype behind its own feature so an
 ## either-or build stays possible (`--no-default-features --features
-## <name>-backend`). The features deliberately reserve the slots where the
-## real-crate bindings will land (`usearch 2.26.4`, `lancedb 0.39.0`, both
-## Apache-2.0; real-crate wiring is ⚠️需实测, see `src/usearch_backend.rs`
-## and `src/lancedb_backend.rs`). No heavy native dependency is pulled by the
+## <name>-backend`). The `lancedb-real` feature (OFF by default) binds the real
+## `lancedb =0.39.0` crate (`src/real_lancedb.rs`); the `usearch` slot stays a
+## pattern (`usearch 2.26.4` needs a C++ toolchain the bench machine lacks,
+## see `src/usearch_backend.rs`). No heavy native dependency is pulled by the
 ## default build.
 default = ["usearch-backend", "lancedb-backend"]
 usearch-backend = []
 lancedb-backend = []
+## Real LanceDB crate backend (TSK-602): `RealLanceDbIndex` in
+## `src/real_lancedb.rs`. Off by default (see dependency comment above).
+lancedb-real = [
+    "dep:lancedb",
+    "dep:arrow-array",
+    "dep:arrow-schema",
+    "dep:futures",
+    "dep:tempfile",
+    "dep:tokio",
+]

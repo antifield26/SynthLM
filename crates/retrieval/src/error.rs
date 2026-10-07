@@ -7,7 +7,7 @@ use thiserror::Error;
 /// All variants are deterministic and carry the offending values; error
 /// messages never include embedding bytes (privacy invariant, see
 /// [`crate::VectorIndex`]).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum IndexError {
     /// [`crate::VectorIndex::new`] got a dimension outside `1..=MAX_DIM`.
     #[error("invalid dimension {got}: expected 1..={max}")]
@@ -43,5 +43,16 @@ pub enum IndexError {
     DuplicateId {
         /// The offending id.
         id: u64,
+    },
+    /// The real LanceDB backend failed (connect, commit, query, or Arrow
+    /// conversion).
+    ///
+    /// Carries only the backend's display string, never embedding bytes
+    /// (privacy invariant, see [`crate::VectorIndex`]). Only constructible
+    /// with the `lancedb-real` feature enabled.
+    #[error("lancedb backend error: {message}")]
+    Backend {
+        /// Backend display string (no vector data).
+        message: String,
     },
 }

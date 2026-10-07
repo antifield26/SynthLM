@@ -139,8 +139,11 @@ pub struct Score {
     /// ranking signal for "same mix?" judgements until TSK-402 recalibrates
     /// the weights (then use [`Score::mel_weighted_with`]).
     pub mel_weighted: f32,
-    /// CLAP cosine similarity, when a CLAP backend is wired. `None` until
-    /// then (see `TODO(TSK-202)` on [`ClapEmbedder`]).
+    /// CLAP cosine similarity from a wired backend. `None` for the
+    /// embedder-free [`crate::score::compare`] (which never sees
+    /// audio samples); `Some` on the end-to-end
+    /// [`crate::clap::score_pair`] path via
+    /// [`crate::clap::SpectralClapEmbedder`].
     pub clap_cos: Option<f32>,
     /// Onset F1 between reference and candidate transient envelopes
     /// (tolerance ±[`ONSET_TOLERANCE_FRAMES`] frames). Similarity: higher
@@ -176,16 +179,19 @@ impl Score {
     }
 }
 
-/// Future CLAP audio-text embedding backend (trait seam, no model wired).
+/// CLAP audio-text embedding backend (trait seam, TSK-601 wired).
 ///
 /// Research (C §1.1) selects CLAP-512 (`projection_dim = 512`, ONNX via
 /// `ort`, int8 CPU) as the only product-safe music-text embedding route.
-/// Wiring it means implementing this trait against an ONNX session and
-/// threading the cosine through [`compare_with_clap`].
-///
-/// TODO(TSK-202): wire ort/CLAP ONNX (ort int8 CPU session + projection_dim
-/// 512 check + export-consistency measurement); perceptual weight calibration
-/// belongs to TSK-208.
+/// The default wired backend is
+/// [`SpectralClapEmbedder`](crate::clap::SpectralClapEmbedder) (pure-Rust
+/// 512-dim spectral fingerprint, gain-invariant, no model file); the ONNX
+/// audio encoder is an opt-in `onnx` cargo-feature seam (pinned manifest at
+/// [`CLAP_ONNX_URL`](crate::clap::CLAP_ONNX_URL), session opens today,
+/// inference flips on after the HTSAT mel-preprocessing spike).
+/// Thread a backend cosine through [`crate::score::compare_with_clap`]
+/// or score end-to-end via [`crate::clap::score_pair`];
+/// perceptual weight calibration belongs to TSK-402.
 pub trait ClapEmbedder {
     /// Embed mono samples at the params rate into one embedding vector.
     fn embed(&self, samples: &[f32], params: &MirParams) -> Result<Vec<f32>, EvalError>;
@@ -257,7 +263,8 @@ pub fn clap_cosine<E: ClapEmbedder>(
 /// `transient_f1` compares onset lists at
 /// ±[`ONSET_TOLERANCE_FRAMES`] frames; loudness fields report the
 /// candidate's closed-loop normalisation audit. `clap_cos` is `None`
-/// (model not wired; use [`compare_with_clap`] once it is).
+/// (this overload never sees audio samples; use
+/// [`score_pair`](crate::clap::score_pair) for a wired `Some`).
 pub fn compare(reference: &MirFeatures, candidate: &MirFeatures) -> Result<Score, EvalError> {
     compare_inner(reference, candidate, None)
 }

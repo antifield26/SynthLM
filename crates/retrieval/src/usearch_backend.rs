@@ -85,8 +85,10 @@ impl VectorIndex for UsearchIndex {
         Ok(idx::select_top_k(self.scored_all(query), top_k))
     }
 
-    fn payload_of(&self, id: u64) -> Option<&Payload> {
-        self.position.get(&id).map(|row| &self.payloads[*row])
+    fn payload_of(&self, id: u64) -> Option<Payload> {
+        self.position
+            .get(&id)
+            .map(|row| self.payloads[*row].clone())
     }
 
     fn estimated_bytes(&self) -> u64 {
@@ -124,7 +126,10 @@ mod tests {
         assert_eq!(hits.len(), 2);
         assert_eq!(hits[0].id, 1);
         assert!(hits[0].score > hits[1].score);
-        assert_eq!(index.payload_of(2).map(|p| p.preset_id.as_str()), Some("b"));
+        assert_eq!(
+            index.payload_of(2).as_ref().map(|p| p.preset_id.as_str()),
+            Some("b")
+        );
         assert!(index.payload_of(999).is_none());
         Ok(())
     }

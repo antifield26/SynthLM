@@ -133,8 +133,10 @@ impl VectorIndex for LanceDbIndex {
         Ok(idx::select_top_k(scored, top_k))
     }
 
-    fn payload_of(&self, id: u64) -> Option<&Payload> {
-        self.position.get(&id).map(|row| &self.payloads[*row])
+    fn payload_of(&self, id: u64) -> Option<Payload> {
+        self.position
+            .get(&id)
+            .map(|row| self.payloads[*row].clone())
     }
 
     fn estimated_bytes(&self) -> u64 {
