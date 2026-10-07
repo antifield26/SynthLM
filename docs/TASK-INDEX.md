@@ -104,7 +104,7 @@
 
 | ID | 标题 | 类型 | 阶段 | 依赖 | 优先级 | 规模 | 验收标准(可测) | 关联决策 | 状态 | 证据链接 |
 |---|---|---|---|---|---|---|---|---|---|---|
-| TSK-701 | Tier1 点火 + 4xx 真端点分类验证 | 测试 | 7 | TSK-503/116 | P0 | S | Tier1 一次 2xx + 信封解码，或书面 BLOCKED（含 401/UA/条款）；400/404 终端 vs 可重试分类写进 `status_kind` 测试 | DEC-010/011 | Todo | |
+| TSK-701 | Tier1 点火 + 4xx 真端点分类验证 | 测试 | 7 | TSK-503/116 | P0 | S | Tier1 一次 2xx + 信封解码，或书面 BLOCKED（含 401/UA/条款）；400/404 终端 vs 可重试分类写进 `status_kind` 测试 | DEC-010/011 | Done | Tier1 200 + output 信封解码；400/404/405/410/422→BadRequest 终端（ProtocolViolation），408/5xx 保持可重试 |
 | TSK-702 | 代理矩阵回归（系统代理开/关） | 测试 | 7 | TSK-116 | P1 | S | `http_proxy` 存在与否下连接拒绝/超时/401 分类全绿；文档写明生产代理策略 | ARCH §5 | Todo | |
 | TSK-703 | HiDPI 复核 + UI CPU 抽稀 | 测试 | 7 | TSK-506/119 | P1 | S | HiDPI 截图无 tofu；100Hz 工况 CPU 相对基线下降并记录 | DEC-002 | Todo | |
 | TSK-704 | 跨用户 / 真多进程 IPC | 测试 | 7 | TSK-502/115 | P2 | M | 跨用户 ACL 用例绿或显式 BLOCKED+指引；真双进程 shm 压测达标 | DEC-023 | Todo | |

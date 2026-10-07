@@ -440,6 +440,11 @@ pub enum TransportKind {
     ConnectionFailed,
     /// HTTP 401: key rejected. Terminal; also skips remaining cloud tiers.
     Unauthorized,
+    /// HTTP 400/404/405/410/422: malformed or unknown request shape or
+    /// target. Terminal: retrying the identical request cannot help
+    /// (live-probed 2026-10-06: missing session header yields systematic
+    /// 400). Maps to [`ErrorCode::ProtocolViolation`].
+    BadRequest,
     /// HTTP 429: rate limited (retried with backoff).
     RateLimited,
     /// HTTP 5xx: server error (retried with backoff).
@@ -455,6 +460,7 @@ impl TransportKind {
             TransportKind::Timeout => ErrorCode::Timeout,
             TransportKind::ConnectionFailed => ErrorCode::TransportClosed,
             TransportKind::Unauthorized => ErrorCode::AuthDenied,
+            TransportKind::BadRequest => ErrorCode::ProtocolViolation,
             TransportKind::RateLimited | TransportKind::ServerError | TransportKind::LocalDown => {
                 ErrorCode::CloudUnavailable
             }
@@ -671,9 +677,8 @@ impl Transport for MockTransport {
 
 /// Path suffix appended to the DEC-010 base URL (Tier1, responses API).
 ///
-/// Verified live 2026-10-06 only insofar as the Go docs table assigns it;
-/// Tier1 call itself remains unprobed (training-retained tier, no call
-/// placed without explicit human approval).
+/// Verified live 2026-10-06 (human-approved Tier1 probe): 2xx with the
+/// `output[]` envelope carrying the marker text.
 const RESPONSES_PATH_SUFFIX: &str = "/responses";
 
 /// Path suffix for Tier2 (chat-completions API).
@@ -854,14 +859,20 @@ fn first_text_in(item: &serde_json::Value) -> Option<&str> {
 /// Map an HTTP status to its [`crate::model_gw::TransportKind`].
 ///
 /// 401 is terminal (shared-key poisoning is handled by
-/// [`crate::model_gw::Gateway::route`]); 429 and any other non-2xx are
-/// retryable (TODO(TSK-116): 需对真端点验证 — 4xx beyond 401/429, e.g.
-/// 400/404, may deserve a terminal class).
+/// [`crate::model_gw::Gateway::route`]); 400/404/405/410/422 are terminal
+/// client-shape errors (live-verified 2026-10-06); 429 and 5xx (plus 408/425
+/// and other unlisted 4xx) stay retryable.
 fn status_kind(status: reqwest::StatusCode) -> TransportKind {
-    if status == reqwest::StatusCode::UNAUTHORIZED {
+    use reqwest::StatusCode as S;
+    if status == S::UNAUTHORIZED {
         TransportKind::Unauthorized
-    } else if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+    } else if status == S::TOO_MANY_REQUESTS {
         TransportKind::RateLimited
+    } else if matches!(
+        status,
+        S::BAD_REQUEST | S::NOT_FOUND | S::METHOD_NOT_ALLOWED | S::GONE | S::UNPROCESSABLE_ENTITY
+    ) {
+        TransportKind::BadRequest
     } else {
         TransportKind::ServerError
     }
@@ -1834,6 +1845,10 @@ mod tests {
             ErrorCode::CloudUnavailable
         );
         assert_eq!(TransportKind::LocalDown.code(), ErrorCode::CloudUnavailable);
+        assert_eq!(
+            TransportKind::BadRequest.code(),
+            ErrorCode::ProtocolViolation
+        );
         for retryable in [
             TransportKind::Timeout,
             TransportKind::ConnectionFailed,
@@ -1844,6 +1859,46 @@ mod tests {
             assert!(TransportError::new(retryable).retryable());
         }
         assert!(!TransportError::new(TransportKind::Unauthorized).retryable());
+        assert!(!TransportError::new(TransportKind::BadRequest).retryable());
+    }
+
+    #[test]
+    fn status_kind_terminal_4xx_vs_retryable_rest() {
+        use reqwest::StatusCode as S;
+        for terminal in [
+            S::BAD_REQUEST,
+            S::NOT_FOUND,
+            S::METHOD_NOT_ALLOWED,
+            S::GONE,
+            S::UNPROCESSABLE_ENTITY,
+        ] {
+            let kind = status_kind(terminal);
+            assert_eq!(
+                kind,
+                TransportKind::BadRequest,
+                "{terminal} must be terminal"
+            );
+            assert!(!TransportError::new(kind).retryable());
+        }
+        assert_eq!(status_kind(S::UNAUTHORIZED), TransportKind::Unauthorized);
+        assert_eq!(
+            status_kind(S::TOO_MANY_REQUESTS),
+            TransportKind::RateLimited
+        );
+        for retryable in [
+            S::REQUEST_TIMEOUT,
+            S::TOO_EARLY,
+            S::INTERNAL_SERVER_ERROR,
+            S::BAD_GATEWAY,
+        ] {
+            let kind = status_kind(retryable);
+            assert_ne!(
+                kind,
+                TransportKind::BadRequest,
+                "{retryable} must stay retryable"
+            );
+            assert!(TransportError::new(kind).retryable());
+        }
     }
 
     #[test]
@@ -1852,6 +1907,7 @@ mod tests {
             GatewayError::ConsentRequired,
             GatewayError::InvalidTier,
             GatewayError::WhitelistViolation { index: 0 },
+            GatewayError::TierAudioUnsupported,
             GatewayError::MissingKey,
             GatewayError::AllTiersExhausted {
                 code: ErrorCode::CloudUnavailable,
