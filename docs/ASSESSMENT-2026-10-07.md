@@ -198,9 +198,20 @@
 ## 7 未决问题（需人类拍板，Agent 不猜测）
 
 - **Q1**：GitHub 仓库 public 是否符合锁定约束"无分发"？转 private，还是书面记录"源码公开不算分发、但权重/二进制不得入库"的口径？（涉 F/B-001 触发线）
-- **Q2**：本次评估发现是否登记进 TASK-INDEX？（§6 规定它是唯一任务真源；本报告目前未占用 TSK 号）
-- **Q3**：本报告是否提交入库（`git add docs/ASSESSMENT-2026-10-07.md`）？当前为未跟踪新文件。
+- **Q2**：本次评估发现是否登记进 TASK-INDEX？（§6 规定它是唯一任务真源；已在同日开 Phase 8 行 TSK-801–808 与 F/B-003 回答本问）
+- **Q3**：本报告是否提交入库（`git add docs/ASSESSMENT-2026-10-07.md`）？已于同日提交 `e095bf8`；**是否推送到公开远端仍未决**（见 Q1/F/B-003）。
 - **Q4**：P0-3（live 候选占位）是立即修代码，还是先改验收标准？（两者都触及已 Accepted 的 TSK-505 表述）
 - **Q5**：CI 长期红是否需要按 §5 追认一次"事后 BLOCKED 复盘"，还是以"HEAD 绿"收口？
+
+## 8 整改状态（2026-10-07 当日，commits `9e04872`→`9db7a2a`）
+
+- **已修复**
+  - P1-3 真值：63→64（Phase 0–7）及逐行计数/数字/口径更正；M57-REPORT 增 §6 更正（含 CI 红期关闭事实）；EVALUATION/PHASE0-REPORT/ROADMAP/DECISIONS 加日期更正注（不改写历史）→ TSK-801。
+  - P1-2 门禁缺失：新增 `scripts/check-deps.py`（DEC-022 方向）与 `scripts/check-contract.py`（头字段/计数一致/证据存在/绝对路径/裸链接棘轮），接入 CI 与 README；`scripts/selftest-gates.py` 固化负例（14 断言全过）→ TSK-802/803。
+  - P1-5 泄漏：eval 两个测试常量删除（改 `FFMPEG_BIN`/PATH + `ffmpeg -version` 探测）、experiments 5 文件 9 处脱敏、LICENSES 去绝对路径与缺行 → TSK-804。**注意：仅工作树与后续提交已干净；历史提交 `fdd81fe` 及更早仍含该路径（见 F/B-003）。**
+  - P1-6 部分：`FFMPEG-SKIP` 显式 token；`live_tier2.rs` 离线用例去 `#[ignore]`（461 passed / 0 failed / 3 ignored）→ TSK-808 部分。
+- **未修复（已转为索引行）**：F/B-003（public 口径与 git 历史重写，需人类书面确认）、TSK-805（真实技术接线：dsp / serve live / 检索默认 / 真 CLAP）、TSK-806（439 处裸链接债）、TSK-807（人类见证类证据可复核化）、TSK-808 剩余（真 crate/Demucs 断言的 CI 矩阵与计数门禁）。
+- **门禁现状（本地，2026-10-07 复跑）**：`cargo fmt/clippy/test/doc` + `check-docs` + `check-deps` + `check-contract` + `m4_gate` + `selftest-gates` 全绿；`cargo test` = 461 passed / 0 failed / 3 ignored。
+- **未执行的动作（需授权）**：未推送任何提交到 `origin/master`；未改写 git 历史；未改动仓库可见性。
 - **Q6**：个人绝对路径已进入公开仓库（P1-5）——是否按 RSK-006 走一次处置（改写日志/常量 + 视需要清理 git 历史），还是仅在后续提交中修正？
 - **Q7**：`dsp` 孤儿与 `acrd serve` 仅 mock（P0-4）是"按计划留接线"，还是应把 TSK-205/601/602/603 的状态从 Done 调整为"库内完成、未接线"？
