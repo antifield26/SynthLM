@@ -17,3 +17,9 @@ synthlm-eval = { path = "../eval" }
 # lockfile and registered in docs/LICENSES.md (MIT OR Apache-2.0); no new
 # external crate is introduced by this line.
 serde_json = "1.0.151"
+# TSK-501 daemon accept loop needs the Listener/Stream types. Same pinned
+# version already in the workspace lockfile via synthlm-common and registered
+# in docs/LICENSES.md (0BSD OR Apache-2.0); no new external crate is
+# introduced by this line.
+interprocess = "2.4.4"
+ctrlc = "3"
