@@ -26,3 +26,8 @@ jobs:
         with:
           python-version: "3.12"
       - run: python scripts/check-docs.py
+      # Contract gates added 2026-10-07 (TSK-802/803) after the workspace
+      # assessment found DEC-022 was never enforced by CI and that doc counts
+      # could drift undetected (M57 claimed 63 Done while the index held 64).
+      - run: python scripts/check-deps.py
+      - run: python scripts/check-contract.py

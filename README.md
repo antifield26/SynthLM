@@ -23,7 +23,9 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 cargo fmt --all -- --check
 cargo doc --workspace --no-deps
-python scripts/check-docs.py        # 文档同步门禁
+python scripts/check-docs.py        # 文档同步门禁（头字段/DEC 计数）
+python scripts/check-deps.py        # DEC-022 crate 依赖方向门禁
+python scripts/check-contract.py    # 契约门禁（计数一致性/证据存在/绝对路径/裸链接棘轮）
 python scripts/m4_gate.py           # 发布门禁（16 证据 + 任务全关）
 ```
 
