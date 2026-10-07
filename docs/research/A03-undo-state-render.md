@@ -52,7 +52,7 @@ SetParam 连写 0/-1 命名；ProjExt MB 级耗时/体积；41824 vs 42230 阻�
 | 41223/40901/40877/41644 | Freeze stereo/mono/multichannel/unfreeze | 未点火（防冻用户轨）；以 iddqdsound/EUGEN 脚本 + menu 用法为准 |
 | 42437 | dry-run selected items | 未点火；以 `RENDER_STATS` 文档原文为准 |
 
-native ID 跨版本稳定（schwa t=47729）；SWS/自定义须 `NamedCommandLookup`。`kbd_getTextFromCmd` 返 nil 系语义误用（该 API 取按键绑定文本，非动作名）。人工eyeball（Action list 过滤对照）待人类确认后关闭 TSK-109。
+native ID 跨版本稳定（schwa t=47729）；SWS/自定义须 `NamedCommandLookup`。`kbd_getTextFromCmd` 返 nil 系语义误用（该 API 取按键绑定文本，非动作名）。人工eyeball（Action list 过滤对照）已由人类确认，TSK-109 关闭。
 
 ## 8 渲染确定性与 M7 规则补记（2026-10-06，TSK-104）
 

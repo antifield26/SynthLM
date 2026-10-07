@@ -1,4 +1,0 @@
-min_ok=1
-has_Undo_DoUndo2=true
-has_kbd=true
-has_TakeFX_AddByName=true

@@ -42,10 +42,10 @@ pub fn default_cache_root() -> Option<PathBuf> {
     }
     #[cfg(not(windows))]
     {
-        if let Some(xdg) = std::env::var_os("XDG_CACHE_HOME") {
-            if !xdg.is_empty() {
-                return Some(PathBuf::from(xdg).join("synthlm").join("stems"));
-            }
+        if let Some(xdg) = std::env::var_os("XDG_CACHE_HOME")
+            && !xdg.is_empty()
+        {
+            return Some(PathBuf::from(xdg).join("synthlm").join("stems"));
         }
         std::env::var_os("HOME").map(|home| {
             PathBuf::from(home)

@@ -35,7 +35,7 @@
 
 - `GetSelectedMediaItem` 官方 discourages（增删后逐个调低效），正式代码走 `CountMediaItems+GetMediaItem+IsMediaItemSelected`。`GetActiveTake/GetTake/GetMediaItemTake_Item/GetMediaItemTake_Track/GetMediaItemTake_Source/GetTakeName/GetMediaItemTakeByGUID` 均存在（spike01 全 true）。`SplitMediaItem` 原变左半、返右半；`AddTakeToMediaItem` 只建空 take；`SetActiveTake` 切换。实测 split 右半存在、计数 1→2。来源：官方文档 + spike02，高。
 - `P_NAME/P_EXT:xyz/GUID`（take/item）、`P_EXT:xyz`（track/envelope）、`P_POOL_EXT:xyz`（automation item，注意前缀不同）均存在；`P_EXT:ORIGINAL_FILENAME` 为导入复制源文件名。`P_EXT` v6.36 引入、master P_EXT v6.43 修复，均早于 floor。`P_EXT` 跟 chunk 走、同工程复制跟随；`SetProjExtState` 以 GUID 为键不跟随。实测 take/item/track `P_EXT` 往返均为 `spike-*`。来源：官方文档 + Mespotine t-263217 + spike02，高。
-- `P_EXT` 进 undo（7.82 验证干净对称）：写 `P_EXT:SYNTHLM_SYM=v1` 包独立 block，undo 后重取为空（item 完好），redo 后重取恢复 `v1`，各段 undo delta 恰为 1（`a04-spike05d-symmetric2.out.txt`：`verify=v1 → undo=<empty> → redo=v1`，2026-10-06）。规则：provenance 放 item/take/track P_EXT（随 undo 回滚、复制跟随），不放 ProjExtState。来源：MonkeyBars 实测表 + spike03f/spike05d，高；跨工程粘贴仍待人工 paste 验证（TSK-110 余项）。
+- `P_EXT` 进 undo（7.82 验证干净对称）：写 `P_EXT:SYNTHLM_SYM=v1` 包独立 block，undo 后重取为空（item 完好），redo 后重取恢复 `v1`，各段 undo delta 恰为 1（`a04-spike05d-symmetric2.out.txt`：`verify=v1 → undo=<empty> → redo=v1`，2026-10-06）。规则：provenance 放 item/take/track P_EXT（随 undo 回滚、复制跟随），不放 ProjExtState。来源：MonkeyBars 实测表 + spike03f/spike05d，高；跨工程粘贴已由人工验证通过（`manual-pext-read.out.txt pext_value=hello-manual`，TSK-110 已关闭）。
 
 ## 6 Take FX 通道 I_TAKEFX_NCH（已实证，有前置条件）
 

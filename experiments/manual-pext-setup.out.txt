@@ -1,3 +1,0 @@
-fixture_track=SYNTHLM-MANUAL
-fixture_key=P_EXT:SYNTHLM_MANUAL
-fixture_val=hello-manual

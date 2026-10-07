@@ -1,5 +1,0 @@
-start=1
-setup_ok=1
-write_ok=1
-T3_before=v1
-undo_ok=1

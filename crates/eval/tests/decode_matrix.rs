@@ -414,7 +414,12 @@ fn decode_matrix_symphonia_vs_ffmpeg() {
            FFmpeg build (TSK-206 follow-up); the Gyan binary stays internal-run.\n",
     );
 
-    let out_path = crate_dir().join("../../experiments/decode-matrix.out.txt");
-    std::fs::write(&out_path, &report).expect("write decode-matrix.out.txt");
+    // Pinned evidence lives in the repo; refresh it explicitly with
+    // SYNTHLM_WRITE_BENCH=1 (otherwise every run would dirty the tree with
+    // machine-local scratch paths).
+    if std::env::var_os("SYNTHLM_WRITE_BENCH").is_some() {
+        let out_path = crate_dir().join("../../experiments/decode-matrix.out.txt");
+        std::fs::write(&out_path, &report).expect("write decode-matrix.out.txt");
+    }
     eprintln!("{report}");
 }

@@ -488,8 +488,13 @@ fn bench_10k_and_write_report() -> Result<(), String> {
         "   aggregate statistics (privacy invariant, AGENTS.md §8)."
     );
 
-    let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("BENCH.md");
-    std::fs::write(&path, &report).map_err(|err| format!("write BENCH.md failed: {err}"))?;
+    // Pinned evidence lives in the repo; refresh it explicitly with
+    // SYNTHLM_WRITE_BENCH=1 (otherwise every run would dirty the tree with
+    // machine-local timings).
+    if std::env::var_os("SYNTHLM_WRITE_BENCH").is_some() {
+        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("BENCH.md");
+        std::fs::write(&path, &report).map_err(|err| format!("write BENCH.md failed: {err}"))?;
+    }
     Ok(())
 }
 
