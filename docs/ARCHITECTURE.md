@@ -60,7 +60,11 @@
 - 消息类型：`snapshot.submit` / `plan.request|response` / `patch.apply|result` / `render.request|result` / `score.report` / `consent.get|set` / `audit.event` / `error`（`code, retryable, detail`，禁 Key/PCM）。
 - 错误语义：`retryable=true` 进退避重试（云端 30s 超时 + 2 次）；`retryable=false`（鉴权/白名单越界/音频能力缺失）直接 BLOCKED + 指引；`consent_required` 缺授权即弹窗。
 - 超时：云端 P95 预算 10s/候选；超限熔断 Tier1→Tier2→Tier3→缓存→BLOCKED。
-- 代理策略（2026-10-07 补记）：非 loopback 云端 Base URL 默认尊重系统代理（`http_proxy`/`https_proxy`）；loopback（stub/本地探测）与 `HttpsTransport::new_hermetic` 永不走代理，避免本机代理把 TCP refuse 合成 502/503 而误分类为 `ServerError`；Tier3 本地端点不经 `HttpsTransport`，自然不出网。
+- 代理策略（2026-10-07 定稿，TSK-702 矩阵回归锁定）：
+  - 默认跟随系统代理：非 loopback 云端 Base URL 走 reqwest 系统代理（`http_proxy`/`https_proxy`/`HTTP_PROXY`/`HTTPS_PROXY`；`no_proxy`/`NO_PROXY` 豁免由 reqwest 语义执行），企业出口保持可用。
+  - 绝不经代理：loopback（`127.0.0.1`/`localhost`/`::1`/`0.0.0.0`，含 stub 与本地探测）由 `HttpsTransport::new` 硬旁路直连，`new_hermetic` 在任何 base 下都不走代理——否则本机代理会把 TCP refuse 合成 502/503，把 `ConnectionFailed` 误分类为 `ServerError`；Tier3 本地端点不经 `HttpsTransport`，`.env` 内网地址自然不出网（或走 `NO_PROXY` 豁免）。
+  - `SYNTHLM_NO_PROXY`-style 显式覆盖留待后续任务，本次只跟随 + 声明，不新增 env 键。
+  - 测试铁律：loopback stub 测试一律 `new_hermetic`（或等价显式注入），禁读写进程级代理变量；代理矩阵（开/关 × 拒绝/超时/401）回归见 `planner::model_gw` 单测。
 
 ## 6 核心数据结构
 
