@@ -31,3 +31,6 @@ jobs:
       # could drift undetected (M57 claimed 63 Done while the index held 64).
       - run: python scripts/check-deps.py
       - run: python scripts/check-contract.py
+      # Proves the two gates above can actually fail (plants one violation per
+      # check, asserts non-zero, restores the worktree).
+      - run: python scripts/selftest-gates.py

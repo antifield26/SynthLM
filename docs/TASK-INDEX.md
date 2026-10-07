@@ -119,8 +119,8 @@
 | ID | 标题 | 类型 | 阶段 | 依赖 | 优先级 | 规模 | 验收标准(可测) | 关联决策 | 状态 | 证据链接 |
 |---|---|---|---|---|---|---|---|---|---|---|
 | TSK-801 | 文档/证据真值修复（计数、数字、口径、CI 红事实） | 文档 | 8 | — | P0 | M | `check-contract.py` 计数一致性绿；M57/TASK-INDEX 的 63→64 与 CI 红期关闭事实已记录 | DEC-026 | Done | 本行 + M57-REPORT §6 更正；逐行更正见 TASK-INDEX TSK-000/003/105/107/108/202/203/301/602/706/707 |
-| TSK-802 | DEC-022 依赖方向门禁（脚本 + CI） | 实现 | 8 | TSK-002 | P0 | S | `scripts/check-deps.py` 违规 fixture 必红；CI 三 OS 跑通 | DEC-022 | Done | scripts/check-deps.py + `.github/workflows/ci.yml`；本地绿（违规样例只手测） |
-| TSK-803 | 文档契约门禁强化（头字段位置/计数一致/证据存在/绝对路径/裸链接棘轮） | 实现 | 8 | TSK-003 | P0 | M | `scripts/check-contract.py` 对 5 类缺陷各造 1 例必红；本地全绿 | L11/§8 | Done | scripts/check-contract.py + CI；本地绿（`docs/ASSESSMENT-2026-10-07.md` §0 为方法来源） |
+| TSK-802 | DEC-022 依赖方向门禁（脚本 + CI） | 实现 | 8 | TSK-002 | P0 | S | `scripts/check-deps.py` 违规 fixture 必红；CI 三 OS 跑通 | DEC-022 | Done | scripts/check-deps.py + `.github/workflows/ci.yml` + `scripts/selftest-gates.py`；本地绿（负例固化：植入 `bridge -> eval` 依赖即 exit=1，撤销后回绿） |
+| TSK-803 | 文档契约门禁强化（头字段位置/计数一致/证据存在/绝对路径/裸链接棘轮） | 实现 | 8 | TSK-003 | P0 | M | `scripts/check-contract.py` 对 5 类缺陷各造 1 例必红；本地全绿 | L11/§8 | Done | scripts/check-contract.py + `.github/workflows/ci.yml`；负例固化于 `scripts/selftest-gates.py`（5 类各 1 例植入即 exit=1，撤销后回绿；13 断言全过） |
 | TSK-804 | §8 绝对路径清除（源码常量 + 证据日志 + 字号登记） | 修复 | 8 | — | P0 | S | 跟踪文件扫描 0 处个人绝对路径（`C:\Users\<用户名>` / `/Users/<名>` / `/home/<名>`）；FFmpeg 走 `FFMPEG_BIN`/PATH | §8/RSK-006 | Done | eval 两个测试常量删除（`FFMPEG_BIN`→PATH→`ffmpeg -version` 探测，缺失打印 `FFMPEG-SKIP`）；experiments 5 文件 9 处替换（roundtrip 字节级证明仅路径子串变化）；LICENSES 字体 222,524 B、FFmpeg 行去绝对路径；`check-contract.py` 第 4 项持续门禁 |
 | TSK-805 | 真实技术接线决策与实施（dsp→acrd / acrd serve live / 检索默认 / CLAP 真嵌入） | 实现 | 8 | TSK-204/602/603 | P1 | L | 任一接线使产品路径可观测（`clap_cos != None` 或 dsp 被依赖）；或人类书面降级宣称 | DEC-012/014/022 | Todo | 需人类定范围（评估 §7 Q7）；未接线前 Done 行已标注 TSK-805 |
 | TSK-806 | 裸 intra-doc 链接债清理（宽口径 439 处 / 41 文件） | 文档 | 8 | — | P2 | M | 棘轮计数单调下降至 0；`cargo doc` 仍零警告 | §4 | Todo | 基线由 `check-contract.py --links` 固定 |
