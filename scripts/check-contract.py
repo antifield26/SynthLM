@@ -2,7 +2,7 @@
 absolute-path ban (AGENTS §8) and the bare intra-doc-link ratchet (§4).
 
 Why this exists: `scripts/check-docs.py` only greps header *substrings*, so the
-2026-10-07 assessment found it could pass vacuously (M57-REPORT claimed "63
+2026-10-07 audit found it could pass vacuously (the Phase 5-7 report claimed "63
 Done" while the index held 64; evidence cells cited files nobody opened).
 This script adds the checks that would have caught those defects.
 
@@ -38,7 +38,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 HEADER_FIELDS = ("目的", "适用范围", "状态", "最后核验日期", "依赖文档")
 HEADER_WINDOW = 15
-HISTORICAL_EXEMPT = {"docs/ASSESSMENT-2026-10-07.md"}
+# Historically-quoted claims live in the merged report's correction section,
+# marked with QUOTE_MARKER, so no whole-file exemption is needed any more.
+HISTORICAL_EXEMPT: set[str] = set()
 PATH_FIXTURE = "crates/common/tests/upload_audit.rs"
 TEXT_SUFFIXES = (".md", ".txt", ".lua", ".rs", ".json", ".toml", ".yml", ".yaml", ".py", ".ps1", ".csv", ".log")
 BARE_LINK = re.compile(r"\[`([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z0-9_]+)?)`\](?!\()")

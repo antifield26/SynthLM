@@ -105,13 +105,13 @@ def main() -> int:
         "check-contract.py",
         "does not exist",
         lambda: index.write_text(
-            index_original.replace("scripts/check-deps.py + `.github/workflows/ci.yml`", "scripts/does-not-exist.py"),
+            index_original.replace("docs/M0-7-REPORT.md", "docs/does-not-exist.md", 1),
             encoding="utf-8",
         ),
         lambda: git_restore("docs/TASK-INDEX.md"),
     )
 
-    report = ROOT / "docs" / "M4-REPORT.md"
+    report = ROOT / "docs" / "M0-7-REPORT.md"
     report_original = report.read_text(encoding="utf-8")
 
     expect_violation(
@@ -121,7 +121,7 @@ def main() -> int:
         lambda: report.write_text(
             "\n".join(ln for ln in report_original.splitlines() if not ln.startswith("- 目的")), encoding="utf-8"
         ),
-        lambda: git_restore("docs/M4-REPORT.md"),
+        lambda: git_restore("docs/M0-7-REPORT.md"),
     )
 
     probe = ROOT / "docs" / "TMP-PATH-PROBE.md"

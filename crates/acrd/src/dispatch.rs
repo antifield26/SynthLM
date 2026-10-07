@@ -59,7 +59,7 @@ use synthlm_common::ipc::{
 };
 use synthlm_eval::score::{BandWeights, Score};
 use synthlm_planner::candidate::{Candidate, count_changed_ops};
-use synthlm_planner::model_gw::{Gateway, MockTransport, RouteParams};
+use synthlm_planner::model_gw::{Gateway, HttpsTransport, MockTransport, RouteParams};
 use synthlm_planner::patch::{DEFAULT_MAX_REPAIR_ROUNDS, PatchOp, PatchPlan, validate_with_repair};
 use synthlm_planner::planning::{ModelBackend, PlanningError, plan_for_intent};
 use synthlm_planner::search::{MockBowl, SearchConfig, SearchSpace, two_stage_search};
@@ -326,6 +326,43 @@ pub struct Dispatcher {
     snapshots: HashMap<String, SnapshotRecord>,
     scores: Vec<ScoreRecord>,
     renders: HashMap<String, RenderInstruction>,
+    /// TSK-801 wire 2: live planning over the wire, enabled only when the
+    /// operator asked for it (`acrd serve --backend live-tier2`) *and* consent
+    /// plus a configured key are present. `None` keeps the serving path
+    /// offline: a wire `"live-tier2"` selection is then
+    /// [`DispatchError::UnsupportedBackend`], exactly as before.
+    live: Option<LivePlan>,
+}
+
+/// Live planning state held by the dispatcher once enabled.
+///
+/// The consent gate still runs inside the planner before any transport use, so
+/// an enabled daemon with undecided consent BLOCKs rather than calling out.
+struct LivePlan {
+    consent: ConsentState,
+    key_present: bool,
+    transport: LiveTransport,
+}
+
+/// Transport actually used on the live wire path: the loopback stub in tests
+/// and hermetic runs, real HTTPS when the operator enabled the cloud tier.
+enum LiveTransport {
+    Mock(MockTransport),
+    Https(Box<HttpsTransport>),
+}
+
+impl synthlm_planner::model_gw::Transport for LiveTransport {
+    fn send(
+        &mut self,
+        request: &synthlm_planner::model_gw::ModelRequest,
+        timeout: &synthlm_common::ipc::TimeoutConfig,
+    ) -> Result<synthlm_planner::model_gw::ModelResponse, synthlm_planner::model_gw::TransportError>
+    {
+        match self {
+            Self::Mock(inner) => inner.send(request, timeout),
+            Self::Https(inner) => inner.send(request, timeout),
+        }
+    }
 }
 
 impl Dispatcher {
@@ -348,7 +385,56 @@ impl Dispatcher {
             snapshots: HashMap::new(),
             scores: Vec::new(),
             renders: HashMap::new(),
+            live: None,
         })
+    }
+
+    /// Enable live planning over the wire (TSK-801 wire 2).
+    ///
+    /// Callers must have decided consent and a configured key in hand; the
+    /// planner still re-checks both before touching the transport. Passing a
+    /// loopback stub keeps this hermetic (tests, offline dress rehearsals);
+    /// [`Self::enable_live_https`] wires the real cloud transport.
+    pub fn enable_live(
+        &mut self,
+        consent: ConsentState,
+        key_present: bool,
+        transport: MockTransport,
+    ) {
+        self.live = Some(LivePlan {
+            consent,
+            key_present,
+            transport: LiveTransport::Mock(transport),
+        });
+    }
+
+    /// Enable live planning with the real HTTPS transport (`base_url` keeps
+    /// loopback stubs possible). The key is consumed here and never logged.
+    ///
+    /// # Errors
+    ///
+    /// [`DispatchError::ChainFailed`] when the HTTP client cannot be built
+    /// (mirrors [`HttpsTransport::new`]).
+    pub fn enable_live_https(
+        &mut self,
+        consent: ConsentState,
+        api_key: &str,
+        base_url: &str,
+    ) -> Result<(), DispatchError> {
+        let transport = HttpsTransport::new(api_key.to_owned(), base_url.to_owned())
+            .map_err(|_| DispatchError::ChainFailed)?;
+        self.live = Some(LivePlan {
+            consent,
+            key_present: !api_key.is_empty(),
+            transport: LiveTransport::Https(Box::new(transport)),
+        });
+        Ok(())
+    }
+
+    /// Whether live planning is enabled on this dispatcher.
+    #[must_use]
+    pub fn live_enabled(&self) -> bool {
+        self.live.is_some()
     }
 
     /// Factory profile in force (whitelist source for plan validation).
@@ -518,18 +604,44 @@ impl Dispatcher {
         let byte_count = body.get("byte_count").and_then(Value::as_u64).unwrap_or(0);
         let intent_text = get_optional_string(body, "intent")?;
         let intent = intent_text.as_deref().unwrap_or("");
-        if parse_backend(body)? == BackendSel::Live {
+        let backend_sel = parse_backend(body)?;
+        if backend_sel == BackendSel::Live && self.live.is_none() {
             return Err(DispatchError::UnsupportedBackend);
         }
 
-        // 1. Seeded plan + candidates (deterministic; no transport, no
-        // network). The backend is passed explicitly by this caller; the
-        // planning layer stamps the watermark that the reply echoes.
-        let outcome = plan_for_intent(
-            ModelBackend::<'_, MockTransport>::MockSeeded,
-            &self.profile,
-            intent,
-        )
+        // 1. Plan + candidates. Seeded by default (deterministic, no
+        // transport, no network); when the operator enabled live planning the
+        // consent/key gate runs inside the planner before any transport use,
+        // so an enabled-but-unauthorised daemon still BLOCKs.
+        let mut live_gateway = Gateway::new(3, 30_000);
+        let outcome = {
+            let profile = &self.profile;
+            match self.live.as_mut() {
+                Some(live) => {
+                    let consent = &live.consent;
+                    let transport = &mut live.transport;
+                    plan_for_intent(
+                        ModelBackend::LiveTier2 {
+                            gateway: &mut live_gateway,
+                            transport,
+                            consent,
+                            fields: fields.clone(),
+                            byte_count,
+                            prompt: intent_text.clone(),
+                            cloud_key_present: live.key_present,
+                            now_ms: now_ms(),
+                        },
+                        profile,
+                        intent,
+                    )
+                }
+                None => plan_for_intent(
+                    ModelBackend::<'_, MockTransport>::MockSeeded,
+                    profile,
+                    intent,
+                ),
+            }
+        }
         .map_err(|err| match err {
             PlanningError::Gateway(inner) => DispatchError::Gateway { code: inner.code() },
             PlanningError::Unrepairable { code } => DispatchError::PatchResidual { code },
@@ -610,6 +722,31 @@ impl Dispatcher {
             return Err(DispatchError::PlanEmpty);
         }
 
+        // TSK-801 wire 3: the retrieval crate's cosine primitive measures the
+        // objective-space spread of the surviving candidates. Advisory on this
+        // path: the seeded mock shares one plan across candidates, so dropping
+        // on it would silently shrink the candidate set — the verdict is
+        // reported instead (the collapsing behaviour itself is unit-tested in
+        // `crate::vectors`).
+        let dedup_vectors: Vec<Vec<f32>> = candidates
+            .iter()
+            .map(|candidate| {
+                vec![
+                    candidate
+                        .get("confidence")
+                        .and_then(Value::as_f64)
+                        .unwrap_or(0.0) as f32,
+                    candidate
+                        .get("delta_lufs")
+                        .and_then(Value::as_f64)
+                        .unwrap_or(0.0) as f32,
+                ]
+            })
+            .collect();
+        let dedup =
+            crate::vectors::dedup_candidates(&dedup_vectors, crate::vectors::DEFAULT_DEDUP_RADIUS)
+                .map_err(|_| DispatchError::ChainFailed)?;
+
         ensure_running(&mut self.log, &plan_task_id(&task_id), "plan")?;
         finish(&mut self.log, &plan_task_id(&task_id), true)?;
 
@@ -631,6 +768,12 @@ impl Dispatcher {
                     "best": best_lane,
                 },
                 "backend": outcome.backend_label(),
+                "dedup": {
+                    "kept": dedup.kept.len(),
+                    "collapsed": dedup.collapsed_count(),
+                    "radius": crate::vectors::DEFAULT_DEDUP_RADIUS,
+                    "mode": "advisory",
+                },
                 "mock": {
                     "transport": "MockTransport",
                     "network": "none",
@@ -804,6 +947,27 @@ impl Dispatcher {
         let true_peak = get_finite(body, "true_peak")?;
         let delta_lufs = get_finite(body, "delta_lufs")?;
         let weights = BandWeights::defaults();
+        // TSK-801 wire 4: `clap_cos` is no longer hard-coded to `None`. When
+        // the caller ships both PCM windows the distance is measured here with
+        // the eval embedder; otherwise a caller-supplied cosine is accepted
+        // only when finite and inside [-1, 1] (a fabricated score is rejected
+        // with `BadScore`, never clamped).
+        let clap_cos = match (
+            read_pcm(body, "reference_pcm")?,
+            read_pcm(body, "candidate_pcm")?,
+        ) {
+            (Some(reference), Some(candidate)) => Some(
+                crate::vectors::clap_cos(&reference, &candidate)
+                    .map_err(|_| DispatchError::BadScore)?,
+            ),
+            _ => match body.get("clap_cos") {
+                None | Some(Value::Null) => None,
+                Some(value) => {
+                    let raw = value.as_f64().ok_or(DispatchError::BadScore)?;
+                    Some(crate::vectors::accept_clap_cos(raw).ok_or(DispatchError::BadScore)?)
+                }
+            },
+        };
         let score = Score {
             spec_l1: spec_l1 as f32,
             mel_l1: mel_l1 as f32,
@@ -811,7 +975,7 @@ impl Dispatcher {
             mel_mid: mel_mid as f32,
             mel_high: mel_high as f32,
             mel_weighted: weights.apply(mel_low as f32, mel_mid as f32, mel_high as f32),
-            clap_cos: None,
+            clap_cos,
             transient_f1: transient_f1 as f32,
             lufs_i,
             true_peak,
@@ -848,6 +1012,7 @@ impl Dispatcher {
             serde_json::json!({
                 "ok": true, "stored": true, "task_id": task_id,
                 "mel_weighted": weighted, "true_peak_alarm": alarm,
+                "clap_cos": score.clap_cos,
             }),
         ))
     }
@@ -923,6 +1088,30 @@ fn get_id(body: &Value, key: &'static str) -> Result<String, DispatchError> {
 }
 
 /// Read a required finite number field.
+/// Reads an optional PCM window (`[f32]` as a JSON number array) from a wire
+/// body. Absent/null means "not supplied"; anything malformed is
+/// [`DispatchError::BadScore`] rather than a silent `None`.
+fn read_pcm(body: &Value, key: &'static str) -> Result<Option<Vec<f32>>, DispatchError> {
+    match body.get(key) {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::Array(items)) => {
+            if items.is_empty() {
+                return Err(DispatchError::BadScore);
+            }
+            let mut samples = Vec::with_capacity(items.len());
+            for item in items {
+                let raw = item.as_f64().ok_or(DispatchError::BadScore)?;
+                if !raw.is_finite() {
+                    return Err(DispatchError::BadScore);
+                }
+                samples.push(raw as f32);
+            }
+            Ok(Some(samples))
+        }
+        Some(_) => Err(DispatchError::BadScore),
+    }
+}
+
 fn get_finite(body: &Value, key: &'static str) -> Result<f64, DispatchError> {
     let value = body
         .get(key)
@@ -1493,6 +1682,48 @@ mod tests {
             ids(&second)
         );
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// TSK-805 wire 2: the live gate opens only when the operator enables it.
+    /// Default construction stays offline; enabling attaches a transport
+    /// (loopback stub here, so the test never touches the network).
+    #[test]
+    fn enabling_live_planning_opens_the_gate_without_network() {
+        let (mut dispatcher, _dir) = open_test("live-enable");
+        assert!(!dispatcher.live_enabled(), "offline by default");
+        dispatcher.enable_live(
+            ConsentState::Decided(ConsentStore {
+                tier: ConsentTier::Tier2,
+                decided_at_unix: 1,
+                version: CONFIG_VERSION,
+            }),
+            true,
+            MockTransport::all_ok(),
+        );
+        assert!(dispatcher.live_enabled(), "operator-enabled live mode");
+    }
+
+    /// TSK-805 wire 4: a caller-supplied cosine is range-checked, and PCM
+    /// windows are measured in-process instead of being taken on trust.
+    #[test]
+    fn clap_cos_accepts_a_valid_cosine_and_rejects_a_fabricated_one() {
+        let body = serde_json::json!({"clap_cos": 0.5});
+        assert_eq!(
+            read_pcm(&body, "reference_pcm").expect("absent is not an error"),
+            None
+        );
+        assert_eq!(crate::vectors::accept_clap_cos(0.5), Some(0.5));
+        assert_eq!(crate::vectors::accept_clap_cos(1.25), None);
+        let pcm = serde_json::json!({"reference_pcm": [0.1, 0.2, 0.3]});
+        let samples = read_pcm(&pcm, "reference_pcm")
+            .expect("well-formed PCM parses")
+            .expect("present");
+        assert_eq!(samples.len(), 3);
+        let bad = serde_json::json!({"reference_pcm": [0.1, "x"]});
+        assert!(
+            read_pcm(&bad, "reference_pcm").is_err(),
+            "malformed PCM is an error"
+        );
     }
 
     #[test]

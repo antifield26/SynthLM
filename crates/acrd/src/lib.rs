@@ -21,3 +21,10 @@ pub mod dispatch;
 
 /// Background-task state machine plus append-only journal (WAL).
 pub mod task;
+
+/// Stem/artifact cache surface over `synthlm-dsp` (TSK-801 wire 1).
+pub mod cache;
+
+/// Candidate vector surface: retrieval de-duplication + eval audio distance
+/// (TSK-801 wires 3 and 4).
+pub mod vectors;

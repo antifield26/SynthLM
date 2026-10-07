@@ -33,11 +33,12 @@ fn run() -> i32 {
         Some("demo") => run_demo_cmd(&args),
         Some("e2e") => run_e2e_cmd(&args),
         Some("serve") => run_serve_cmd(&args),
+        Some("cache") => run_cache_cmd(&args),
         _ => {
             eprintln!(
                 "{}",
                 demo::DemoError::BadUsage(
-                    "expected subcommand `demo`, `e2e`, or `serve`".to_owned()
+                    "expected subcommand `demo`, `e2e`, `serve`, or `cache`".to_owned()
                 )
             );
             print_usage();
@@ -122,6 +123,7 @@ fn print_usage() {
     println!("       acrd e2e [--intent <text>] --seed <u64> [--out-dir <dir>]");
     println!("       acrd serve [--endpoint <id>] [--state-dir <dir>]");
     println!("                  [--heartbeat-ms <n>] [--frame-timeout-ms <n>]");
+    println!("       acrd cache status|gc [--cache-dir <dir>]");
     println!("       acrd --help");
     println!();
     println!("Deterministic M3 demo harness (TSK-405): fixed-seed ReaEQ");
@@ -324,6 +326,85 @@ fn run_serve_cmd(args: &[String]) -> i32 {
         Err(err) => {
             eprintln!("acrd serve: {err}");
             1
+        }
+    }
+}
+
+/// `acrd cache status|gc [--cache-dir <dir>]` (TSK-805 wire 1).
+///
+/// The first product surface over `synthlm-dsp`: the stem/artifact cache was
+/// fully implemented and tested but unreachable from any binary. Everything
+/// printed here is counts and sizes — never paths or PCM (AGENTS.md §8).
+fn run_cache_cmd(args: &[String]) -> i32 {
+    let mut subcommand: Option<String> = None;
+    let mut cache_dir: Option<String> = None;
+    let mut rest = args.iter().skip(2);
+    while let Some(flag) = rest.next() {
+        match flag.as_str() {
+            "--cache-dir" => match rest.next() {
+                Some(value) => cache_dir = Some(value.clone()),
+                None => {
+                    eprintln!("acrd cache: --cache-dir needs a value");
+                    return 2;
+                }
+            },
+            other if subcommand.is_none() => subcommand = Some(other.to_owned()),
+            other => {
+                eprintln!("acrd cache: unexpected argument `{other}`");
+                return 2;
+            }
+        }
+    }
+    let Some(subcommand) = subcommand else {
+        print_usage();
+        return 2;
+    };
+    let root = match cache_dir {
+        Some(dir) => std::path::PathBuf::from(dir),
+        None => match synthlm_dsp::default_cache_root() {
+            Some(dir) => dir,
+            None => {
+                eprintln!("acrd cache: no user cache directory available; pass --cache-dir");
+                return 1;
+            }
+        },
+    };
+    match subcommand.as_str() {
+        "status" => match synthlm_acrd::cache::status(&root) {
+            Ok(status) => {
+                println!(
+                    "cache status: entries={} bytes_used={} watermark_bytes={} within_watermark={} hits={} misses={}",
+                    status.entries,
+                    status.bytes_used,
+                    status.watermark_bytes,
+                    status.within_watermark,
+                    status.hits,
+                    status.misses,
+                );
+                0
+            }
+            Err(err) => {
+                eprintln!("acrd cache status: {err}");
+                1
+            }
+        },
+        "gc" => match synthlm_acrd::cache::collect(&root, &std::collections::HashSet::new()) {
+            Ok(report) => {
+                println!(
+                    "cache gc: reclaimed_bytes={} orphans_removed={}",
+                    report.reclaimed_bytes(),
+                    report.orphans_removed,
+                );
+                0
+            }
+            Err(err) => {
+                eprintln!("acrd cache gc: {err}");
+                1
+            }
+        },
+        other => {
+            eprintln!("acrd cache: unknown subcommand `{other}` (expected status|gc)");
+            2
         }
     }
 }

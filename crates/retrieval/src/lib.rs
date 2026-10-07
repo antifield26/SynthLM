@@ -34,7 +34,14 @@ mod lancedb_backend;
 mod real_lancedb;
 
 pub use error::IndexError;
-pub use fusion::{MultiIndex, RRF_K, rrf_fuse};
+// `cosine_distance` / `DEFAULT_FUSED_DEDUP_DISTANCE` are re-exported for the
+// same reason as the fusion entry points: TSK-801 wires candidate
+// de-duplication into `acrd`, and leaving the primitive private would force
+// that caller to re-implement the distance rule (the residual noted by
+// TSK-606's "fusion 私有待重导出" item).
+pub use fusion::{
+    DEFAULT_FUSED_DEDUP_DISTANCE, MultiIndex, RRF_K, cosine_distance, dedup_by_cosine, rrf_fuse,
+};
 pub use index::{CLAP_DIM, MAX_DIM, Modality, Payload, ScoredHit, VectorIndex};
 
 #[cfg(feature = "usearch-backend")]
