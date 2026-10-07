@@ -8,13 +8,18 @@
 //! - `snapshot.submit` → the snapshot is recorded and its task is journaled
 //!   (`Pending → Running → Done`) through [`crate::task::TaskLog`] (WAL to
 //!   `journal.jsonl`); the reply is an `audit.event` acknowledgement.
-//! - `plan.request` → the planner chain runs offline: profile whitelist
-//!   ([`synthlm_profile::builtins`] `reaeq` factory profile) +
-//!   [`synthlm_planner::patch`] validation with repair (≤ 2 rounds) +
-//!   [`synthlm_planner::search`] mock-objective search +
+//! - `plan.request` → the planner chain runs offline via
+//!   [`synthlm_planner::planning::plan_for_intent`] on the explicitly
+//!   selected backend (serving path: `MockSeeded` seeded candidates, no
+//!   network; a wire `"live-tier2"` selection is BLOCKED by design — live
+//!   planning needs local caller context and is never triggered remotely):
+//!   profile whitelist ([`synthlm_profile::builtins`] `reaeq` factory
+//!   profile) + [`synthlm_planner::patch`] validation with repair
+//!   (≤ 2 rounds) + [`synthlm_planner::search`] mock-objective search +
 //!   [`synthlm_planner::candidate::diversify`] +
 //!   [`synthlm_planner::model_gw::Gateway`] routing over
-//!   [`synthlm_planner::model_gw::MockTransport`] (no network; the reply marks
+//!   [`synthlm_planner::model_gw::MockTransport`] (the reply carries the
+//!   `backend` watermark next to the unchanged `"mock"` object, marking
 //!   `"mock"` sources honestly). Stored consent is Tier3 local-only, so the
 //!   chain needs no key and nothing leaves the machine.
 //! - `patch.apply` → the plan is re-validated against the same profile
@@ -53,13 +58,10 @@ use synthlm_common::ipc::{
     AuditEvent, ConsentTier, ErrorCode, IpcError, MessageType, WireFrame, now_ms,
 };
 use synthlm_eval::score::{BandWeights, Score};
-use synthlm_planner::candidate::{
-    Candidate, Direction, PoolEntry, ScoreSnapshot, count_changed_ops, diversify,
-};
+use synthlm_planner::candidate::{Candidate, count_changed_ops};
 use synthlm_planner::model_gw::{Gateway, MockTransport, RouteParams};
-use synthlm_planner::patch::{
-    DEFAULT_MAX_REPAIR_ROUNDS, IdentPath, PatchOp, PatchOpKind, PatchPlan, validate_with_repair,
-};
+use synthlm_planner::patch::{DEFAULT_MAX_REPAIR_ROUNDS, PatchOp, PatchPlan, validate_with_repair};
+use synthlm_planner::planning::{ModelBackend, PlanningError, plan_for_intent};
 use synthlm_planner::search::{MockBowl, SearchConfig, SearchSpace, two_stage_search};
 use synthlm_profile::builtins::load_builtin;
 use synthlm_profile::schema::Profile;
@@ -94,6 +96,10 @@ pub enum DispatchError {
     PlanEmpty,
     /// The offline planner chain failed internally.
     ChainFailed,
+    /// A live backend was selected over the wire. The serving path stays
+    /// offline (`MockSeeded` only); live planning needs local caller
+    /// context and is never triggered remotely.
+    UnsupportedBackend,
     /// The model-gateway leg failed (carries the gateway error class).
     Gateway {
         /// Gateway failure class.
@@ -122,7 +128,8 @@ impl DispatchError {
             | DispatchError::PlanEmpty
             | DispatchError::BadScore
             | DispatchError::UnknownTask
-            | DispatchError::DuplicateTask => ErrorCode::ProtocolViolation,
+            | DispatchError::DuplicateTask
+            | DispatchError::UnsupportedBackend => ErrorCode::ProtocolViolation,
             DispatchError::Whitelist => ErrorCode::WhitelistViolation,
             DispatchError::PatchResidual { code } | DispatchError::Gateway { code } => code,
             DispatchError::ChainFailed | DispatchError::Store | DispatchError::ProfileFailed => {
@@ -154,6 +161,9 @@ impl DispatchError {
             DispatchError::PatchResidual { .. } => "patch residual after repair".to_owned(),
             DispatchError::PlanEmpty => "plan repaired to empty".to_owned(),
             DispatchError::ChainFailed => "offline planner chain failed".to_owned(),
+            DispatchError::UnsupportedBackend => {
+                "live planning is not served over IPC; the serving path stays offline".to_owned()
+            }
             DispatchError::Gateway { .. } => "model gateway leg failed".to_owned(),
             DispatchError::Store => "task journal refused mutation".to_owned(),
             DispatchError::BadScore => "score field missing or non-finite".to_owned(),
@@ -183,6 +193,9 @@ impl DispatchError {
             }
             DispatchError::ChainFailed | DispatchError::Store | DispatchError::ProfileFailed => {
                 "internal dispatch failure; retry once, then file the journal + profile state (see ARCH §8)"
+            }
+            DispatchError::UnsupportedBackend => {
+                "run live Tier2 planning in-process via the planning API with local consent, key presence, and session context; the wire path stays offline (see DEC-010)"
             }
             DispatchError::Gateway { .. } => {
                 "check the local endpoint, then retry; repeated exhaustion trips per-tier breakers (see DEC-011)"
@@ -488,6 +501,12 @@ impl Dispatcher {
     }
 
     /// `plan.request`: run the offline planner chain and answer `plan.response`.
+    ///
+    /// Backend selection is explicit via the optional wire `"backend"` field
+    /// (absent means seeded). The serving path honors only
+    /// [`ModelBackend::MockSeeded`](synthlm_planner::planning::ModelBackend);
+    /// `"live-tier2"` is BLOCKED by design (see
+    /// [`crate::dispatch::DispatchError::UnsupportedBackend`]).
     fn on_plan_request(&mut self, body: &Value) -> Result<(MessageType, Value), DispatchError> {
         let task_id = get_id(body, "task_id")?;
         let snapshot_id = get_id(body, "snapshot_id")?;
@@ -497,18 +516,29 @@ impl Dispatcher {
         let fields = get_fields(body)?;
         validate_upload_fields(&fields).map_err(|_| DispatchError::Whitelist)?;
         let byte_count = body.get("byte_count").and_then(Value::as_u64).unwrap_or(0);
-
-        // 1. Patch skeleton against the real whitelist (repair ≤ 2 rounds).
-        let draft = mock_draft_plan(&snapshot_id);
-        let outcome = validate_with_repair(&draft, &self.profile, DEFAULT_MAX_REPAIR_ROUNDS);
-        if !outcome.accepted() {
-            let code = outcome
-                .residual_errors
-                .first()
-                .map_or(ErrorCode::Internal, |err| err.code());
-            return Err(DispatchError::PatchResidual { code });
+        let intent_text = get_optional_string(body, "intent")?;
+        let intent = intent_text.as_deref().unwrap_or("");
+        if parse_backend(body)? == BackendSel::Live {
+            return Err(DispatchError::UnsupportedBackend);
         }
-        if outcome.plan.ops.is_empty() {
+
+        // 1. Seeded plan + candidates (deterministic; no transport, no
+        // network). The backend is passed explicitly by this caller; the
+        // planning layer stamps the watermark that the reply echoes.
+        let outcome = plan_for_intent(
+            ModelBackend::<'_, MockTransport>::MockSeeded,
+            &self.profile,
+            intent,
+        )
+        .map_err(|err| match err {
+            PlanningError::Gateway(inner) => DispatchError::Gateway { code: inner.code() },
+            PlanningError::Unrepairable { code } => DispatchError::PatchResidual { code },
+            PlanningError::EmptyPlan => DispatchError::PlanEmpty,
+            PlanningError::NoLiveModel | PlanningError::Unparsable | PlanningError::ChainFailed => {
+                DispatchError::ChainFailed
+            }
+        })?;
+        if outcome.plan().ops.is_empty() {
             return Err(DispatchError::PlanEmpty);
         }
 
@@ -551,56 +581,32 @@ impl Dispatcher {
             });
         }
 
-        // 4. Diversify into a 3-candidate shortlist with direction coverage.
-        //
-        // Lanes sit on a fixed well-separated grid (minimum pairwise distance
-        // ~0.28, comfortably outside the 0.2 dedup radius) so the mock chain
-        // deterministically yields a full shortlist for every task seed; the
-        // search leg above still runs genuinely (budget + coarse-to-refined
-        // improvement are reported) and its verdict gates planning here.
-        let plan = outcome.plan;
+        // 4. DEC-004 binding: re-stem the surviving plan onto the frozen
+        // snapshot id (ops untouched, so validation still holds) and re-issue
+        // candidates under this task's namespace.
+        let mut plan = outcome.plan().clone();
+        plan.target_snapshot = snapshot_id.clone();
         let changed = count_changed_ops(&plan);
-        let lanes: [Vec<f64>; 4] = [
-            vec![0.6, 0.4],
-            vec![0.2, 0.8],
-            vec![0.85, 0.15],
-            vec![0.4, 0.6],
-        ];
-        let directions = [
-            Direction::Darker,
-            Direction::Transient,
-            Direction::Spatial,
-            Direction::Darker,
-        ];
-        let diffs = [
-            "低频更暗，整体更靠后。",
-            "瞬态更紧，起振更清晰。",
-            "声场更宽，混响感略增。",
-            "低频进一步收紧，亮度略降。",
-        ];
-        let totals = [30.0, 20.0, 10.0, 5.0];
-        let confidences = [0.8, 0.75, 0.7, 0.65];
-        let mut pool = Vec::with_capacity(4);
-        for (index, lane) in lanes.iter().enumerate() {
-            let score =
-                ScoreSnapshot::new(totals[index]).map_err(|_| DispatchError::ChainFailed)?;
-            let candidate = Candidate::new(
-                format!("{}-c{}", task_id, index + 1),
+        let mut candidates: Vec<Value> = Vec::with_capacity(outcome.candidates().len());
+        for (index, candidate) in outcome.candidates().iter().enumerate() {
+            let rebuilt = Candidate::new(
+                format!("{task_id}-c{}", index + 1),
                 plan.clone(),
-                diffs[index].to_owned(),
-                confidences[index],
-                0.0,
+                candidate.diff_summary_zh().to_owned(),
+                candidate.confidence(),
+                candidate.delta_lufs(),
                 changed,
-                score,
+                candidate.score_snapshot(),
             )
             .map_err(|_| DispatchError::ChainFailed)?;
-            pool.push(
-                PoolEntry::new(candidate, lane.clone(), directions[index])
-                    .map_err(|_| DispatchError::ChainFailed)?,
-            );
+            candidates.push(serde_json::json!({
+                "id": rebuilt.id(),
+                "diff": rebuilt.diff_summary_zh(),
+                "confidence": rebuilt.confidence(),
+                "delta_lufs": rebuilt.delta_lufs(),
+            }));
         }
-        let diversified = diversify(&pool, 3);
-        if diversified.candidates().is_empty() {
+        if candidates.is_empty() {
             return Err(DispatchError::PlanEmpty);
         }
 
@@ -608,18 +614,6 @@ impl Dispatcher {
         finish(&mut self.log, &plan_task_id(&task_id), true)?;
 
         let ops_value = serde_json::to_value(&plan.ops).map_err(|_| DispatchError::ChainFailed)?;
-        let candidates: Vec<Value> = diversified
-            .candidates()
-            .iter()
-            .map(|candidate| {
-                serde_json::json!({
-                    "id": candidate.id(),
-                    "diff": candidate.diff_summary_zh(),
-                    "confidence": candidate.confidence(),
-                    "delta_lufs": candidate.delta_lufs(),
-                })
-            })
-            .collect();
         let audits =
             audits_json(&self.audits_for(&task_id)).map_err(|_| DispatchError::ChainFailed)?;
         let best_lane = search.best.continuous.clone();
@@ -630,12 +624,13 @@ impl Dispatcher {
                 "target_snapshot": snapshot_id,
                 "ops": ops_value,
                 "candidates": candidates,
-                "direction_gap": diversified.direction_gap(),
+                "direction_gap": outcome.direction_gap(),
                 "search": {
                     "evals_used": search.evals_used,
                     "coarse_value": search.coarse_value,
                     "best": best_lane,
                 },
+                "backend": outcome.backend_label(),
                 "mock": {
                     "transport": "MockTransport",
                     "network": "none",
@@ -979,27 +974,41 @@ fn fnv1a(text: &str) -> u64 {
     hash
 }
 
-/// The mock draft plan: three `replace` ops on real `reaeq` slider idents.
-fn mock_draft_plan(snapshot_id: &str) -> PatchPlan {
-    PatchPlan {
-        ops: vec![
-            PatchOp {
-                op: PatchOpKind::Replace,
-                path: IdentPath::new("param/4:_Gain_Band_2"),
-                value: serde_json::json!(0.6),
-            },
-            PatchOp {
-                op: PatchOpKind::Replace,
-                path: IdentPath::new("param/7:_Gain_Band_3"),
-                value: serde_json::json!(0.4),
-            },
-            PatchOp {
-                op: PatchOpKind::Replace,
-                path: IdentPath::new("param/17:wet"),
-                value: serde_json::json!(0.8),
-            },
-        ],
-        target_snapshot: snapshot_id.to_owned(),
+/// Backend selection for `plan.request` (explicit per call; absent means
+/// seeded). The serving path honors only [`BackendSel::Mock`]; live is
+/// BLOCKED by design, never triggered remotely.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum BackendSel {
+    /// Deterministic seeded candidates (offline).
+    Mock,
+    /// Live Tier2 text path (refused over IPC).
+    Live,
+}
+
+/// Read the optional wire `"backend"` selection.
+///
+/// Absent/`null` means [`BackendSel::Mock`]; known seeded spellings stay
+/// mock; known live spellings select [`BackendSel::Live`] (refused later
+/// with [`crate::dispatch::DispatchError::UnsupportedBackend`]); anything
+/// else is malformed.
+fn parse_backend(body: &Value) -> Result<BackendSel, DispatchError> {
+    match body.get("backend") {
+        None | Some(Value::Null) => Ok(BackendSel::Mock),
+        Some(Value::String(name)) => match name.as_str() {
+            "mock-seeded" | "mock" | "seeded-demo" => Ok(BackendSel::Mock),
+            "live-tier2" | "live" => Ok(BackendSel::Live),
+            _ => Err(DispatchError::BadJson("backend")),
+        },
+        Some(_) => Err(DispatchError::BadJson("backend")),
+    }
+}
+
+/// Read an optional string field (`None` when absent or `null`).
+fn get_optional_string(body: &Value, key: &'static str) -> Result<Option<String>, DispatchError> {
+    match body.get(key) {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::String(text)) => Ok(Some(text.clone())),
+        Some(_) => Err(DispatchError::BadJson(key)),
     }
 }
 
@@ -1093,10 +1102,23 @@ mod tests {
     }
 
     fn request_plan(dispatcher: &mut Dispatcher, task: &str, snap: &str) -> Value {
+        request_plan_with(dispatcher, task, snap, None)
+    }
+
+    fn request_plan_with(
+        dispatcher: &mut Dispatcher,
+        task: &str,
+        snap: &str,
+        intent: Option<&str>,
+    ) -> Value {
+        let mut body = serde_json::json!({"task_id": task, "snapshot_id": snap});
+        if let Some(text) = intent {
+            body["intent"] = serde_json::json!(text);
+        }
         let frame = WireFrame {
             ver: current_version(),
             kind: MessageType::PlanRequest,
-            body: serde_json::json!({"task_id": task, "snapshot_id": snap}),
+            body,
         };
         match dispatcher.dispatch_frame(&frame) {
             StepOutcome::Reply(kind, body) => {
@@ -1412,6 +1434,117 @@ mod tests {
             code: ErrorCode::WhitelistViolation,
         };
         assert!(blocked.blocked());
+        assert!(DispatchError::UnsupportedBackend.blocked());
+        assert!(!DispatchError::UnsupportedBackend.guidance().is_empty());
+    }
+
+    #[test]
+    fn plan_response_carries_backend_and_mock_watermark() {
+        let (mut dispatcher, dir) = open_test("backend");
+        submit_snapshot(&mut dispatcher, "be-1", "snap-be-1");
+        let plan = request_plan(&mut dispatcher, "be-1", "snap-be-1");
+        let backend = plan
+            .get("backend")
+            .and_then(Value::as_str)
+            .expect("backend field");
+        assert_eq!(backend, "mock-seeded-demo");
+        assert!(backend.contains("mock"), "mock marker unerased");
+        // Legacy mock object is unchanged.
+        assert_eq!(
+            plan.get("mock")
+                .and_then(|mock| mock.get("transport"))
+                .and_then(Value::as_str),
+            Some("MockTransport")
+        );
+        assert_eq!(
+            plan.get("mock")
+                .and_then(|mock| mock.get("network"))
+                .and_then(Value::as_str),
+            Some("none")
+        );
+        // Same intent on fresh tasks replays identical ops under
+        // task-namespaced candidate ids.
+        submit_snapshot(&mut dispatcher, "be-2", "snap-be-2");
+        submit_snapshot(&mut dispatcher, "be-3", "snap-be-3");
+        let second = request_plan_with(&mut dispatcher, "be-2", "snap-be-2", Some("same-intent"));
+        let third = request_plan_with(&mut dispatcher, "be-3", "snap-be-3", Some("same-intent"));
+        assert_eq!(second.get("ops"), third.get("ops"));
+        assert_eq!(
+            second.get("backend").and_then(Value::as_str),
+            Some("mock-seeded-demo")
+        );
+        let ids = |body: &Value| {
+            body.get("candidates")
+                .and_then(Value::as_array)
+                .expect("candidates")
+                .iter()
+                .map(|card| {
+                    card.get("id")
+                        .and_then(Value::as_str)
+                        .expect("card id")
+                        .to_owned()
+                })
+                .collect::<Vec<_>>()
+        };
+        assert_ne!(ids(&second), ids(&third), "task-namespaced ids");
+        assert!(
+            ids(&second).iter().all(|id| id.starts_with("be-2-c")),
+            "ids namespaced by task, got {:?}",
+            ids(&second)
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn live_backend_over_wire_is_blocked_offline() {
+        let (mut dispatcher, dir) = open_test("live-blocked");
+        submit_snapshot(&mut dispatcher, "lv-1", "snap-lv-1");
+        for backend in ["live-tier2", "live"] {
+            let frame = WireFrame {
+                ver: current_version(),
+                kind: MessageType::PlanRequest,
+                body: serde_json::json!({
+                    "task_id": "lv-1", "snapshot_id": "snap-lv-1", "backend": backend,
+                }),
+            };
+            match dispatcher.dispatch_frame(&frame) {
+                StepOutcome::Reply(kind, body) => {
+                    assert_eq!(kind, MessageType::Error);
+                    assert_eq!(
+                        body.get("code").and_then(Value::as_str),
+                        Some("protocol_violation")
+                    );
+                    assert_eq!(body.get("retryable").and_then(Value::as_bool), Some(false));
+                    assert!(
+                        body.get("detail")
+                            .and_then(Value::as_str)
+                            .is_some_and(|detail| !detail.contains("live-tier2 success")),
+                        "never labeled live: {:?}",
+                        body.get("detail")
+                    );
+                }
+                other => panic!("live over wire must BLOCK, got {other:?}"),
+            }
+        }
+        // Unknown backend spellings are malformed, not silently mocked.
+        let frame = WireFrame {
+            ver: current_version(),
+            kind: MessageType::PlanRequest,
+            body: serde_json::json!({
+                "task_id": "lv-1", "snapshot_id": "snap-lv-1", "backend": "tier9",
+            }),
+        };
+        match dispatcher.dispatch_frame(&frame) {
+            StepOutcome::Reply(kind, body) => {
+                assert_eq!(kind, MessageType::Error);
+                assert_eq!(
+                    body.get("code").and_then(Value::as_str),
+                    Some("protocol_violation")
+                );
+            }
+            other => panic!("unknown backend must error, got {other:?}"),
+        }
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

@@ -18,6 +18,11 @@ pub mod model_gw;
 /// ident-shaped paths, profile-linked semantics, and a pure repair loop
 /// (DEC-013).
 pub mod patch;
+/// Intent planning over explicit backends (TSK-503, DEC-010/011/013):
+/// seeded deterministic candidates vs. live Tier2 text-first planning
+/// (gateway route → lenient parse → dual validation with repair →
+/// diversification), with unerased backend watermarks.
+pub mod planning;
 /// Derivative-free search: zero-dep TPE-lite coarse pass plus hand-written
 /// Nelder-Mead refinement over a mock objective (TSK-303).
 pub mod search;

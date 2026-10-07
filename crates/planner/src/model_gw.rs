@@ -341,8 +341,14 @@ impl ModelRequest {
     }
 }
 
-/// Inbound model response (synthetic in tests; real decoding lands with the
-/// HTTP client task).
+/// Inbound model response: serving identity plus the model-produced text.
+///
+/// `text` carries the Tier2 chat content (`choices[0].message.content`) or
+/// the Tier1 responses output text, leniently extracted (empty when the
+/// envelope carries none — extraction never fails the transport; the
+/// planning layer treats empty/unparsable text as BLOCKED instead).
+/// Mock echoes carry empty text unless the scripted outcome provides some
+/// (see [`crate::model_gw::MockOutcome::SucceedWithText`]).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ModelResponse {
     /// Tier that served the response.
@@ -351,6 +357,9 @@ pub struct ModelResponse {
     pub model: String,
     /// Transport-observed latency in milliseconds.
     pub latency_ms: u64,
+    /// Model-produced text (chat content / output text); empty when the
+    /// envelope carried none or the transport is a plain mock echo.
+    pub text: String,
 }
 
 // ---------------------------------------------------------------------------
@@ -455,13 +464,26 @@ pub trait Transport {
 }
 
 /// Programmed mock outcome for one [`crate::model_gw::MockTransport`] call.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+///
+/// `text` only rides [`crate::model_gw::MockOutcome::SucceedWithText`]; plain
+/// [`crate::model_gw::MockOutcome::Succeed`] echoes carry none (mirroring a
+/// model envelope with no usable content, which the planning layer BLOCKEDs
+/// instead of treating as a result).
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MockOutcome {
     /// Succeed with an echo response (serving tier/model copied from the
-    /// request) after `latency_ms`.
+    /// request) after `latency_ms`. Carries no model text.
     Succeed {
         /// Reported latency in milliseconds.
         latency_ms: u64,
+    },
+    /// Succeed with an echo response carrying scripted model `text` (the
+    /// Tier2 chat content stand-in for planning tests; still no network).
+    SucceedWithText {
+        /// Reported latency in milliseconds.
+        latency_ms: u64,
+        /// Scripted model-produced text.
+        text: String,
     },
     /// Fail with this [`TransportKind`].
     Fail(TransportKind),
@@ -549,7 +571,9 @@ impl MockTransport {
 
     /// Next programmed outcome (or the fallback once exhausted).
     fn next_outcome(&mut self) -> MockOutcome {
-        self.script.pop_front().unwrap_or(self.fallback)
+        self.script
+            .pop_front()
+            .unwrap_or_else(|| self.fallback.clone())
     }
 }
 
@@ -566,6 +590,13 @@ impl Transport for MockTransport {
                 tier: request.tier,
                 model: request.model.to_owned(),
                 latency_ms,
+                text: String::new(),
+            }),
+            MockOutcome::SucceedWithText { latency_ms, text } => Ok(ModelResponse {
+                tier: request.tier,
+                model: request.model.to_owned(),
+                latency_ms,
+                text,
             }),
             MockOutcome::Fail(kind) => Err(TransportError::new(kind)),
         }
@@ -639,6 +670,70 @@ fn request_body(request: &ModelRequest) -> serde_json::Value {
             "input": synthetic,
         }),
     }
+}
+
+/// Leniently extract model-produced text from a decoded cloud envelope.
+///
+/// Tier2 chat shape (verified live 2026-10-06): `choices[0].message.content`
+/// string, with a `choices[0].text` fallback. Tier1 responses shape:
+/// `output_text` string, else the first string found walking the `output[]`
+/// array (`content[].text`, `text`, or bare strings). Anything missing or
+/// mistyped yields empty text — extraction never fails the transport; the
+/// planning layer treats empty/unparsable text as BLOCKED (never a silent
+/// success, never labeled as a model result).
+fn extract_text(tier: ConsentTier, body: &serde_json::Value) -> String {
+    if tier == ConsentTier::Tier2 {
+        let via_message = body
+            .get("choices")
+            .and_then(|choices| choices.as_array())
+            .and_then(|choices| choices.first())
+            .and_then(|choice| choice.get("message"))
+            .and_then(|message| message.get("content"))
+            .and_then(|content| content.as_str());
+        let via_text = body
+            .get("choices")
+            .and_then(|choices| choices.as_array())
+            .and_then(|choices| choices.first())
+            .and_then(|choice| choice.get("text"))
+            .and_then(|text| text.as_str());
+        return via_message.or(via_text).unwrap_or("").to_owned();
+    }
+    if let Some(direct) = body.get("output_text").and_then(|text| text.as_str()) {
+        return direct.to_owned();
+    }
+    let walked = body
+        .get("output")
+        .and_then(|output| output.as_array())
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| first_text_in(item))
+                .next()
+                .unwrap_or("")
+        })
+        .unwrap_or("");
+    walked.to_owned()
+}
+
+/// First string found inside one Tier1 `output[]` item: a bare string, a
+/// `text` field, or `content[]` entries carrying `text` (or bare strings).
+/// Returns `None` when the item carries no string at all.
+fn first_text_in(item: &serde_json::Value) -> Option<&str> {
+    if let Some(text) = item.as_str() {
+        return Some(text);
+    }
+    if let Some(text) = item.get("text").and_then(|text| text.as_str()) {
+        return Some(text);
+    }
+    item.get("content")
+        .and_then(|content| content.as_array())
+        .and_then(|entries| {
+            entries.iter().find_map(|entry| {
+                entry
+                    .as_str()
+                    .or_else(|| entry.get("text").and_then(|text| text.as_str()))
+            })
+        })
 }
 
 /// Map an HTTP status to its [`crate::model_gw::TransportKind`].
@@ -853,11 +948,16 @@ impl Transport for HttpsTransport {
                     // retryable failure instead of silent success.
                     // Tier2 chat envelope verified live 2026-10-06
                     // (choices/message/content + reasoning_content ext).
+                    // Text extraction is lenient (empty when the envelope
+                    // carries none); the planning layer BLOCKEDs
+                    // empty/unparsable text instead of treating it as a
+                    // result.
                     match response.json::<serde_json::Value>() {
-                        Ok(_) => Ok(ModelResponse {
+                        Ok(body) => Ok(ModelResponse {
                             tier: request.tier,
                             model: request.model.to_owned(),
                             latency_ms,
+                            text: extract_text(request.tier, &body),
                         }),
                         Err(_) => Err(TransportError::new(TransportKind::ServerError)),
                     }
