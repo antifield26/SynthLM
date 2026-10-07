@@ -106,8 +106,8 @@
 |---|---|---|---|---|---|---|---|---|---|---|
 | TSK-701 | Tier1 点火 + 4xx 真端点分类验证 | 测试 | 7 | TSK-503/116 | P0 | S | Tier1 一次 2xx + 信封解码，或书面 BLOCKED（含 401/UA/条款）；400/404 终端 vs 可重试分类写进 `status_kind` 测试 | DEC-010/011 | Done | Tier1 200 + output 信封解码；400/404/405/410/422→BadRequest 终端（ProtocolViolation），408/5xx 保持可重试 |
 | TSK-702 | 代理矩阵回归（系统代理开/关） | 测试 | 7 | TSK-116 | P1 | S | `http_proxy` 存在与否下连接拒绝/超时/401 分类全绿；文档写明生产代理策略 | ARCH §5 | Done | 跟随系统代理 + loopback 硬旁路（构造注入，防并行泄漏）；6 格矩阵全绿；私网段/502 合成 stub 留后续 |
-| TSK-703 | HiDPI 复核 + UI CPU 抽稀 | 测试 | 7 | TSK-506/119 | P1 | S | HiDPI 截图无 tofu；100Hz 工况 CPU 相对基线下降并记录 | DEC-002 | Todo | |
-| TSK-704 | 跨用户 / 真多进程 IPC | 测试 | 7 | TSK-502/115 | P2 | M | 跨用户 ACL 用例绿或显式 BLOCKED+指引；真双进程 shm 压测达标 | DEC-023 | Todo | |
+| TSK-703 | HiDPI 复核 + UI CPU 抽稀 | 测试 | 7 | TSK-506/119 | P1 | S | HiDPI 截图无 tofu；100Hz 工况 CPU 相对基线下降并记录 | DEC-002 | Done | 重绘抽稀（数据 100Hz + 重绘每 3 推 ~33Hz，仍事件驱动零 timer）；100Hz 工况单核 56.6%→16.7%（-70.6%，20 核机）；96DPI 截图零 tofu（CJK 覆盖单测与 scale 无关，egui 矢量字） |
+| TSK-704 | 跨用户 / 真多进程 IPC | 测试 | 7 | TSK-502/115 | P2 | M | 跨用户 ACL 用例绿或显式 BLOCKED+指引；真双进程 shm 压测达标 | DEC-023 | Done | 真双进程压测绿（200x4KiB 零丢零错序 p95 4.71ms；3x4MiB p95 58.9ms；批准内 2 unsafe）；跨用户拒绝单用户机不可观测→BLOCKED（perm.rs 指引 runas 双用户手动，ignored 用例 pin 机制） |
 | TSK-705 | 盲听扩大样本 + 权重复标定 | 测试 | 7 | TSK-601/402 | P1 | M | 样本 ≥ 当前 2 倍；Spearman ≥0.5 维持或记录权重反转（走 DEC-016） | DEC-016 | Todo | |
 | TSK-706 | 性能预算跨机复测（500 参数/撤销） | 测试 | 7 | TSK-505/403 | P2 | S | 目标机（非仅开发机）报告；超预算则分片方案落地 | DEC-007/008 | Todo | |
 | TSK-707 | Phase 5–7 终验报告 + 文档收口 | 文档 | 7 | TSK-505/506 | P0 | S | 五节报告；TASK-INDEX 无未解释活动行；残留债清零或转 F/B（含解除条件） | ROADMAP M5–M7 | Todo | |
