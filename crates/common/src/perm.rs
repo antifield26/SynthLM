@@ -18,9 +18,40 @@
 //!   of that default: same-user connect + `hello` handshake over a
 //!   default-bound endpoint.
 //!
-//! Not covered (honest list): cross-user / cross-privilege denial. Refusing a
-//! *different* OS user needs a second OS user and cannot be exercised from a
-//! unit test; it is recorded as uncovered in the task return notes.
+//! Not covered as an observation (honest list): watching a cross-user /
+//! cross-privilege denial happen needs a second OS user, which no single-user
+//! test process can mint (TSK-704 BLOCKED). The ignored
+//! `cross_user_denial_needs_second_os_user_blocked` test below records the
+//! manual two-user procedure and pins the enforcement mechanism instead
+//! (per-user temp backing, session-local mapping name).
+//!
+//! Cross-user posture (TSK-704, verified 2026-10-07 against the pinned
+//! sources in the local cargo cache):
+//!
+//! - Pipes: `interprocess 2.4.4` builds the Windows named-pipe listener with
+//!   `security_descriptor: None` (`local_socket/listener/options.rs`), so
+//!   `lpSecurityDescriptor` stays NULL
+//!   (`os/windows/security_descriptor.rs::create_security_attributes`) and
+//!   Windows assigns the creating token's default security descriptor.
+//!   Same-user connect therefore works with no custom ACL (asserted by the
+//!   test below); what a *different* user gets depends on that
+//!   token-default DACL, which no single-user test process can observe.
+//! - Segments: `shared_memory 0.12.4` on Windows backs every mapping with a
+//!   file under the creating user's temp dir
+//!   (`%TEMP%/shared_memory-rs/<os_id>`, `windows.rs::get_tmp_dir`) and
+//!   names the mapping without a `Global\` prefix (`windows.rs::new_map`),
+//!   so the name lives in the session-local namespace. A different OS user
+//!   resolves a different temp dir, so `open` fails before any byte is
+//!   touched. The mechanism test below pins both facts against the pinned
+//!   backend version.
+//!
+//! 手动复核指引（需人类在双用户 Windows 上执行，不在 agent 范围内）：
+//! 1) 新建第二个本地标准用户 B；2) 以用户 A 运行监听
+//! (`bind_default_endpoint` + 握手等待）；3) 以 `runas /user:B`
+//! 运行连接端；4) 期望 B 的连接/握手失败（pipe 默认 DACL + shm
+//! temp-dir 双重隔离；B 若为管理员可能因默认 DACL 而成功，以实测为准，
+//! 不预断）；5) 完成后清理测试用户。shm 段同理：B 打开 A 的
+//! descriptor 必为 `Backend` 错误（文件不在 B 的 temp 下）。
 
 use interprocess::local_socket::Listener;
 
@@ -159,5 +190,52 @@ mod tests {
         assert_eq!(ours.role, EndpointRole::Ui);
         drop(client);
         let _ = std::fs::remove_file(&path);
+    }
+
+    /// Cross-user denial: BLOCKED without a second OS user (TSK-704).
+    ///
+    /// `#[ignore]`d on purpose: a passing default run must never imply a
+    /// denial was observed. Without `SYNTHLM_TEST_CROSS_USER_MANUAL=1` this
+    /// test prints the BLOCKED guidance and returns; with the flag set (the
+    /// operator asserts the manual two-user run from the module docs
+    /// happened) it pins the enforcement mechanism this single-token
+    /// process *can* see — per-user temp backing plus a session-local
+    /// mapping name — which is what makes a different user's `open` fail
+    /// before any byte is touched. It never claims a denial it did not
+    /// observe.
+    #[test]
+    #[ignore]
+    fn cross_user_denial_needs_second_os_user_blocked() {
+        if std::env::var("SYNTHLM_TEST_CROSS_USER_MANUAL").as_deref() != Ok("1") {
+            eprintln!(
+                "BLOCKED (TSK-704): observing a cross-user denial needs two OS users. \
+                Single-user CI cannot mint a second token, so no denial is asserted here. \
+                Manual procedure (human, dual-user Windows): create a second local standard \
+                user B; bind + listen as user A; connect as B via `runas /user:B` and expect \
+                the connect/handshake to fail (pipe default DACL + per-user shm temp dir); \
+                clean up the test user afterwards. See the module docs in `perm`."
+            );
+            return;
+        }
+        // Mechanism pins against the pinned backend (`shared_memory 0.12.4`,
+        // Windows backend): the backing file must live under *this* user's
+        // temp dir (so another user resolves a different dir and fails
+        // open), and the mapping name must carry no `Global\` prefix (so it
+        // stays in the session-local namespace). No absolute path is
+        // printed (AGENTS.md §8); only the properties are asserted.
+        let sender = crate::shm::ShmSender::create(b"cross-user mechanism probe")
+            .expect("create probe segment");
+        let os_id = sender.descriptor().shm_name.clone();
+        assert!(
+            !os_id.contains('\\'),
+            "mapping name must carry no namespace prefix (session-local), got {os_id:?}"
+        );
+        let backing = std::env::temp_dir()
+            .join("shared_memory-rs")
+            .join(os_id.trim_start_matches('/'));
+        assert!(
+            backing.is_file(),
+            "segment must be backed under the creating user's temp dir"
+        );
     }
 }

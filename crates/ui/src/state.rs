@@ -17,6 +17,22 @@ pub const WAVEFORM_LEN: usize = 240;
 /// Producer push interval: 10 ms ⇒ 100 Hz status cadence.
 pub const PRODUCER_INTERVAL: Duration = Duration::from_millis(10);
 
+/// Repaint decimation (TSK-703): data still arrives at 100 Hz, but the UI
+/// repaints at most every Nth push (~33 Hz). Repaints stay purely
+/// event-driven (data arrival, never timer pacing — TSK-306 §2); only their
+/// density is decimated, which cuts the 100 Hz full-window layout/paint
+/// cost while the state stream keeps full rate.
+pub const REPAINT_EVERY_NTH_PUSH: u64 = 3;
+
+/// Whether the push that produced `frame` should wake the UI.
+///
+/// Pure frame-counter predicate (wakes on every Nth frame), so the
+/// decimation schedule is unit-testable without a window.
+#[must_use]
+pub const fn should_repaint(frame: u64) -> bool {
+    frame.is_multiple_of(REPAINT_EVERY_NTH_PUSH)
+}
+
 /// Shared handle between producer threads and the UI pass.
 pub type SharedState = Arc<Mutex<UiState>>;
 
@@ -104,10 +120,12 @@ pub fn advance(state: &mut UiState) {
 /// Spawn the 100 Hz state producer on a background thread (TSK-119 §3).
 ///
 /// Each tick locks [`crate::state::SharedState`] briefly, applies
-/// [`crate::state::advance`], and wakes the UI with `request_repaint`.
-/// Repaints are therefore driven purely by data arrival; no
-/// `request_repaint_after` timer pacing is used anywhere (TSK-306 §2).
-/// The loop exits when `stop` is set or the state lock is poisoned.
+/// [`crate::state::advance`], and wakes the UI with `request_repaint` on
+/// every [`crate::state::REPAINT_EVERY_NTH_PUSH`]th push (TSK-703
+/// decimation; data stays 100 Hz). Repaints are therefore driven purely by
+/// data arrival; no `request_repaint_after` timer pacing is used anywhere
+/// (TSK-306 §2). The loop exits when `stop` is set or the state lock is
+/// poisoned.
 pub fn spawn_producer(
     state: SharedState,
     ctx: egui::Context,
@@ -116,17 +134,16 @@ pub fn spawn_producer(
     std::thread::spawn(move || {
         while !stop.load(std::sync::atomic::Ordering::Relaxed) {
             std::thread::sleep(PRODUCER_INTERVAL);
-            let poisoned = match state.lock() {
+            let frame = match state.lock() {
                 Ok(mut guard) => {
                     advance(&mut guard);
-                    false
+                    guard.frame
                 }
-                Err(_) => true,
+                Err(_) => break,
             };
-            if poisoned {
-                break;
+            if should_repaint(frame) {
+                ctx.request_repaint();
             }
-            ctx.request_repaint();
         }
     })
 }
@@ -151,6 +168,23 @@ mod tests {
     fn level_db_floor_is_finite() {
         let s = UiState::new();
         assert!(s.level_db().is_finite());
+    }
+
+    #[test]
+    fn repaint_decimation_wakes_every_nth_push() {
+        // Frame 0 never reaches the predicate (advance increments first);
+        // the steady schedule below is what matters.
+        let wakes: Vec<u64> = (1..=3 * REPAINT_EVERY_NTH_PUSH)
+            .filter(|frame| should_repaint(*frame))
+            .collect();
+        assert_eq!(
+            wakes,
+            vec![
+                REPAINT_EVERY_NTH_PUSH,
+                2 * REPAINT_EVERY_NTH_PUSH,
+                3 * REPAINT_EVERY_NTH_PUSH,
+            ]
+        );
     }
 
     #[test]
