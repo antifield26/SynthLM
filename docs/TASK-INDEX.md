@@ -86,7 +86,7 @@
 | TSK-502 | bridge↔acrd 真 IPC 接线（snapshot/plan/patch/render/score） | 实现 | 5 | TSK-501/101/102/103 | P0 | M | mock REAPER 下全消息类型 round-trip；错误 taxonomy（retryable/BLOCKED）与 ARCH §5 一致 | DEC-023 | Done | 分发器 6 handler + 客户端 5 帧 builder，全链 round-trip 全绿；渲染执行/真适配器留后续 |
 | TSK-503 | model-gw 真调用替换 demo 种子（Tier2 文本优先） | 实现 | 5 | TSK-502/117/302 | P0 | M | 同意图两次调用出合法 Patch（修复循环计入）；无模型时明示 `seeded-demo` 不得混入产品路径；审计五字段 | DEC-010/011/013 | Done | planning.rs（backend 显式标记 + Tier2 文本链 + 修复计数；Mock 水印不可擦除）；Tier1 点火归 TSK-701 |
 | TSK-504 | 42230 真渲染进评价环（替代 demo 合成预览） | 实现 | 5 | TSK-502/104/202/204 | P0 | M | 固定块渲染产物进 MIR/score；null-test 门禁接线；失败走小块→1x→online 兜底并记录 | DEC-005/012/016 | Done | render.rs（摄入/null 门禁/兜底表全绿；44.1k 标记拒比不静默转采样；REAPER 侧执行接线留后续） |
-| TSK-505 | 单命令 E2E M3（真意图→候选→应用→回滚，含渲染执行接线） | 实现 | 5 | TSK-503/504 | P0 | M | `acrd e2e --seed N` 一次跑通 ≤5min；3 候选差异句非空；应用/回滚零残留；runbook 表追加见证行；REAPER 侧固定块渲染 + FNV 比对由 Lua 段执行 | ROADMAP M5 | In-Progress | 实现+mock-seeded 真机全绿（含空 undo 合并/bext 时间戳两实锤修复）；待人机见证 live（需存 Tier2 consent + Key） |
+| TSK-505 | 单命令 E2E M3（真意图→候选→应用→回滚，含渲染执行接线） | 实现 | 5 | TSK-503/504 | P0 | M | `acrd e2e --seed N` 一次跑通 ≤5min；3 候选差异句非空；应用/回滚零残留；runbook 表追加见证行；REAPER 侧固定块渲染 + FNV 比对由 Lua 段执行 | ROADMAP M5 | Done | Tier1 真机见证通过（3 候选 6/7/7 ops 零修复；应用渲染回滚全复原；审计 1 调用 tier1）；LiveTier1 已实现；bool/数字串确定性合流 |
 | TSK-506 | UI 主窗接线（卡片 6 字段 + 试听 + 应用/回滚） | 实现 | 5 | TSK-505/119/304 | P1 | M | 人工点选胜出候选可应用；回滚后工程计数归零；缺字段即红 | DEC-019/020 | Todo | |
 
 ## Phase 6（能力补全）
