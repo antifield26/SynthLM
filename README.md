@@ -27,6 +27,7 @@ python scripts/check-docs.py        # 文档同步门禁（头字段/DEC 计数�
 python scripts/check-deps.py        # DEC-022 crate 依赖方向门禁
 python scripts/check-contract.py    # 契约门禁（计数一致性/证据存在/绝对路径/裸链接棘轮）
 python scripts/selftest-gates.py    # 门禁自检（植入违规必红，撤销后回绿）
+python scripts/test-realtech.py   # 真技术断言可见性（执行/跳过/失败）
 python scripts/m4_gate.py           # 发布门禁（16 证据 + 任务全关）
 ```
 

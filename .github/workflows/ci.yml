@@ -34,3 +34,11 @@ jobs:
       # Proves the two gates above can actually fail (plants one violation per
       # check, asserts non-zero, restores the worktree).
       - run: python scripts/selftest-gates.py
+      # Real-technology visibility gate (TSK-808): FFmpeg CLI, the real
+      # lancedb crate, ONNX CLAP and Demucs ONNX. SKIPPED is expected on this
+      # runner until weights/protoc (and the ORT binaries) are provisioned —
+      # the step reports those skips instead of tolerating them silently, and
+      # fails only on a real test failure.
+      - name: real-technology visibility gate
+        if: matrix.os == 'ubuntu-latest'
+        run: python scripts/test-realtech.py
