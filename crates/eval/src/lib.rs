@@ -93,8 +93,8 @@ pub enum EvalError {
         /// Dimension of the second operand.
         b: usize,
     },
-    /// Two [`MirFeatures`] snapshots were produced with different
-    /// [`MirParams`]; their scores would be incomparable (DEC-012), so the
+    /// Two [`mir::MirFeatures`] snapshots were produced with different
+    /// [`mir::MirParams`]; their scores would be incomparable (DEC-012), so the
     /// comparison is refused instead of silently rescoring.
     #[error("MIR params mismatch: cannot compare features from different MirParams")]
     ParamMismatch,

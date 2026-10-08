@@ -1,16 +1,16 @@
 //! SynthLM retrieval layer: preset/audio embedding indexes.
 //!
-//! Implements TSK-203 (DEC-014): one [`VectorIndex`] trait over a single
+//! Implements TSK-203 (DEC-014): one [`index::VectorIndex`] trait over a single
 //! embedding space, two feature-gated pattern-prototype backends
 //! (`UsearchIndex` for the embedded USearch shape,
 //! `LanceDbIndex` for the columnar LanceDB shape), and
-//! [`MultiIndex`] for text/audio dual-index RRF merging. TSK-602 adds the
+//! [`fusion::MultiIndex`] for text/audio dual-index RRF merging. TSK-602 adds the
 //! real-crate slot: `RealLanceDbIndex` (feature `lancedb-real`, off by
 //! default) binds `lancedb =0.39.0` over on-disk tables with cosine flat
 //! search and SQL prefiltering.
 //!
 //! Scope: prototypes are in-memory and exact-scan; no embedding bytes are
-//! persisted anywhere (see [`VectorIndex`]). The real backend persists only
+//! persisted anywhere (see [`index::VectorIndex`]). The real backend persists only
 //! its own per-index table dir (vectors + scalar payload columns) and drops
 //! it with the index. The 10k comparison harness
 //! lives in `tests/bench_10k.rs` and its report in `BENCH.md`; the real-crate

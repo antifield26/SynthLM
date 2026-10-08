@@ -1,4 +1,4 @@
-//! [`VectorIndex`] trait plus shared vocabulary: [`Payload`], [`ScoredHit`].
+//! [`crate::index::VectorIndex`] trait plus shared vocabulary: [`crate::index::Payload`], [`crate::index::ScoredHit`].
 //!
 //! Design notes (DEC-014; `docs/research/C-models-retrieval-eval.md` §3):
 //!
@@ -8,10 +8,10 @@
 //!   indexes are separate objects (possibly with different dims) fused at
 //!   query time via [`crate::fusion`].
 //! * Structured metadata (preset ident, modality, tags, LUFS) travels in
-//!   [`Payload`] and is the only thing payload filtering inspects. Raw
+//!   [`crate::index::Payload`] and is the only thing payload filtering inspects. Raw
 //!   embedding bytes are never serialized, logged, or written to disk by any
 //!   implementation in this crate: prototype backends are in-memory only and
-//!   [`Payload`] carries no vector data.
+//!   [`crate::index::Payload`] carries no vector data.
 
 use crate::IndexError;
 
@@ -93,7 +93,7 @@ pub struct ScoredHit {
 ///
 /// Implementations keep raw embedding bytes in process memory only: `add`
 /// copies the slice for search, and no method serializes vectors to disk,
-/// logs, or snapshots. [`Payload`] (idents/tags/scalars) is the only
+/// logs, or snapshots. [`crate::index::Payload`] (idents/tags/scalars) is the only
 /// persisted/filtered surface.
 pub trait VectorIndex {
     /// Creates an empty index for `dim`-wide vectors.
@@ -101,7 +101,7 @@ pub trait VectorIndex {
     /// # Errors
     ///
     /// [`IndexError::InvalidDim`] when `dim` is `0` or above
-    /// [`MAX_DIM`].
+    /// [`crate::index::MAX_DIM`].
     fn new(dim: usize) -> Result<Self, IndexError>
     where
         Self: Sized;
@@ -117,7 +117,7 @@ pub trait VectorIndex {
         self.len() == 0
     }
 
-    /// Inserts `vector` under `id` with its [`Payload`].
+    /// Inserts `vector` under `id` with its [`crate::index::Payload`].
     ///
     /// # Errors
     ///

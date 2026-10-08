@@ -128,7 +128,7 @@ pub fn smoke_marker_path(temp_dir: &Path) -> PathBuf {
 
 /// Builds the marker file body (desensitised: version + epoch only).
 ///
-/// `epoch_secs` comes from [`now_epoch_secs`]; taking it as a parameter keeps
+/// `epoch_secs` comes from [`crate::extension::now_epoch_secs`]; taking it as a parameter keeps
 /// this function pure and golden-testable.
 #[must_use]
 pub fn smoke_marker_text(version: &str, epoch_secs: u64) -> String {

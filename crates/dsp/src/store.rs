@@ -7,7 +7,7 @@
 //! <root>/access_order.json                     LRU sidecar (oldest first)
 //! ```
 //!
-//! The root defaults to [`default_cache_root`] (user directory, versioned
+//! The root defaults to [`crate::store::default_cache_root`] (user directory, versioned
 //! migration per DEC-027 is a later task) and is injectable so tests use a
 //! scratch directory and never touch the real user directory. LRU uses the
 //! built-in `access_order.json` sequence — never filesystem atime — so GC is

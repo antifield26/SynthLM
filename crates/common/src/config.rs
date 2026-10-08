@@ -48,7 +48,7 @@ use crate::ipc::{AuditEvent, ConsentTier, ErrorCode};
 /// Primary environment variable carrying the cloud API key.
 pub const API_KEY_ENV: &str = "OPENCODE_API_KEY";
 
-/// Equivalent alias accepted when [`API_KEY_ENV`] is absent or blank.
+/// Equivalent alias accepted when [`crate::config::API_KEY_ENV`] is absent or blank.
 ///
 /// Precedence is fixed: primary first, alias second; both absent/blank yields
 /// [`ConfigError::MissingKey`].
@@ -81,7 +81,7 @@ pub const DEFAULT_TIER2_MODEL: &str = "mimo-v2.6-flash";
 /// DEC-010 Tier3 preset model (local-only, sole candidate).
 pub const DEFAULT_TIER3_MODEL: &str = "Bonsai-2-27B";
 
-/// Default consent tier when [`CONSENT_TIER_ENV`] is unset.
+/// Default consent tier when [`crate::config::CONSENT_TIER_ENV`] is unset.
 ///
 /// Tier1 matches the DEC-010 recommendation (cloud-first preset priority).
 /// Fail-safe ruling (TSK-108 merge, 2026-10-06): this default does NOT
@@ -95,10 +95,10 @@ pub const DEFAULT_TIER: ConsentTier = ConsentTier::Tier1;
 /// DEC-011 upload whitelist: the only field names that may leave the machine.
 ///
 /// `prompt` = model prompt, `mir` = MIR features, `meta` = candidate
-/// metadata, [`AUDIO_FIELD`] = reference-audio excerpt (Tier1/Tier2 only;
+/// metadata, [`crate::config::AUDIO_FIELD`] = reference-audio excerpt (Tier1/Tier2 only;
 /// Tier3 is text-only and the gateway refuses it there). Raw audio (PCM),
 /// key material, and prompt/repository paths are never members;
-/// [`validate_upload_fields`] rejects them.
+/// [`crate::config::validate_upload_fields`] rejects them.
 pub const ALLOWED_UPLOAD_FIELDS: &[&str] = &["prompt", "mir", "meta", AUDIO_FIELD];
 
 /// Reference-audio excerpt upload field (DEC-011, Tier1/Tier2 only).
@@ -161,15 +161,15 @@ impl fmt::Display for ApiKey {
 /// caller-supplied values, so formatting an error can never echo secrets.
 #[derive(Debug, Error, Clone, Copy, PartialEq, Eq)]
 pub enum ConfigError {
-    /// [`API_KEY_ENV`] and [`API_KEY_ALIAS_ENV`] are both absent or blank.
+    /// [`crate::config::API_KEY_ENV`] and [`crate::config::API_KEY_ALIAS_ENV`] are both absent or blank.
     #[error("missing API key: {0}")]
     MissingKey(&'static str),
-    /// [`CONSENT_TIER_ENV`] names no known tier.
+    /// [`crate::config::CONSENT_TIER_ENV`] names no known tier.
     #[error(
         "invalid consent tier in SYNTHLM_CONSENT_TIER: expected tier1|tier2|tier3 (see DEC-010)"
     )]
     InvalidTier,
-    /// An upload field at `index` falls outside [`ALLOWED_UPLOAD_FIELDS`].
+    /// An upload field at `index` falls outside [`crate::config::ALLOWED_UPLOAD_FIELDS`].
     #[error(
         "upload field at index {index} is outside the audit whitelist [prompt, mir, meta] (see DEC-011)"
     )]
@@ -177,7 +177,7 @@ pub enum ConfigError {
         /// Position of the first offending field (no value stored).
         index: usize,
     },
-    /// [`BASE_URL_ENV`] override is not an `http(s)://` URL.
+    /// [`crate::config::BASE_URL_ENV`] override is not an `http(s)://` URL.
     #[error("invalid base URL in SYNTHLM_BASE_URL: expected http(s)://... (see DEC-010)")]
     InvalidBaseUrl,
 }
@@ -236,10 +236,10 @@ pub fn parse_consent_tier(raw: &str) -> Result<ConsentTier, ConfigError> {
     }
 }
 
-/// Reject any upload field outside [`ALLOWED_UPLOAD_FIELDS`].
+/// Reject any upload field outside [`crate::config::ALLOWED_UPLOAD_FIELDS`].
 ///
 /// Key material, PCM references, and prompt text are not whitelist members,
-/// so they fail here before an [`AuditEvent`] can be built. The error carries
+/// so they fail here before an [`crate::ipc::AuditEvent`] can be built. The error carries
 /// the offending *index*, never its value.
 pub fn validate_upload_fields(fields: &[String]) -> Result<(), ConfigError> {
     match fields
@@ -274,7 +274,7 @@ fn nonempty(raw: Option<String>) -> Option<String> {
     }
 }
 
-/// [`load_api_key`] over an injected lookup (lets tests avoid process env).
+/// [`crate::config::load_api_key`] over an injected lookup (lets tests avoid process env).
 fn load_key_with(get: &dyn Fn(&str) -> Option<String>) -> Result<ApiKey, ConfigError> {
     if let Some(raw) = nonempty(get(API_KEY_ENV)) {
         return ApiKey::new(raw);
@@ -286,7 +286,7 @@ fn load_key_with(get: &dyn Fn(&str) -> Option<String>) -> Result<ApiKey, ConfigE
 }
 
 /// Accept only `http://` / `https://` overrides (blank is handled upstream by
-/// falling back to [`DEFAULT_BASE_URL`]).
+/// falling back to [`crate::config::DEFAULT_BASE_URL`]).
 fn validate_base_url(raw: &str) -> Result<String, ConfigError> {
     let trimmed = raw.trim().to_owned();
     if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
@@ -302,7 +302,7 @@ fn validate_base_url(raw: &str) -> Result<String, ConfigError> {
 
 /// Resolved cloud-model configuration (DEC-010 presets + env overrides).
 ///
-/// `Debug` is safe to log: the only secret field ([`ApiKey`]) redacts itself.
+/// `Debug` is safe to log: the only secret field ([`crate::config::ApiKey`]) redacts itself.
 /// The struct deliberately implements no `Serialize`: keys must never enter
 /// snapshots or logs (DEC-010/011).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -311,13 +311,13 @@ pub struct Config {
     pub tier: ConsentTier,
     /// Cloud API key (required for every tier; Tier3 call paths ignore it).
     pub api_key: ApiKey,
-    /// Cloud base URL (DEC-010 default, overridable via [`BASE_URL_ENV`]).
+    /// Cloud base URL (DEC-010 default, overridable via [`crate::config::BASE_URL_ENV`]).
     pub base_url: String,
-    /// Tier1 model name (DEC-010 default, overridable via [`TIER1_MODEL_ENV`]).
+    /// Tier1 model name (DEC-010 default, overridable via [`crate::config::TIER1_MODEL_ENV`]).
     pub tier1_model: String,
-    /// Tier2 model name (DEC-010 default, overridable via [`TIER2_MODEL_ENV`]).
+    /// Tier2 model name (DEC-010 default, overridable via [`crate::config::TIER2_MODEL_ENV`]).
     pub tier2_model: String,
-    /// Tier3 model name (DEC-010 default, overridable via [`TIER3_MODEL_ENV`]).
+    /// Tier3 model name (DEC-010 default, overridable via [`crate::config::TIER3_MODEL_ENV`]).
     pub tier3_model: String,
 }
 
@@ -368,8 +368,8 @@ impl Config {
         !matches!(self.tier, ConsentTier::Tier3)
     }
 
-    /// Build a whitelisted [`AuditEvent`] for a cloud call: validates `fields`
-    /// against [`ALLOWED_UPLOAD_FIELDS`] first, so key material or PCM can
+    /// Build a whitelisted [`crate::ipc::AuditEvent`] for a cloud call: validates `fields`
+    /// against [`crate::config::ALLOWED_UPLOAD_FIELDS`] first, so key material or PCM can
     /// never reach the audit record.
     pub fn audit_event(
         &self,

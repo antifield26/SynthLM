@@ -44,7 +44,7 @@ pub struct DirtyTrack(pub u32);
 /// Library-boundary error type (`thiserror`, per `AGENTS.md` §4).
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum UndoError {
-    /// [`undo_description`] / [`UndoBlock::begin`] got an empty op id.
+    /// [`crate::undo::undo_description`] / [`UndoBlock::begin`] got an empty op id.
     #[error("empty undo op id: descriptions require a non-empty op name")]
     EmptyOp,
 }
@@ -52,14 +52,14 @@ pub enum UndoError {
 /// Mockable seam over the undo/dirty/take-lookup calls (cf.
 /// [`crate::container_addr::ReaperFxChain`]).
 ///
-/// The TSK-102 adapter ([`LiveUndo`]) implements this against
+/// The TSK-102 adapter ([`crate::undo::LiveUndo`]) implements this against
 /// `reaper-medium` (primary) with `reaper-low` fallback for the
 /// `MarkTrackItemsDirty` / take-by-GUID gaps. All methods are control-plane
 /// calls: main thread only, never the audio thread.
 pub trait ReaperUndo {
     /// Live take handle returned by [`ReaperUndo::find_take_by_guid`].
     ///
-    /// The mock uses a plain id; [`LiveUndo`] uses
+    /// The mock uses a plain id; [`crate::undo::LiveUndo`] uses
     /// `reaper_medium::MediaItemTake`. Callers must re-fetch after every
     /// undo/redo instead of caching this (A04 §3: pointers invalidate).
     type Take;

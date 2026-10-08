@@ -2,18 +2,18 @@
 //!
 //! Implements DEC-009 and ARCHITECTURE §7–§8 for the DSP side:
 //!
-//! - background [`Job`] queue (`Pending`/`Running`/`Done`/`Failed` state
+//! - background [`job::Job`] queue (`Pending`/`Running`/`Done`/`Failed` state
 //!   machine; illegal transitions are rejected, never coerced);
-//! - content-addressed [`CacheKey`] (`input_fingerprint` + `params_hash`,
+//! - content-addressed [`key::CacheKey`] (`input_fingerprint` + `params_hash`,
 //!   never a raw path) with artifacts stored under an external cache root
-//!   ([`default_cache_root`]) while the project side keeps only the
-//!   pointer type [`ArtifactRef`];
-//! - GC ([`run_gc`]): 50 GiB watermark ([`WATERMARK_BYTES`]) + LRU
+//!   ([`store::default_cache_root`]) while the project side keeps only the
+//!   pointer type [`artifact::ArtifactRef`];
+//! - GC ([`gc::run_gc`]): 50 GiB watermark ([`gc::WATERMARK_BYTES`]) + LRU
 //!   (built-in access order, no atime reliance) + orphan reclamation
-//!   (unreferenced artifacts are deleted), plus [`CacheMetrics`] for later
+//!   (unreferenced artifacts are deleted), plus [`gc::CacheMetrics`] for later
 //!   observability consumers;
-//! - Demucs backends ([`StemSeparator`] seam / [`DemucsStub`] not-wired
-//!   marker / [`DemucsOnnxSeparator`] wired local ONNX backend): the wired
+//! - Demucs backends ([`demucs::StemSeparator`] seam / [`demucs::DemucsStub`] not-wired
+//!   marker / [`demucs::DemucsOnnxSeparator`] wired local ONNX backend): the wired
 //!   backend verifies the lazily-cached pinned weights, runs the 7.8 s
 //!   windowed forward pass on a background worker, and writes stem WAVs
 //!   through the content-addressed cache (pure local CPU, zero audio

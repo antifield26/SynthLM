@@ -6,13 +6,13 @@
 //!    [`ArtifactRef`](crate::artifact::ArtifactRef) (the caller passes the
 //!    live-key set) are deleted first. This is how losing candidates and
 //!    superseded runs leave the disk.
-//! 2. **Watermark eviction** — while usage exceeds [`WATERMARK_BYTES`]
+//! 2. **Watermark eviction** — while usage exceeds [`crate::gc::WATERMARK_BYTES`]
 //!    (50 GiB), the least-recently-used products are evicted, oldest first.
 //!    The watermark wins over liveness: if live products alone exceed it,
 //!    LRU live products are evicted too (and reported), per the DEC-009
 //!    reversal direction ("keep winners only" tightens retention).
 //!
-//! [`CacheMetrics`] (hit rate + watermark level) is the type later
+//! [`crate::gc::CacheMetrics`] (hit rate + watermark level) is the type later
 //! observability work consumes (ARCH §9); this crate only computes it.
 
 use std::collections::HashSet;

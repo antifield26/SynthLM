@@ -81,8 +81,8 @@ pub fn bind_default_endpoint(id: &str) -> std::io::Result<Listener> {
 ///
 /// Always uses a temp-dir socket file (never the Linux abstract namespace,
 /// which has no file to chmod), so the mode is observable via
-/// [`socket_file_mode_bits`]. Stale socket files are reclaimed at bind time
-/// by `interprocess`, like [`bind_endpoint`].
+/// [`crate::perm::socket_file_mode_bits`]. Stale socket files are reclaimed at bind time
+/// by `interprocess`, like [`crate::ipc::bind_endpoint`].
 #[cfg(unix)]
 pub fn bind_restricted_endpoint(id: &str) -> std::io::Result<Listener> {
     use interprocess::local_socket::{GenericFilePath, ListenerOptions, ToFsName as _};

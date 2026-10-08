@@ -1,14 +1,14 @@
 //! SynthLM parameter-semantics layer: plugin profiles and whitelists.
 //!
 //! Implements TSK-201 under DEC-015 and `docs/ARCHITECTURE.md` §6:
-//! every supported plugin ships a versioned JSON [`Profile`]
+//! every supported plugin ships a versioned JSON [`schema::Profile`]
 //! that maps a small (8–16) set of whitelist macros to stable REAPER
 //! parameter addresses. Live addresses use `ident` (see
 //! [`TrackFX_GetParamIdent`](https://www.reaper.fm/sdk/reascript/reascripthelp.html),
 //! verified 2026-10-05); bare FX indices are never persisted.
 //!
 //! Built-in profiles live in `crates/profile/profiles/*.json` and are embedded
-//! at compile time via [`builtins`]. Rationale for `include_str!` over runtime
+//! at compile time via [`crate::builtins`]. Rationale for `include_str!` over runtime
 //! file loading: profiles are versioned together with the code that validates
 //! them, tests never depend on the process working directory, and there is no
 //! startup file-lookup failure mode. Per-user overrides (DEC-027,

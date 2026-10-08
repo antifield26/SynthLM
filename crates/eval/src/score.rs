@@ -1,8 +1,8 @@
 //! Loudness-first multi-objective comparison (DEC-016, ARCHITECTURE §6).
 //!
-//! [`compare`] takes two [`MirFeatures`] snapshots
-//! and returns a [`Score`]. Both snapshots must share the same
-//! [`MirParams`]; mismatched params are rejected
+//! [`crate::score::compare`] takes two [`crate::mir::MirFeatures`] snapshots
+//! and returns a [`crate::score::Score`]. Both snapshots must share the same
+//! [`crate::mir::MirParams`]; mismatched params are rejected
 //! with [`EvalError::ParamMismatch`](crate::EvalError) because their
 //! numbers would be incomparable (DEC-012, both STFT tiers included).
 //!
@@ -10,7 +10,7 @@
 //! distances (lower is more similar), `transient_f1` / `clap_cos` are
 //! similarities (higher is more similar). `mel_l1` stays the unweighted
 //! mean for calibration reference; `mel_weighted` (default
-//! [`BandWeights`]) is the ranking signal. Tuning the weights against
+//! [`crate::score::BandWeights`]) is the ranking signal. Tuning the weights against
 //! listening tests belongs to TSK-402, not here.
 
 use crate::EvalError;
@@ -60,8 +60,8 @@ pub const TRUE_PEAK_ALARM_DBTP: f64 = -1.0;
 
 /// Low/mid/high mel-band weights with a tunable interface (TSK-204).
 ///
-/// [`BandWeights::defaults`] returns the [`MEL_W_LOW`]/[`MEL_W_MID`]/
-/// [`MEL_W_HIGH`] starting point used for [`Score::mel_weighted`];
+/// [`BandWeights::defaults`] returns the [`crate::score::MEL_W_LOW`]/[`crate::score::MEL_W_MID`]/
+/// [`crate::score::MEL_W_HIGH`] starting point used for [`Score::mel_weighted`];
 /// [`BandWeights::uniform`] is the calibration baseline (all bands equal).
 /// TSK-402 listening tests own the final numbers — this struct is the seam
 /// they tune through, via [`Score::mel_weighted_with`], without changing
@@ -126,13 +126,13 @@ pub struct Score {
     /// see `mel_weighted` for the ranking signal.
     pub mel_l1: f32,
     /// Mean absolute log-mel difference over LOW bands only (centre Hz <
-    /// [`BAND_LOW_MAX_HZ`]). Distance.
+    /// [`crate::score::BAND_LOW_MAX_HZ`]). Distance.
     pub mel_low: f32,
     /// Mean absolute log-mel difference over MID bands only
-    /// ([`BAND_LOW_MAX_HZ`] ≤ centre < [`BAND_HIGH_MIN_HZ`]). Distance.
+    /// ([`crate::score::BAND_LOW_MAX_HZ`] ≤ centre < [`crate::score::BAND_HIGH_MIN_HZ`]). Distance.
     pub mel_mid: f32,
     /// Mean absolute log-mel difference over HIGH bands only (centre Hz ≥
-    /// [`BAND_HIGH_MIN_HZ`]). Distance.
+    /// [`crate::score::BAND_HIGH_MIN_HZ`]). Distance.
     pub mel_high: f32,
     /// Default-weighted band combination
     /// (`defaults().apply(mel_low, mel_mid, mel_high)`). Distance: the
@@ -146,7 +146,7 @@ pub struct Score {
     /// [`crate::clap::SpectralClapEmbedder`].
     pub clap_cos: Option<f32>,
     /// Onset F1 between reference and candidate transient envelopes
-    /// (tolerance ±[`ONSET_TOLERANCE_FRAMES`] frames). Similarity: higher
+    /// (tolerance ±[`crate::mir::ONSET_TOLERANCE_FRAMES`] frames). Similarity: higher
     /// is more similar; 1.0 is identical.
     pub transient_f1: f32,
     /// Candidate integrated LUFS re-measured after normalisation
@@ -171,7 +171,7 @@ impl Score {
     /// Downstream-limiting alarm (DEC-016, TSK-208).
     ///
     /// True when the candidate's post-normalisation true peak strictly
-    /// exceeds [`TRUE_PEAK_ALARM_DBTP`] (−1 dBTP). Exactly −1.0 does not
+    /// exceeds [`crate::score::TRUE_PEAK_ALARM_DBTP`] (−1 dBTP). Exactly −1.0 does not
     /// alarm; anything above does, including the +6 dBTP-class peaks of
     /// hard-clipped material gained back up by normalisation.
     pub fn true_peak_alarm(&self) -> bool {
@@ -261,7 +261,7 @@ pub fn clap_cosine<E: ClapEmbedder>(
 /// log-mel); `mel_low|mid|high` split `mel_l1` by band region and
 /// `mel_weighted` combines them with [`BandWeights::defaults`];
 /// `transient_f1` compares onset lists at
-/// ±[`ONSET_TOLERANCE_FRAMES`] frames; loudness fields report the
+/// ±[`crate::mir::ONSET_TOLERANCE_FRAMES`] frames; loudness fields report the
 /// candidate's closed-loop normalisation audit. `clap_cos` is `None`
 /// (this overload never sees audio samples; use
 /// [`score_pair`](crate::clap::score_pair) for a wired `Some`).
@@ -271,7 +271,7 @@ pub fn compare(reference: &MirFeatures, candidate: &MirFeatures) -> Result<Score
 
 /// Compare with a precomputed CLAP cosine (validates finiteness only).
 ///
-/// The cosine itself must come from [`clap_cosine`] or an equivalent
+/// The cosine itself must come from [`crate::score::clap_cosine`] or an equivalent
 /// backend check; NaN/infinite values are rejected.
 pub fn compare_with_clap(
     reference: &MirFeatures,
@@ -319,10 +319,10 @@ fn compare_inner(
 
 /// Per-band log-mel distances `(low, mid, high)` (TSK-204).
 ///
-/// Bands are assigned by centre frequency from [`mel_band_centers`]:
-/// centre < [`BAND_LOW_MAX_HZ`] is LOW, centre < [`BAND_HIGH_MIN_HZ`] is
+/// Bands are assigned by centre frequency from [`crate::mir::mel_band_centers`]:
+/// centre < [`crate::score::BAND_LOW_MAX_HZ`] is LOW, centre < [`crate::score::BAND_HIGH_MIN_HZ`] is
 /// MID, otherwise HIGH. Each region mean is over its own cells (same
-/// convention as [`mean_abs_diff`]); an empty region scores 0.0.
+/// convention as [`crate::score::mean_abs_diff`]); an empty region scores 0.0.
 fn band_mel_l1(a: &[Vec<f32>], b: &[Vec<f32>], centers: &[f32]) -> (f32, f32, f32) {
     let mut acc = [0.0_f64; 3];
     let mut count = [0_usize; 3];

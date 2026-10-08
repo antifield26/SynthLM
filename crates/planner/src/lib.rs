@@ -1,6 +1,6 @@
 //! SynthLM planning layer: Patch Plan generation and validation.
 //!
-//! Ships the three-tier model gateway ([`model_gw`], TSK-301/TSK-116,
+//! Ships the three-tier model gateway ([`crate::model_gw`], TSK-301/TSK-116,
 //! DEC-010/011): consent-gated routing with Tier1→Tier2→Tier3 failover,
 //! retry, per-tier circuit breaking, and per-call audit. Transports are the
 //! [`model_gw::Transport`] trait plus the [`model_gw::MockTransport`]

@@ -45,7 +45,7 @@ impl LanceDbIndex {
     ///
     /// Exposes entry ids and structured payloads for versioning/GC
     /// bookkeeping. Vector bytes are never included (privacy invariant, see
-    /// [`VectorIndex`]).
+    /// [`crate::VectorIndex`]).
     #[must_use]
     pub fn manifest(&self) -> Vec<(u64, Payload)> {
         self.ids

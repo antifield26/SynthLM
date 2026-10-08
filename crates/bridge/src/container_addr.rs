@@ -63,8 +63,8 @@ use thiserror::Error;
 
 /// Flag bit marking container-space FX addresses (`0x2000000`).
 ///
-/// Present on every address produced by [`encode_path`]; tested with a bit-test
-/// in [`decode_address`], mirroring Justin's `fxidx & 0x2000000`.
+/// Present on every address produced by [`crate::container_addr::encode_path`]; tested with a bit-test
+/// in [`crate::container_addr::decode_address`], mirroring Justin's `fxidx & 0x2000000`.
 pub const CONTAINER_FLAG: i32 = 0x2000000;
 
 /// Flag bit for record-input / monitoring FX (`0x1000000`, `A01` §1).
@@ -73,15 +73,15 @@ pub const CONTAINER_FLAG: i32 = 0x2000000;
 /// orthogonal to this layer (`A02` §3) and left for a later task.
 pub const INPUT_FX_FLAG: i32 = 0x1000000;
 
-/// Maximum container nesting depth accepted by [`decode_address`].
+/// Maximum container nesting depth accepted by [`crate::container_addr::decode_address`].
 ///
 /// Precedent: MT4U's traversal stopper of 30 (see module docs); mpl's scripts
 /// unrolled 10 levels (`A02` §2). Deeper chains report
 /// [`ContainerError::DepthExceeded`] so the caller can fall back to
-/// [`flatten_fallback`] (DEC-003) instead of looping forever.
+/// [`crate::container_addr::flatten_fallback`] (DEC-003) instead of looping forever.
 pub const MAX_CONTAINER_DEPTH: usize = 32;
 
-/// Budget of re-resolve attempts handed out by [`flatten_fallback`].
+/// Budget of re-resolve attempts handed out by [`crate::container_addr::flatten_fallback`].
 ///
 /// The pure layer only classifies; the executor decrements and, at zero,
 /// proceeds to flatten. Actual track+sends materialisation needs main-thread
@@ -104,7 +104,7 @@ pub trait ReaperFxChain {
     /// (`TrackFX_GetNamedConfigParm "container_count"`).
     ///
     /// Must fail when `addr` is not a container or the key is unavailable;
-    /// [`encode_path`]/[`decode_address`] normalise any failure to the
+    /// [`crate::container_addr::encode_path`]/[`crate::container_addr::decode_address`] normalise any failure to the
     /// retryable [`ContainerError::ContainerCountUnavailable`].
     fn container_child_count(&self, addr: i32) -> Result<u32, ContainerError>;
 
@@ -126,7 +126,7 @@ pub trait ReaperFxChain {
 /// bugs (`false`) mean "fix the caller" (BLOCKED-class, never silent).
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum ContainerError {
-    /// [`ContainerPath`] built from an empty position list.
+    /// [`crate::container_addr::ContainerPath`] built from an empty position list.
     #[error("empty container path: at least the 1-based top position is required")]
     EmptyPath,
 
@@ -230,7 +230,7 @@ pub enum ContainerError {
     #[error("address arithmetic overflow composing container address")]
     AddressOverflow,
 
-    /// Nesting deeper than [`MAX_CONTAINER_DEPTH`] while decoding.
+    /// Nesting deeper than [`crate::container_addr::MAX_CONTAINER_DEPTH`] while decoding.
     #[error("container nesting deeper than {limit} levels")]
     DepthExceeded {
         /// Depth cap that was hit.
@@ -472,7 +472,7 @@ pub fn encode_path<C: ReaperFxChain + ?Sized>(
 /// # Errors
 ///
 /// [`ContainerError::TopIndexOutOfRange`] for a drifted bare index
-/// (retryable), otherwise whatever [`encode_path`] reports.
+/// (retryable), otherwise whatever [`crate::container_addr::encode_path`] reports.
 pub fn encode_loc<C: ReaperFxChain + ?Sized>(
     chain: &C,
     loc: &FxLoc,
@@ -620,11 +620,11 @@ fn check_guid<C: ReaperFxChain + ?Sized>(
 /// Resolve an anchor against the live chain: recompute + GUID-verify.
 ///
 /// First resolution after a (re)scan. Callers holding a cached address must
-/// use [`verify_fresh`] instead so stride drift is caught.
+/// use [`crate::container_addr::verify_fresh`] instead so stride drift is caught.
 ///
 /// # Errors
 ///
-/// Whatever [`encode_loc`] reports, plus [`ContainerError::GuidMismatch`]
+/// Whatever [`crate::container_addr::encode_loc`] reports, plus [`ContainerError::GuidMismatch`]
 /// (retryable) when the FX at the recomputed address is not the anchored one.
 pub fn resolve_anchor<C: ReaperFxChain + ?Sized>(
     chain: &C,
@@ -643,12 +643,12 @@ pub fn resolve_anchor<C: ReaperFxChain + ?Sized>(
 /// [`ContainerError::StaleAddress`]; a same-number/different-target shift (top
 /// insert *at/before* the slot keeps the number but moves the FX) surfaces as
 /// [`ContainerError::GuidMismatch`]. Both are retryable: re-scan, relocate by
-/// GUID, or abort to [`flatten_fallback`].
+/// GUID, or abort to [`crate::container_addr::flatten_fallback`].
 ///
 /// # Errors
 ///
 /// Retryable [`ContainerError::StaleAddress`] / [`ContainerError::GuidMismatch`]
-/// plus whatever [`encode_loc`] reports.
+/// plus whatever [`crate::container_addr::encode_loc`] reports.
 pub fn verify_fresh<C: ReaperFxChain + ?Sized>(
     chain: &C,
     cached_addr: i32,
@@ -675,7 +675,7 @@ pub fn verify_fresh<C: ReaperFxChain + ?Sized>(
 pub enum FlattenDecision {
     /// Re-scan and recompute first; executor decrements the budget.
     RetryResolve {
-        /// Remaining re-resolve attempts (starts at [`MAX_RESOLVE_RETRIES`]).
+        /// Remaining re-resolve attempts (starts at [`crate::container_addr::MAX_RESOLVE_RETRIES`]).
         attempts_left: u8,
     },
     /// Give up on container addressing: rebuild as serial track + sends.

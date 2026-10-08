@@ -3,7 +3,7 @@
 //! Binds `lancedb =0.39.0` (Apache-2.0; sources
 //! <https://crates.io/crates/lancedb> and
 //! <https://github.com/lancedb/lancedb>, verified 2026-10-07) behind the
-//! non-default `lancedb-real` feature. Each [`RealLanceDbIndex`] owns one
+//! non-default `lancedb-real` feature. Each [`crate::real_lancedb::RealLanceDbIndex`] owns one
 //! LanceDB table in its own OS temp dir (removed on drop): an `id` column,
 //! one `FixedSizeList<Float32>` vector column, and scalar payload columns
 //! (`preset_id`, `modality`, `lufs`). Queries run unindexed (flat) cosine
@@ -99,7 +99,7 @@ fn table_schema(dim: i32) -> std::sync::Arc<Schema> {
     ]))
 }
 
-/// Mutable half of [`RealLanceDbIndex`], behind a mutex so `search` (which
+/// Mutable half of [`crate::real_lancedb::RealLanceDbIndex`], behind a mutex so `search` (which
 /// takes `&self`) can commit buffered rows before querying.
 struct RealState {
     /// Owns the table storage; deliberately never read (the leading
@@ -160,7 +160,7 @@ impl RealLanceDbIndex {
         })
     }
 
-    /// Assembles the buffered rows into one [`RecordBatch`].
+    /// Assembles the buffered rows into one [`arrow_array::RecordBatch`].
     ///
     /// Pure constructor: no I/O, so the caller may hold the state lock.
     fn pending_batch(
@@ -325,7 +325,7 @@ impl RealLanceDbIndex {
     ///
     /// Exposes entry ids and structured payloads ordered by ascending id.
     /// Vector bytes are never included (privacy invariant, see
-    /// [`VectorIndex`]).
+    /// [`crate::VectorIndex`]).
     #[must_use]
     pub fn manifest(&self) -> Vec<(u64, Payload)> {
         self.lock_state()

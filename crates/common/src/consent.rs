@@ -338,7 +338,7 @@ pub fn load_from_path(path: &Path) -> ConsentState {
     ConsentState::Decided(store)
 }
 
-/// Load consent from the real user directory ([`consent_file_path`]).
+/// Load consent from the real user directory ([`crate::consent::consent_file_path`]).
 ///
 /// Fail-closed like [`crate::consent::load_from_path`]: an unresolvable directory also yields
 /// [`crate::consent::ConsentState::Undecided`].
@@ -382,7 +382,7 @@ pub fn save_to_path(path: &Path, store: &ConsentStore) -> Result<(), ConsentErro
     Ok(())
 }
 
-/// Save `store` to the real user directory ([`consent_file_path`]).
+/// Save `store` to the real user directory ([`crate::consent::consent_file_path`]).
 ///
 /// This is the settings-page write path: parse with [`crate::consent::parse_first_run_choice`],
 /// build with [`crate::consent::ConsentStore::new`] (or mutate + [`crate::consent::save_consent`]), and the

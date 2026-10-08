@@ -131,7 +131,7 @@ pub enum MessageType {
     /// Set the consent tier (user-driven only).
     #[serde(rename = "consent.set")]
     ConsentSet,
-    /// Cloud-call audit record (see [`AuditEvent`]).
+    /// Cloud-call audit record (see [`crate::ipc::AuditEvent`]).
     #[serde(rename = "audit.event")]
     AuditEvent,
     /// Error envelope `{ code, retryable, detail }`.
@@ -186,7 +186,7 @@ impl MessageType {
 /// Maximum accepted frame payload in bytes (16 MiB).
 ///
 /// Snapshots carry chunk strings, so the cap is generous but finite; larger
-/// payloads are rejected before allocation (see [`read_frame`]).
+/// payloads are rejected before allocation (see [`crate::ipc::read_frame`]).
 pub const MAX_FRAME_BYTES: usize = 16 * 1024 * 1024;
 
 /// Length-prefix width in bytes (`u32` little-endian).
@@ -310,7 +310,7 @@ pub fn write_frame(
 
 /// Read one length-prefixed frame from any byte stream.
 ///
-/// The declared length is capped at [`MAX_FRAME_BYTES`] *before* allocation,
+/// The declared length is capped at [`crate::ipc::MAX_FRAME_BYTES`] *before* allocation,
 /// so a hostile prefix cannot force a large allocation.
 pub fn read_frame(reader: &mut impl Read) -> Result<WireFrame, IpcError> {
     let mut prefix = [0u8; LEN_PREFIX_BYTES];
@@ -399,7 +399,7 @@ pub fn error_frame(code: ErrorCode, detail: &str) -> Result<Vec<u8>, IpcError> {
 
 /// Validate that `frame` is an `error` envelope and return it.
 ///
-/// The wire `retryable` flag is recomputed from [`ErrorCode`] (never
+/// The wire `retryable` flag is recomputed from [`crate::ipc::ErrorCode`] (never
 /// trusted), so a peer cannot talk us into retrying a terminal error.
 pub fn parse_error(frame: &WireFrame) -> Result<ErrorBody, IpcError> {
     if frame.kind != MessageType::Error {
@@ -514,7 +514,7 @@ pub enum ErrorCode {
     /// Peer speaks another protocol major.
     #[serde(rename = "version_mismatch")]
     VersionMismatch,
-    /// Frame exceeds [`MAX_FRAME_BYTES`].
+    /// Frame exceeds [`crate::ipc::MAX_FRAME_BYTES`].
     #[serde(rename = "frame_too_large")]
     FrameTooLarge,
     /// Stream ended mid-frame.
@@ -594,7 +594,7 @@ pub struct ErrorBody {
     /// Machine-readable failure class.
     pub code: ErrorCode,
     /// Retry hint, always equal to `code.retryable()` when constructed via
-    /// [`ErrorBody::new`] or [`parse_error`].
+    /// [`ErrorBody::new`] or [`crate::ipc::parse_error`].
     pub retryable: bool,
     /// Short human hint (e.g. `"cloud tier1 timed out after 30000ms"`).
     pub detail: String,
@@ -640,7 +640,7 @@ pub enum IpcError {
         /// Our minor version.
         our_minor: u16,
     },
-    /// Frame exceeds [`MAX_FRAME_BYTES`].
+    /// Frame exceeds [`crate::ipc::MAX_FRAME_BYTES`].
     #[error("frame too large: {bytes} bytes (max {max})")]
     FrameTooLarge {
         /// Declared or encoded payload size.
@@ -676,7 +676,7 @@ pub enum IpcError {
 }
 
 impl IpcError {
-    /// Best-effort mapping of a local failure to a wire [`ErrorCode`].
+    /// Best-effort mapping of a local failure to a wire [`crate::ipc::ErrorCode`].
     pub fn code(&self) -> ErrorCode {
         match self {
             IpcError::Io(_) => ErrorCode::TransportClosed,
@@ -793,7 +793,7 @@ pub enum CircuitState {
 /// Consecutive-failure circuit breaker with an injectable clock (`now_ms`).
 ///
 /// Time is `u64` milliseconds so tests can drive the clock deterministically;
-/// production passes [`now_ms`].
+/// production passes [`crate::ipc::now_ms`].
 #[derive(Clone, Debug)]
 pub struct CircuitBreaker {
     /// Consecutive failures that trip the circuit.
@@ -939,7 +939,7 @@ impl AuditEvent {
         }
     }
 
-    /// Build an audit record stamped with [`now_ms`].
+    /// Build an audit record stamped with [`crate::ipc::now_ms`].
     pub fn now(
         model: impl Into<String>,
         tier: ConsentTier,
@@ -975,7 +975,7 @@ pub fn socket_file_path(id: &str) -> std::path::PathBuf {
 /// files are reclaimed at bind time by `interprocess`.
 ///
 /// Accept loop (caller imports `interprocess::local_socket::prelude::*`):
-/// `for conn in listener.incoming() { … }`, or [`accept_next`] for one shot.
+/// `for conn in listener.incoming() { … }`, or [`crate::ipc::accept_next`] for one shot.
 pub fn bind_endpoint(id: &str) -> std::io::Result<Listener> {
     if GenericNamespaced::is_supported() {
         let name = id.to_ns_name::<GenericNamespaced>()?;
@@ -987,7 +987,7 @@ pub fn bind_endpoint(id: &str) -> std::io::Result<Listener> {
     }
 }
 
-/// Bind the default bus endpoint ([`SOCKET_ID`]).
+/// Bind the default bus endpoint ([`crate::ipc::SOCKET_ID`]).
 pub fn bind_listener() -> std::io::Result<Listener> {
     bind_endpoint(SOCKET_ID)
 }
@@ -1002,7 +1002,7 @@ pub fn accept_next(listener: &Listener) -> std::io::Result<Stream> {
 }
 
 /// Connect to endpoint `id`. Fails immediately if no listener exists yet;
-/// use [`connect_to_with_retry`] to ride out sidecar startup.
+/// use [`crate::ipc::connect_to_with_retry`] to ride out sidecar startup.
 pub fn connect_to(id: &str) -> std::io::Result<Stream> {
     use interprocess::local_socket::traits::Stream as _;
     if GenericNamespaced::is_supported() {
@@ -1015,7 +1015,7 @@ pub fn connect_to(id: &str) -> std::io::Result<Stream> {
     }
 }
 
-/// Connect to the default bus endpoint ([`SOCKET_ID`]).
+/// Connect to the default bus endpoint ([`crate::ipc::SOCKET_ID`]).
 pub fn connect() -> std::io::Result<Stream> {
     connect_to(SOCKET_ID)
 }
@@ -1043,14 +1043,14 @@ pub fn connect_to_with_retry(id: &str, policy: &RetryPolicy) -> Result<Stream, I
 }
 
 /// Connect to the default bus endpoint with backoff (see
-/// [`connect_to_with_retry`]).
+/// [`crate::ipc::connect_to_with_retry`]).
 pub fn connect_with_retry(policy: &RetryPolicy) -> Result<Stream, IpcError> {
     connect_to_with_retry(SOCKET_ID, policy)
 }
 
 /// Apply send/receive timeouts to a connected stream (`None` = block).
 ///
-/// Timeouts surface as [`IpcError::Timeout`] via [`read_frame`]/writes.
+/// Timeouts surface as [`IpcError::Timeout`] via [`crate::ipc::read_frame`]/writes.
 /// Recommended: handshake budget from [`TimeoutConfig::handshake_ms`].
 pub fn set_stream_timeouts(
     stream: &Stream,

@@ -6,7 +6,7 @@
 //! log-mel. Ordering (DEC-016): integrated LUFS is
 //! measured first, the signal is gained to [`MirParams::target_lufs`]
 //! (−14 LUFS), and only then are spectral features computed. Every
-//! [`MirFeatures`] snapshot carries the [`MirParams`] it was produced
+//! [`crate::mir::MirFeatures`] snapshot carries the [`crate::mir::MirParams`] it was produced
 //! with so [`crate::score::compare`] can refuse cross-params comparisons
 //! (both tiers participate in the equality key).
 //!
@@ -22,7 +22,7 @@
 //! Why two tiers (TSK-204): the 2048 window resolves harmonics while the
 //! 1024 window localises transients; averaging their log-mels keeps one
 //! comparable grid while reducing single-window scalloping/ripple bias.
-//! The transient envelope ([`spectral_flux`]/onsets) intentionally stays
+//! The transient envelope ([`crate::mir::spectral_flux`]/onsets) intentionally stays
 //! primary-resolution so onset golden pins do not move with the tier mix.
 
 use crate::EvalError;
@@ -82,7 +82,7 @@ pub const TIER2_HOP: usize = 256;
 /// Frozen MIR v1 analysis parameters (DEC-012, extended with the TSK-204
 /// second resolution tier).
 ///
-/// All fields participate in [`PartialEq`]: [`crate::score::compare`]
+/// All fields participate in [`std::cmp::PartialEq`]: [`crate::score::compare`]
 /// refuses to score feature pairs produced with different params, so any
 /// change here (window, hop, second tier, mel bands, rate, frequency
 /// range, target) automatically invalidates cross-version comparisons
@@ -470,7 +470,7 @@ fn hz_to_mel(hz: f32) -> f32 {
     2595.0 * (1.0 + hz / 700.0).log10()
 }
 
-/// Inverse of [`hz_to_mel`].
+/// Inverse of [`crate::mir::hz_to_mel`].
 fn mel_to_hz(mel: f32) -> f32 {
     700.0 * (10.0_f32.powf(mel / 2595.0) - 1.0)
 }
@@ -511,7 +511,7 @@ pub fn mel_filterbank(params: &MirParams) -> Vec<Vec<f32>> {
 /// Output is `[frame][band]`. A uniform +x dB gain shifts every value by a
 /// constant, so post-normalisation comparisons are gain-invariant by
 /// construction (the +6 dB anti-cheat property, DEC-016/L5).
-/// See [`mel_energy`] for the linear-domain intermediate.
+/// See [`crate::mir::mel_energy`] for the linear-domain intermediate.
 pub fn apply_log_mel(magnitude: &[Vec<f32>], filterbank: &[Vec<f32>]) -> Vec<Vec<f32>> {
     log_energies(&mel_energy(magnitude, filterbank))
 }
@@ -537,7 +537,7 @@ fn log_energies(energies: &[Vec<f32>]) -> Vec<Vec<f32>> {
 /// per-band mean of the source (energy-preserving for the degenerate
 /// one-frame case). Empty input or a zero target yields an empty grid;
 /// every frame is assumed to hold the same band count (guaranteed by
-/// [`mel_energy`]). Deterministic: identical inputs give bit-identical
+/// [`crate::mir::mel_energy`]). Deterministic: identical inputs give bit-identical
 /// outputs.
 pub fn resample_frames(frames: &[Vec<f32>], target_frames: usize) -> Vec<Vec<f32>> {
     if frames.is_empty() || target_frames == 0 {
@@ -576,7 +576,7 @@ pub fn resample_frames(frames: &[Vec<f32>], target_frames: usize) -> Vec<Vec<f32
 /// Element-wise mean of two `[frame][band]` grids (TSK-204 tier fusion).
 ///
 /// Callers must resample both grids to the same frame count first (see
-/// [`resample_frames`]); rows/bands beyond the shorter grid are ignored by
+/// [`crate::mir::resample_frames`]); rows/bands beyond the shorter grid are ignored by
 /// construction of `zip`, so mismatched inputs degrade to truncation
 /// rather than a panic. Both tiers share [`MirParams::n_mel`] bands, so in
 /// the pipeline the average is exact.
@@ -594,7 +594,7 @@ pub fn average_grids(a: &[Vec<f32>], b: &[Vec<f32>]) -> Vec<Vec<f32>> {
 
 /// Centre frequency (Hz) of each mel band (TSK-204 band-split key).
 ///
-/// Uses the same mel-uniform point layout as [`mel_filterbank`]: band `m`
+/// Uses the same mel-uniform point layout as [`crate::mir::mel_filterbank`]: band `m`
 /// (1-based in filterbank terms) peaks at interpolation point `m`, so the
 /// returned vector has [`MirParams::n_mel`] entries. [`crate::score`]
 /// maps these centres to low/mid/high regions for weighted scoring.
@@ -608,7 +608,7 @@ pub fn mel_band_centers(params: &MirParams) -> Vec<f32> {
 
 /// Linear mel-band energies `[frame][band]` (the pre-log intermediate).
 ///
-/// Transient flux ([`spectral_flux`]) is computed on these, not on log-mel:
+/// Transient flux ([`crate::mir::spectral_flux`]) is computed on these, not on log-mel:
 /// the logarithm amplifies skirt-beating residue in near-silent bands into
 /// phantom onsets, while energy-domain flux keeps the residue ~1e-9 of peak
 /// and genuine onsets near order unity.

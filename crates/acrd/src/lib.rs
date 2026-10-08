@@ -1,9 +1,9 @@
 //! `synthlm-acrd`: SynthLM sidecar daemon library.
 //!
 //! Hosts planner/retrieval/eval/DSP off the DAW process (L8): the serving
-//! daemon ([`daemon`]), the deterministic demo harness ([`demo`]), the
-//! single-command live e2e orchestration ([`e2e`]), the true IPC dispatcher
-//! ([`dispatch`]), and the background-task journal ([`task`]).
+//! daemon ([`crate::daemon`]), the deterministic demo harness ([`crate::demo`]), the
+//! single-command live e2e orchestration ([`crate::e2e`]), the true IPC dispatcher
+//! ([`crate::dispatch`]), and the background-task journal ([`crate::task`]).
 //! The `acrd` binary (`src/main.rs`) is a thin argument-dispatch shell over
 //! this library.
 

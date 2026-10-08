@@ -87,7 +87,7 @@ use synthlm_common::ipc::{
     should_retry,
 };
 
-/// Re-exported tier alias: the gateway speaks [`ConsentTier`] everywhere.
+/// Re-exported tier alias: the gateway speaks [`synthlm_common::ipc::ConsentTier`] everywhere.
 ///
 /// The task statement names this `Tier`; the canonical type lives in
 /// [`synthlm_common::ipc`] so consent, config, and audit stay on one
@@ -103,7 +103,7 @@ pub type Tier = ConsentTier;
 ///
 /// Pure function: no environment or filesystem reads. `stored` is the tier
 /// from the authoritative [`synthlm_common::consent::ConsentStore`]; `env_override` is an already
-/// parsed `SYNTHLM_CONSENT_TIER` value (see [`parse_env_override`]).
+/// parsed `SYNTHLM_CONSENT_TIER` value (see [`crate::model_gw::parse_env_override`]).
 /// `None` on both legs yields [`synthlm_common::config::DEFAULT_TIER`].
 ///
 /// Note: the gateway path ([`crate::model_gw::Gateway::route`]) gates on [`synthlm_common::consent::require_consent`]
@@ -117,7 +117,7 @@ pub fn resolve_tier(stored: Option<ConsentTier>, env_override: Option<ConsentTie
 
 /// Parse an injected `SYNTHLM_CONSENT_TIER` value (`None` = unset).
 ///
-/// Blank input behaves as unset (mirrors [`config`] blank-fallback rules);
+/// Blank input behaves as unset (mirrors [`synthlm_common::config`] blank-fallback rules);
 /// an unknown name is [`GatewayError::InvalidTier`] (BLOCKED, value-free).
 /// Takes the raw string instead of reading process environment so tests never
 /// touch ambient state.
@@ -161,9 +161,9 @@ pub struct ResolvedModel {
 
 /// Resolve `tier` to its DEC-010 preset model and endpoint.
 ///
-/// Tier1 → [`DEFAULT_TIER1_MODEL`] on [`Endpoint::Cloud`], Tier2 →
-/// [`DEFAULT_TIER2_MODEL`] on [`Endpoint::Cloud`], Tier3 →
-/// [`DEFAULT_TIER3_MODEL`] on [`crate::model_gw::Endpoint::Local`]. Deliberately independent
+/// Tier1 → [`synthlm_common::config::DEFAULT_TIER1_MODEL`] on [`Endpoint::Cloud`], Tier2 →
+/// [`synthlm_common::config::DEFAULT_TIER2_MODEL`] on [`Endpoint::Cloud`], Tier3 →
+/// [`synthlm_common::config::DEFAULT_TIER3_MODEL`] on [`crate::model_gw::Endpoint::Local`]. Deliberately independent
 /// of [`config::Config`] (which requires an API key): Tier3 local inference
 /// must resolve without any key present.
 pub fn resolve_model(tier: ConsentTier) -> ResolvedModel {
@@ -434,7 +434,7 @@ pub struct ModelResponse {
 /// taxonomy.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TransportKind {
-    /// Attempt hit the [`TimeoutConfig`] budget (HTTP timeout).
+    /// Attempt hit the [`synthlm_common::ipc::TimeoutConfig`] budget (HTTP timeout).
     Timeout,
     /// Connection failed / reset (socket closed).
     ConnectionFailed,
@@ -487,7 +487,7 @@ pub struct TransportError {
 }
 
 impl TransportError {
-    /// Build from a [`TransportKind`], deriving the [`synthlm_common::ipc::ErrorCode`].
+    /// Build from a [`crate::model_gw::TransportKind`], deriving the [`synthlm_common::ipc::ErrorCode`].
     pub fn new(kind: TransportKind) -> Self {
         Self {
             kind,
@@ -496,7 +496,7 @@ impl TransportError {
         }
     }
 
-    /// Build from a [`TransportKind`] with an observed `Retry-After` delay.
+    /// Build from a [`crate::model_gw::TransportKind`] with an observed `Retry-After` delay.
     pub fn with_retry_after(kind: TransportKind, retry_after_ms: Option<u64>) -> Self {
         Self {
             kind,
@@ -515,14 +515,14 @@ impl TransportError {
 ///
 /// Implementations must be synchronous and secret-free (no key/PCM logging).
 /// The real HTTPS client lands in a follow-up task; this task ships only
-/// [`crate::model_gw::MockTransport`]. `timeout` carries the [`TimeoutConfig`] budgets (the
+/// [`crate::model_gw::MockTransport`]. `timeout` carries the [`synthlm_common::ipc::TimeoutConfig`] budgets (the
 /// mock records them for assertion but never sleeps).
 pub trait Transport {
     /// Send `request` under `timeout`.
     ///
     /// # Errors
     ///
-    /// Returns [`TransportError`] on timeout, connection failure, HTTP
+    /// Returns [`crate::model_gw::TransportError`] on timeout, connection failure, HTTP
     /// 401/429/5xx, or local-endpoint outage.
     fn send(
         &mut self,
@@ -553,7 +553,7 @@ pub enum MockOutcome {
         /// Scripted model-produced text.
         text: String,
     },
-    /// Fail with this [`TransportKind`].
+    /// Fail with this [`crate::model_gw::TransportKind`].
     Fail(TransportKind),
 }
 
@@ -685,7 +685,7 @@ const RESPONSES_PATH_SUFFIX: &str = "/responses";
 ///
 /// Verified live 2026-10-06: `POST {base}/chat/completions` with
 /// `{model, messages, max_tokens}` returns 2xx for `mimo-v2.6-flash`
-/// **iff** the [`OPENCODE_SESSION_HEADER`] header is present (absent →
+/// **iff** the [`crate::model_gw::OPENCODE_SESSION_HEADER`] header is present (absent →
 /// systematic 400; see `docs/research/C-live-endpoint.md`).
 const CHAT_COMPLETIONS_PATH_SUFFIX: &str = "/chat/completions";
 
@@ -953,7 +953,7 @@ pub struct HttpsTransport {
     api_key: String,
     /// DEC-010 base URL (overridable for loopback stub tests).
     base_url: String,
-    /// Stable conversation session ID for [`OPENCODE_SESSION_HEADER`];
+    /// Stable conversation session ID for [`crate::model_gw::OPENCODE_SESSION_HEADER`];
     /// `None` sends no session header (loopback stubs, Tier3-adjacent paths).
     session_id: Option<String>,
     /// Blocking HTTP client (rustls TLS, no global timeout; per-request
@@ -1074,7 +1074,7 @@ impl HttpsTransport {
     }
 
     /// Attach the stable conversation session ID sent as
-    /// [`OPENCODE_SESSION_HEADER`] (required by the Go surface; absent →
+    /// [`crate::model_gw::OPENCODE_SESSION_HEADER`] (required by the Go surface; absent →
     /// systematic 400 as probed 2026-10-06).
     #[must_use]
     pub fn with_session_id(mut self, session_id: String) -> Self {
@@ -1088,7 +1088,7 @@ impl HttpsTransport {
     }
 
     /// Full endpoint URL for `tier` (trailing slashes on the base are
-    /// tolerated; path is tier-aware per [`cloud_path_suffix`]).
+    /// tolerated; path is tier-aware per [`crate::model_gw::cloud_path_suffix`]).
     fn endpoint_url(&self, tier: ConsentTier) -> String {
         format!(
             "{}{}",
@@ -1211,7 +1211,7 @@ pub struct RouteResult {
 /// Tier1→Tier2→Tier3 failover with per-tier retry and circuit breaking.
 ///
 /// Owns one [`synthlm_common::ipc::CircuitBreaker`] per tier plus the [`synthlm_common::ipc::RetryPolicy`] and
-/// [`TimeoutConfig`] in force, plus the staged live prompt context (user
+/// [`synthlm_common::ipc::TimeoutConfig`] in force, plus the staged live prompt context (user
 /// intent + profile whitelist idents, set via
 /// [`crate::model_gw::Gateway::set_live_prompt`] /
 /// [`crate::model_gw::Gateway::set_live_profile_idents`] before
@@ -1225,7 +1225,7 @@ pub struct Gateway {
     retry: RetryPolicy,
     /// Timeout budgets presented to the transport.
     timeout: TimeoutConfig,
-    /// Per-tier breakers, indexed by [`tier_index`].
+    /// Per-tier breakers, indexed by [`crate::model_gw::tier_index`].
     breakers: [CircuitBreaker; 3],
     /// Staged user intent verbatim for the live path (`None` = legacy
     /// synthetic body). Authorized Tier1/Tier2 upload content; cloned into
@@ -1328,7 +1328,7 @@ impl Gateway {
     /// zero audit events): consent → whitelist → key. Then each tier in
     /// `chain_for` order is attempted while its breaker
     /// [`can_attempt`](CircuitBreaker::can_attempt)s; attempts within a tier
-    /// follow [`synthlm_common::ipc::RetryPolicy`] via [`should_retry`]. One [`synthlm_common::ipc::AuditEvent`] is
+    /// follow [`synthlm_common::ipc::RetryPolicy`] via [`synthlm_common::ipc::should_retry`]. One [`synthlm_common::ipc::AuditEvent`] is
     /// recorded per transport attempt, including retries.
     ///
     /// # Errors

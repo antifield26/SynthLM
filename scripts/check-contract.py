@@ -43,7 +43,17 @@ HEADER_WINDOW = 15
 HISTORICAL_EXEMPT: set[str] = set()
 PATH_FIXTURE = "crates/common/tests/upload_audit.rs"
 TEXT_SUFFIXES = (".md", ".txt", ".lua", ".rs", ".json", ".toml", ".yml", ".yaml", ".py", ".ps1", ".csv", ".log")
-BARE_LINK = re.compile(r"\[`([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z0-9_]+)?)`\](?!\()")
+# A link is a violation only when it is a single-segment name (`[`Item`]`):
+# a path already carries the crate/module prefix AGENTS 4 demands.
+BARE_LINK = re.compile(r"\[`([A-Za-z_][A-Za-z0-9_]*)`\](?!\()")
+CRATE_ROOTS = {
+    "synthlm_common", "synthlm_profile", "synthlm_planner", "synthlm_retrieval",
+    "synthlm_eval", "synthlm_dsp", "synthlm_acrd", "synthlm_bridge", "synthlm_ui",
+    "serde", "serde_json", "thiserror", "anyhow", "reqwest", "egui", "eframe", "ort",
+    "regex", "ctrlc", "interprocess", "shared_memory", "symphonia", "tempfile", "tokio",
+    "futures", "lancedb", "arrow_array", "arrow_schema", "realfft", "rustfft", "ebur128",
+    "reaper_low", "reaper_medium", "std", "core", "alloc",
+}
 ABS_PATH = re.compile(r"[A-Za-z]:\\Users\\[^\\\s\"'`,;)<>=]+|/Users/[A-Za-z0-9_.-]+|/home/[A-Za-z0-9_.-]+")
 EVIDENCE_TOKEN = re.compile(r"\.?[A-Za-z0-9_][A-Za-z0-9_./-]*\.(?:out\.txt|md|py|json|wav|txt|yml|rs|toml|ps1|lua)")
 GENERIC_TOKENS = {"out.txt", "output.txt"}
@@ -234,7 +244,7 @@ def check_links(flags: list[str], files: list[str]) -> None:
         if not rel.endswith(".rs") or "/src/" not in rel:
             continue
         text = (ROOT / rel).read_text(encoding="utf-8", errors="replace")
-        found = len(BARE_LINK.findall(text))
+        found = sum(1 for name in BARE_LINK.findall(text) if name not in CRATE_ROOTS)
         if found:
             counts[rel] = found
     total = sum(counts.values())

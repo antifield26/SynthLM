@@ -366,7 +366,7 @@ struct BuiltCandidate {
     diff_zh: String,
 }
 
-/// Build the [`PatchPlan`] for one spec (replace ops over ident paths).
+/// Build the [`synthlm_planner::patch::PatchPlan`] for one spec (replace ops over ident paths).
 fn build_plan(spec: &DemoSpec, snapshot_id: &str) -> PatchPlan {
     let mut ops = Vec::with_capacity(spec.ops.len());
     for (path, value) in spec.ops {
@@ -388,7 +388,7 @@ fn ident_label(path: &str) -> &str {
     path.strip_prefix("param/").unwrap_or(path)
 }
 
-/// Render one [`PatchPlan`] as JSON (deterministic key order by construction).
+/// Render one [`synthlm_planner::patch::PatchPlan`] as JSON (deterministic key order by construction).
 fn plan_to_json(plan: &PatchPlan) -> Result<serde_json::Value, DemoError> {
     let mut ops = Vec::with_capacity(plan.ops.len());
     for op in &plan.ops {

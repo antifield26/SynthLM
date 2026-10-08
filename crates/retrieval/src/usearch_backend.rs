@@ -13,7 +13,7 @@
 //! bench machine lacks (no MSVC/cmake). See `crates/retrieval/BENCH.md` for
 //! the re-run condition before locking the default backend.
 //!
-//! Privacy: in-memory only; [`UsearchIndex`] never writes vectors to disk.
+//! Privacy: in-memory only; [`crate::usearch_backend::UsearchIndex`] never writes vectors to disk.
 
 use std::collections::HashMap;
 

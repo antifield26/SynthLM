@@ -5,7 +5,7 @@
 //! (see `crates/bridge/Cargo.toml` + `docs/LICENSES.md`). Depends on `common`
 //! only besides the REAPER bindings (DEC-022: no model/analysis deps).
 //!
-//! [`container_addr`] holds the pure container-address layer (trait seam +
+//! [`crate::container_addr`] holds the pure container-address layer (trait seam +
 //! encode/decode + GUID anchoring + flatten-fallback stub); the live
 //! main-thread adapter lands in TSK-102.
 

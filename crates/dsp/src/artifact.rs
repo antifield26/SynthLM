@@ -1,7 +1,7 @@
 //! Project-side artifact pointers (DEC-009, DEC-027, ARCH §7).
 //!
 //! Large products (stems) live in the external content-addressed cache;
-//! the project (`.rpp` `P_EXT:SYNTHLM_*`) stores only [`ArtifactRef`] — a
+//! the project (`.rpp` `P_EXT:SYNTHLM_*`) stores only [`crate::artifact::ArtifactRef`] — a
 //! key plus kind plus byte size. This keeps `.rpp` volume small and makes
 //! cache entries relocatable: a pointer stays valid wherever the cache root
 //! moves, because it names content, not a location.

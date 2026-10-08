@@ -101,7 +101,7 @@ pub enum SoundRole {
     Macro,
     /// Chunk-only state (e.g. mod-matrix routing). Never addressed live;
     /// see the module docs. Mutually exclusive with `ident` and with any
-    /// visible [`UiHint`].
+    /// visible [`crate::schema::UiHint`].
     PresetOnly,
 }
 
@@ -173,7 +173,7 @@ pub struct ParamEntry {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Profile {
-    /// Must equal [`CURRENT_SCHEMA_VERSION`]; anything else is rejected.
+    /// Must equal [`crate::schema::CURRENT_SCHEMA_VERSION`]; anything else is rejected.
     pub schema_version: u32,
     /// Regex matched against the REAPER FX name (e.g. `"ReaEQ"`,
     /// `"CLAP.*Vital"` for the CLAP-only Vital profile, which must not match
@@ -185,13 +185,13 @@ pub struct Profile {
     pub params: Vec<ParamEntry>,
 }
 
-/// Fail-closed validation / load errors for [`Profile`].
+/// Fail-closed validation / load errors for [`crate::schema::Profile`].
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum ProfileError {
     /// JSON parsing failed.
     #[error("profile JSON invalid: {0}")]
     Json(String),
-    /// `schema_version` is not [`CURRENT_SCHEMA_VERSION`].
+    /// `schema_version` is not [`crate::schema::CURRENT_SCHEMA_VERSION`].
     #[error("unsupported schema_version {found}, expected {expected}")]
     VersionMismatch {
         /// Required version.

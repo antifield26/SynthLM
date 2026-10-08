@@ -48,7 +48,7 @@ impl JobKind {
     }
 }
 
-/// Lifecycle state of a background [`Job`] (ARCH §8: pending/running/done/failed).
+/// Lifecycle state of a background [`crate::job::Job`] (ARCH §8: pending/running/done/failed).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum JobState {
     /// Queued, no worker has picked the job up.

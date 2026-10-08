@@ -48,7 +48,7 @@ use thiserror::Error;
 /// Payloads at or above this size travel via shared memory.
 ///
 /// Equals [`crate::ipc::MAX_FRAME_BYTES`] (16 MiB): anything that would not
-/// fit a control-plane frame must use the shm path. See [`should_use_shm`].
+/// fit a control-plane frame must use the shm path. See [`crate::shm::should_use_shm`].
 pub const SHM_THRESHOLD_BYTES: usize = crate::ipc::MAX_FRAME_BYTES;
 
 /// Route a payload: `true` means shared memory, `false` means control-plane
@@ -84,7 +84,7 @@ pub struct ShmDescriptor {
     pub shm_name: String,
     /// Payload length in bytes (exact mapping size).
     pub len_bytes: u64,
-    /// [`checksum_fnv1a64`] over the payload.
+    /// [`crate::shm::checksum_fnv1a64`] over the payload.
     pub checksum: u64,
 }
 
@@ -188,7 +188,7 @@ impl ShmSender {
 /// Copy one frozen little-endian `f32` PCM block into a fresh segment.
 ///
 /// Encoding is explicit LE bytes (portable across endians); see
-/// [`read_pcm_f32`].
+/// [`crate::shm::read_pcm_f32`].
 ///
 /// # Errors
 ///

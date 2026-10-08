@@ -88,7 +88,7 @@ pub enum SnapshotError {
     /// Provenance triple incomplete (fail-closed, A04 §7).
     ///
     /// `field` is one of `"SRC_GUID"` / `"SRC_FILE"` / `"OP"`, matching
-    /// [`PROV_KEY_SRC_GUID`] / [`PROV_KEY_SRC_FILE`] / [`PROV_KEY_OP`].
+    /// [`crate::snapshot::PROV_KEY_SRC_GUID`] / [`crate::snapshot::PROV_KEY_SRC_FILE`] / [`crate::snapshot::PROV_KEY_OP`].
     #[error("provenance triple incomplete: missing {field} (P_EXT:SYNTHLM_PROV_* fail-closed)")]
     ProvenanceIncomplete {
         /// Which triple member is missing or empty.
@@ -319,7 +319,7 @@ impl DerivedTake {
 
 /// Frozen take snapshot: the unit sent to `acrd` over `snapshot.submit`.
 ///
-/// Assembled by [`capture`] (DEC-004: solve from the frozen copy, never follow
+/// Assembled by [`crate::snapshot::capture`] (DEC-004: solve from the frozen copy, never follow
 /// live edits mid-solve). Large chunks stay out of small project state: the
 /// mock stores the chunk inline, live stores big payloads in the external
 /// content-addressed cache with only a pointer in `P_EXT`/ProjExtState
@@ -354,7 +354,7 @@ pub struct Snapshot {
 ///
 /// A04 §3 proved undo/redo invalidates `MediaItem*`/`MediaItem_Take*`
 /// pointers (`ValidatePtr2 == false` after `Undo_DoUndo2`, spike03f): after
-/// [`restore`] / [`apply_derived`] returns, the caller MUST re-fetch every
+/// [`crate::snapshot::restore`] / [`crate::snapshot::apply_derived`] returns, the caller MUST re-fetch every
 /// cached pointer via `find_take_by_guid` / `resolve_anchor` before the next
 /// DAW op and MUST NOT reuse pre-restore handles. Holding this value is the
 /// type-level reminder of that duty; it carries the GUID to re-fetch.
@@ -364,7 +364,7 @@ pub struct MustRefetch {
     pub take_guid: String,
 }
 
-/// Outcome of [`restore`]: what landed, what was skipped, what must be re-fetched.
+/// Outcome of [`crate::snapshot::restore`]: what landed, what was skipped, what must be re-fetched.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RestoreReport {
     /// Parameters written back by ident.
@@ -388,8 +388,8 @@ pub struct RestoreReport {
 /// `reaper-low` fallback exactly like [`crate::undo::ReaperUndo`]; every
 /// method that would touch a concrete `reaper-medium` type goes through this
 /// trait instead so tests stay on the mock (DEC-024). Extends
-/// [`ReaperUndo`] so [`restore`] / [`apply_derived`] can wrap their writes in
-/// the single [`UndoBlock`] the task mandates (DEC-020).
+/// [`crate::undo::ReaperUndo`] so [`crate::snapshot::restore`] / [`crate::snapshot::apply_derived`] can wrap their writes in
+/// the single [`crate::undo::UndoBlock`] the task mandates (DEC-020).
 ///
 /// All methods are control-plane calls: main thread only, never the audio
 /// thread.
@@ -428,7 +428,7 @@ pub trait SnapshotBackend: ReaperUndo {
     /// when any member is absent (fail-closed: refuse, never assume).
     fn read_provenance(&self) -> Option<Provenance>;
 
-    /// New-file reference written by the last [`apply_derived`], if any.
+    /// New-file reference written by the last [`crate::snapshot::apply_derived`], if any.
     fn read_derived_file_ref(&self) -> Option<String>;
 
     /// Tracks whose items must be dirtied after writes (v7.60 manual dirty,
@@ -488,7 +488,7 @@ pub fn chunk_has_takefx_nch(chunk: &str) -> bool {
     chunk.contains("TAKEFX_NCH")
 }
 
-/// Freeze the live take into a [`Snapshot`] (DEC-004; read-only, no undo).
+/// Freeze the live take into a [`crate::snapshot::Snapshot`] (DEC-004; read-only, no undo).
 ///
 /// Iterates [`SnapshotBackend::list_param_idents`]; rows whose
 /// [`SnapshotBackend::read_param`] reports `None` (`FromIdent == -1` race
@@ -542,7 +542,7 @@ fn check_snapshot_shape(snapshot: &Snapshot) -> Result<(), SnapshotError> {
     Ok(())
 }
 
-/// Restore a [`Snapshot`] inside exactly one [`UndoBlock`] (DEC-020).
+/// Restore a [`crate::snapshot::Snapshot`] inside exactly one [`crate::undo::UndoBlock`] (DEC-020).
 ///
 /// One solve is one undo point: `BeginBlock2(0) … writes … dirty …
 /// EndBlock2(0, "SynthLM: restore Nparams", -1)`, reusing the
@@ -550,7 +550,7 @@ fn check_snapshot_shape(snapshot: &Snapshot) -> Result<(), SnapshotError> {
 /// Per-param `FromIdent == -1` takes the migration-removal branch (counted in
 /// [`RestoreReport::removed_idents`], never an error). The M3 back-write
 /// fires when the landed chunk lacks `TAKEFX_NCH` but the snapshot saved a
-/// value. Returns the [`RestoreReport`] carrying the [`MustRefetch`]
+/// value. Returns the [`crate::snapshot::RestoreReport`] carrying the [`crate::snapshot::MustRefetch`]
 /// stale-handle obligation: every pre-restore pointer is dead (A04 §3) and
 /// the caller must re-fetch via `find_take_by_guid` / `resolve_anchor`
 /// before the next DAW op.
@@ -612,14 +612,14 @@ pub fn restore<B: SnapshotBackend + ?Sized>(
     })
 }
 
-/// Apply a derived-audio write inside exactly one [`UndoBlock`] (DEC-020).
+/// Apply a derived-audio write inside exactly one [`crate::undo::UndoBlock`] (DEC-020).
 ///
 /// Records the NEW file reference and (re-)writes the `P_EXT:SYNTHLM_PROV_*`
 /// triple in the same block (M6: glue-class steps drop take `P_EXT`, so the
 /// triple is written with the file, never assumed to survive). The source
 /// take/file is never modified — in-place overwrite has no representation
-/// here ([`DerivedTake`] cannot express it, `AGENTS.md` §3.5). Returns the
-/// [`MustRefetch`] obligation: re-fetch all pointers before the next DAW op.
+/// here ([`crate::snapshot::DerivedTake`] cannot express it, `AGENTS.md` §3.5). Returns the
+/// [`crate::snapshot::MustRefetch`] obligation: re-fetch all pointers before the next DAW op.
 ///
 /// # Errors
 ///
