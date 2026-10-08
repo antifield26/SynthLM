@@ -11,6 +11,15 @@
 //! failure renders as a red banner with an empty list (never a panic);
 //! per-entry failures render as red rows (see
 //! [`synthlm_ui::parse_plan_text`]).
+//!
+//! `--scale <f32>` (TSK-807) forces the egui pixels-per-point override, so
+//! a HiDPI screenshot can be taken at any scale without touching the OS
+//! display setting: the TSK-306/703 "150% needs a logout" blocker becomes
+//! `synthlm-ui --scale 1.5` plus a screenshot. Without the switch, the
+//! native monitor scale is used unchanged. The effective value is printed
+//! on the first frame as `FIRST_FRAME PPP=<value> ZOOM=<value>` (see
+//! [`synthlm_ui::SynthApp`]), which is the evidence to file next to the
+//! screenshot.
 
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
@@ -19,12 +28,22 @@ use std::sync::atomic::AtomicBool;
 /// embedded demo plan.
 const PLAN_PATH_ENV: &str = "SYNTHLM_UI_PLAN";
 
+/// Command-line switch overriding the egui scale factor: `--scale <f32>`
+/// (also accepted as `--scale=<f32>`).
+///
+/// The value is the requested `pixels_per_point`. egui derives it as
+/// `zoom_factor * native_pixels_per_point`, and the switch sets the zoom
+/// factor so that the product equals the requested value on any monitor:
+/// `1.5` reproduces a 150% display (or a 150% UI on top of any native
+/// scale) without an OS setting change and without a logout.
+const SCALE_ARG: &str = "--scale";
+
 /// Embedded demo plan (same shape the loader expects at runtime).
 const DEMO_PLAN: &str = include_str!("../../../experiments/e2e-demo/demo-plan.json");
 
 /// Load the startup plan report plus an optional whole-file error banner.
 ///
-/// Override path wins when [`PLAN_PATH_ENV`] names a readable file with
+/// Override path wins when [`crate::main::PLAN_PATH_ENV`] names a readable file with
 /// parseable content; any failure falls back to the embedded demo plan,
 /// and only a failure of both leaves an empty report with a banner. No
 /// path text ever enters the banner (absolute paths stay out of UI copy).
@@ -51,7 +70,55 @@ fn load_startup_plan() -> (synthlm_ui::PlanReport, Option<String>) {
     }
 }
 
+/// Parse the `--scale` switch out of `args` (program name included or not,
+/// it is not inspected).
+///
+/// Returns `Ok(None)` when the switch is absent — the native monitor scale
+/// then applies unchanged — and `Ok(Some(scale))` for a valid finite
+/// `scale > 0.0`. Unknown arguments are ignored. Errors are explicit and
+/// name the offending text, so a typo never silently falls back to 1.0.
+///
+/// # Errors
+///
+/// Fails when `--scale` has no following value, when the value does not
+/// parse as `f32`, or when it is non-finite (`nan`/`inf`) or `<= 0.0`
+/// (egui cannot lay out at such a scale).
+fn parse_scale(args: &[String]) -> anyhow::Result<Option<f32>> {
+    let mut requested: Option<f32> = None;
+    let mut index = 0;
+    while index < args.len() {
+        let arg = &args[index];
+        let raw = if arg == SCALE_ARG {
+            let Some(value) = args.get(index + 1) else {
+                anyhow::bail!("{SCALE_ARG} requires a value, e.g. `{SCALE_ARG} 1.5`");
+            };
+            index += 2;
+            value.as_str()
+        } else if let Some(value) = arg
+            .strip_prefix(SCALE_ARG)
+            .and_then(|rest| rest.strip_prefix('='))
+        {
+            index += 1;
+            value
+        } else {
+            index += 1;
+            continue;
+        };
+        let value: f32 = raw.parse().map_err(|_| {
+            anyhow::anyhow!("{SCALE_ARG} value '{raw}' is not a number (expected e.g. 1.5)")
+        })?;
+        if !value.is_finite() || value <= 0.0 {
+            anyhow::bail!("{SCALE_ARG} value '{raw}' must be a finite number > 0 (e.g. 1.5)");
+        }
+        requested = Some(value);
+    }
+    Ok(requested)
+}
+
 fn main() -> anyhow::Result<()> {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let scale_override = parse_scale(&args)?;
+
     let state: synthlm_ui::SharedState =
         Arc::new(std::sync::Mutex::new(synthlm_ui::UiState::new()));
     let stop = Arc::new(AtomicBool::new(false));
@@ -73,6 +140,12 @@ fn main() -> anyhow::Result<()> {
         "SynthLM",
         options,
         Box::new(move |cc| {
+            if let Some(scale) = scale_override {
+                // egui applies the new zoom factor at the start of the next
+                // pass; the window is created before the app, so the first
+                // frame already renders at the requested pixels-per-point.
+                cc.egui_ctx.set_pixels_per_point(scale);
+            }
             cc.egui_ctx.set_visuals(egui::Visuals::dark());
             synthlm_ui::fonts::install_cjk(&cc.egui_ctx);
             let handle =
@@ -98,4 +171,48 @@ fn main() -> anyhow::Result<()> {
         return Err(anyhow::anyhow!("producer thread panicked"));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_scale;
+
+    /// Build the argument vector the way `main` sees it.
+    fn args(raw: &[&str]) -> Vec<String> {
+        raw.iter().map(|s| (*s).to_owned()).collect()
+    }
+
+    #[test]
+    fn scale_absent_keeps_native_scale() {
+        assert_eq!(parse_scale(&args(&[])).ok(), Some(None));
+        assert_eq!(parse_scale(&args(&["--verbose"])).ok(), Some(None));
+    }
+
+    #[test]
+    fn scale_accepts_both_spellings() {
+        assert_eq!(
+            parse_scale(&args(&["--scale", "1.5"])).ok(),
+            Some(Some(1.5))
+        );
+        assert_eq!(parse_scale(&args(&["--scale=1.5"])).ok(), Some(Some(1.5)));
+        assert_eq!(parse_scale(&args(&["--scale", "2"])).ok(), Some(Some(2.0)));
+    }
+
+    #[test]
+    fn scale_rejects_missing_unparseable_and_non_positive() {
+        for bad in [
+            vec!["--scale"],
+            vec!["--scale", "big"],
+            vec!["--scale", "0"],
+            vec!["--scale", "-1.5"],
+            vec!["--scale", "nan"],
+            vec!["--scale", "inf"],
+            vec!["--scale", "-inf"],
+        ] {
+            assert!(
+                parse_scale(&args(&bad)).is_err(),
+                "expected rejection for {bad:?}"
+            );
+        }
+    }
 }

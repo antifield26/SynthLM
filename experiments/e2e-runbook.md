@@ -74,7 +74,78 @@ cargo run -p synthlm-acrd -- demo --seed 7
 | 日期 | seed | 步骤 0 | 步骤 1 | 步骤 2 | 步骤 3 | 步骤 4 | 步骤 5 | 合计 | 是否 ≤5min | 见证人 |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 2026-10-06 | 7 | ~10s | —（机器代检） | —（文件校验代检） | ~15s | —（机器代检） | ~5s | <1min | ✅ | 子 Agent（REAPER 侧 out.txt 见上） |
-| | | | | | | | | | | |
+| 待填 | 待填 | — | — | — | — | — | — | — | — | 待填 |
 
 - 人类见证重跑时：在上表追加一行，`--seed` 可换（如 8/42）验证确定性
   （同 seed 字节一致）与多样性（异 seed 仅 confidence 抖动，排序稳定）。
+- 末行是**人类见证空模板行**（`待填`）：谁见证谁填，禁止代填姓名、日期或结果；
+  上表第一行的 `子 Agent` 是机器行，**不构成**人类见证验收（见下节 `check`）。
+
+## 见证行记录（`scripts/runbook_witness.py`，TSK-807）
+
+上表由脚本读写，把「人类见证行」与「机器行」分开计数，避免机器行被当成验收证据：
+
+```text
+python scripts/runbook_witness.py check
+python scripts/runbook_witness.py add --seed 8 \
+    --steps "12s,40s,35s,18s,20s,6s" --total 2m11s \
+    --within-5min yes --witness "人类见证人（本人姓名/代号）"
+```
+
+- `add`：写一行进表内——末行是空模板行时就地填入，否则插在表格最后一行之后
+  （不会落到表外）。`--seed/--total/--within-5min/--witness` 必填；缺一项即拒绝。
+- `add` 拒绝机器见证：`见证人` 含 `机器`/`子 Agent`/`subagent`/`machine`/`bot`
+  时直接报错，除非显式 `--machine`（该行会被 `check` 单独计为机器行）。
+- `check`：统计 `human/machine/empty/malformed` 行。**当前实测**
+  （2026-10-08）：`rows=2 human=0 machine=1 empty=1 malformed=0`，
+  退出码 1 并打印 `NO HUMAN WITNESS ROW YET`——即人类见证缺口是公开未闭合状态。
+  出现至少一行人类见证后 `check` 退出码 0。
+- 两种模式都先校验表头（`日期 | seed | 步骤 0..5 | 合计 | 是否 ≤5min | 见证人`），
+  列不符即拒绝写入，避免畸形行进入产物。
+
+## 盲听评分单（`scripts/blind_scores.py`，TSK-807）
+
+盲听 ρ 此前只有文字结论（`docs/REPORTS.md` §3.3/§4），无仓库内原始排序；
+本脚本补齐「空评分单 → 人类排序 → ρ 计算 → 结果落盘」的可复核链路（仅标准库）：
+
+```text
+# 1) 生成空评分单 + 答案键（键默认写仓库外 %TEMP%，评分人看不到）
+python scripts/blind_scores.py generate --round blind3 \
+    --sheet experiments/blind3-sheet.csv
+# 2) 人类听音后填 human_rank（1 = 该系列第一位，可并列），notes 可写听感
+# 3) 评分：逐系列 ρ + 合并 ρ，并把一行结果追加进结果表
+python scripts/blind_scores.py score --sheet experiments/blind3-sheet.csv \
+    --key %TEMP%/synthlm-blind-blind3-key.json \
+    --append experiments/blind-results.md
+# 4) 数学自检：ρ = +1.0000（完全一致）/ −1.0000（完全反转）/ +0.9487（并列，√0.9）
+python scripts/blind_scores.py --selftest
+```
+
+- 任一 `human_rank` 为空即**拒绝**评分与追加（无部分证据）；非整数、越界排名同样拒绝。
+- 并列名次按平均秩（average ranks）计算 Spearman，不会因评分人给出并列而失真。
+- 答案键默认落在仓库外（`%TEMP%/synthlm-blind-<round>-key.json`）；`--key-out` 指到仓库内
+  会被拒绝（仅 `--allow-in-repo-key` 可越过，且只用于干跑），与
+  `crates/eval/tests/blind_calib2.rs` 把键放在盲目录之外同一原则。
+- 输出只有计数、clip/stimulus id 与 ρ 值，不打印绝对路径（AGENTS §8）；
+  `--min-rho`（默认 0.5）未达标时 `score` 退出码 1。
+- 脚本不会生成任何排名：空评分单不是证据，ρ 只来自人类实际填写的排序。
+
+## HiDPI 150% 截图（`synthlm-ui --scale`，TSK-807）
+
+150% 截图此前记「未实测」（切换 OS 缩放要注销重登）。`--scale` 在进程内覆盖
+egui 的 `pixels_per_point`，不改系统设置、不用重登：
+
+```text
+cargo run -p synthlm-ui -- --scale 1.5
+# 有界运行（自动关窗，便于截图）：先设 SYNTHLM_UI_RUN_SECS=30
+```
+
+- 首帧在 stderr 打印 `FIRST_FRAME PPP=1.500 ZOOM=…`：这是与截图同源的机器证据，
+  请与截图一起登记（`--scale` 缺省时不覆盖，保持显示器原生缩放）。
+- 机器侧已实测（2026-10-08，`SYNTHLM_UI_RUN_SECS=5` 有界运行，退出码 0）：
+  默认 `FIRST_FRAME PPP=1.000 ZOOM=1.000`；`--scale 1.5` → `FIRST_FRAME PPP=1.500 ZOOM=1.500`。
+  即覆盖已生效；**150% 截图的「无 tofu」判定仍待人类**（本行只证机器侧链路）。
+- `--scale` 非有限值（`nan`/`inf`）或 ≤0 直接报错退出，不静默回落 1.0
+  （实测 `--scale 0` → `Error: --scale value '0' must be a finite number > 0 (e.g. 1.5)`，退出码 1）。
+- 截图与「无 tofu」判断仍由人类给出并存到 `experiments/`（例如
+  `experiments/ui-scale-150.png`），本手册与脚本不代拍、不代填、不代判。
