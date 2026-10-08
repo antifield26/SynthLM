@@ -138,3 +138,9 @@ Phase 0–7 关闭后做了一轮整改：一次性修复项已完成并记入�
 - 四个 Python 门禁全绿：`python scripts/check-docs.py`、`python scripts/check-deps.py`、`python scripts/check-contract.py`、`python scripts/selftest-gates.py`（本地）。
 - 诚实边界：以上为本地复跑结论；GitHub Actions 侧曾长期红（见 §6 第 2 条），HEAD `fdd81fe`(#63) 三 OS 全绿。真技术断言（LanceDB／ONNX／Demucs／FFmpeg）与真端点用例仍在 CI 配置之外，转 TSK-808。
 - 遗留（脚本属主待办，不在文档范围内）：`scripts/selftest-gates.py` 的头字段负例与证据 token 负例仍指向 Phase 8 已删行/已重命名文件；`scripts/check-contract.py` 的历史豁免集合仍含已删除的评估报告路径（无害残留）。
+
+## 9 追加（2026-10-08）：TSK-806/807/808 收口
+
+- **TSK-806 完成**：§4 的债按精确口径实测为 **186 处单段裸链接 / 32 文件**（此前「宽口径 439」把合规全路径也算进去了，口径本身是错的）。用「本文件定义项 + `use` 导入（含多行分组 use）+ std 常用项」三级解析批量改写 181 处为全路径，余下 crate 根名/相对路径已确认合规；`scripts/check-contract.py` 改为只计单段名并忽略 crate 根，棘轮基线 **0**。`cargo doc` 复跑 0 警告。
+- **TSK-808 完成**：新增 `scripts/test-realtech.py`（+ CI ubuntu 步骤）——四套真技术断言逐条打印 `REALTECH <suite> EXECUTED|SKIPPED|FAILED` 与 `REALTECH SUMMARY`；**绿但零测试 = SKIPPED** 专抓「假绿」，缺 protoc/ORT 网络归 SKIPPED 并带原因，真失败才 exit 1。本机实测 `executed=3 skipped=1 failed=0`。
+- **TSK-807 工具就绪、执行转 F/B-004**：`scripts/blind_scores.py`（盲态评分单 + 仓库外 key + Spearman + 空表拒评 + `--selftest` 三夹具）、`scripts/runbook_witness.py`（拒绝把机器/子 Agent 写成人类行；`check` 如实报 `human=0` 并 exit 1，故意不进 CI）、`synthlm-ui --scale <f32>`（实测 1.5 → PPP/ZOOM=1.500，把「HiDPI 150% 需注销」变成可复核命令）。听感排序、见证签字与 150% 截图只能由人类产出，已在 F/B-004 写明解除条件。

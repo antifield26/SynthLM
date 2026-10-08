@@ -2,8 +2,8 @@
 
 - 目的：把 ROADMAP 拆成一次会话可完成、可验证的任务，供后续 Agent 会话逐项执行。
 - 适用范围：Phase 0–4；约束：非商业、无分发、不购证；三档授权；本地端点测试递延实现阶段。
-- 状态：Accepted（Phase 0–7 已关闭；Phase 8=能力接线与债清偿（TSK-805–808）在办，F/B-001/002 单独冻结；2026-10-07）
-- 最后核验日期：2026-10-07
+- 状态：Accepted（Phase 0–7 已关闭；Phase 8=能力接线与债清偿：TSK-805/806/808 已完成，TSK-807 工具就绪待人类执行；F/B-001/002/004 单独冻结；2026-10-08）
+- 最后核验日期：2026-10-08
 - 依赖文档：docs/ROADMAP.md、docs/DECISIONS.md、docs/EVALUATION.md、docs/ARCHITECTURE.md。
 
 粒度规则：每行=一次会话；P0 必有可自动化验收；Blocked 必写原因与解除条件；完成必更状态 + 证据链接。
@@ -119,9 +119,9 @@
 | ID | 标题 | 类型 | 阶段 | 依赖 | 优先级 | 规模 | 验收标准(可测) | 关联决策 | 状态 | 证据链接 |
 |---|---|---|---|---|---|---|---|---|---|---|
 | TSK-805 | 真实技术接线（dsp→acrd / serve live / 检索原语 / CLAP 距离） | 实现 | 8 | TSK-204/602/603 | P1 | L | 四条线均可在产品路径观测：`acrd cache status\|gc` 走 dsp；`serve` 可开 live 且默认仍 fail-closed；plan 响应含 retrieval 去重裁决；score 响应 `clap_cos` 非硬编码 | DEC-012/014/022 | Done | ①`crates/acrd/src/cache.rs`（ContentStore 状态 + run_gc）+ `acrd cache status\|gc` CLI；②`Dispatcher::enable_live/enable_live_https` + `LiveTransport`，`plan.request` 选 live 且未启用时仍 `UnsupportedBackend`；③`crates/acrd/src/vectors.rs` 用 retrieval `cosine_distance`（retrieval 公开重导出）+ plan 响应 `dedup{kept,collapsed,mode:advisory}`；④`on_score_report` 由 PCM 现算 `clap_cos` 或校验入参（越界 `BadScore`），响应带 `clap_cos`。测试：acrd 49 passed（新增 10）；`cargo clippy/test/doc/fmt` 全绿。**未做**：真 ONNX CLAP 权重（需下载 + mel 标定，仍 BLOCKED，见 TSK-601） |
-| TSK-806 | 裸 intra-doc 链接债清理（宽口径 439 处 / 41 文件） | 文档 | 8 | — | P2 | M | 棘轮计数单调下降至 0；`cargo doc` 仍零警告 | §4 | Todo | 基线由 `scripts/check-contract.py --links` 固定并写入 `scripts/link-baseline.txt`；门禁说明见 docs/REPORTS.md §7.2 |
-| TSK-807 | 人工见证类验收可复核化（runbook 见证行 / 盲听评分单 / HiDPI 150% 补测） | 测试 | 8 | TSK-505/703 | P1 | M | runbook 表出现人类见证行；盲听原始排序落盘；150% 截图入库 | DEC-002/016 | Todo | 缺口与现状见 docs/REPORTS.md §3.3/§4 |
-| TSK-808 | 测试诚实化（FFmpeg 显式 SKIP、真 crate 断言 CI 矩阵、断言计数门禁） | 测试 | 8 | — | P1 | M | CI 输出含真技术断言计数；skip 有显式 token 且可计数 | §5 | Todo | 已完成部分（见 docs/REPORTS.md §7.5）：eval 两文件改 `FFMPEG-SKIP` 显式 token + PATH 探测（本机 ffmpeg 在 PATH，分支仍真实执行）；`live_tier2.rs` 离线用例去 `#[ignore]`（461 passed / 0 failed / 3 ignored）。待办：真 crate/Demucs 断言的 CI 矩阵与计数门禁 |
+| TSK-806 | 裸 intra-doc 链接债清理（§4 单段名 `[`Item`]`） | 文档 | 8 | — | P2 | M | 单段裸链接计数归 0；`cargo doc` 仍零警告 | §4 | Done | 精确口径实测 **186 处 / 32 文件**（原「宽口径 439」把合规全路径也算进去了）。已用「本文件定义项 + `use` 导入（含多行分组 use）+ std 常用项」三级解析批量改写 181 处为全路径；剩 5 处为 crate 根名（`ebur128`/`realfft`/`rustfft`）、`super::`/`Self::` 相对路径（有 `::`，非裸名）与 1 处 UI 新代码，均已收敛。`scripts/check-contract.py` 改为只计单段名并忽略 crate 根，基线随之降到 0（棘轮仍在）。`cargo doc` 复跑 0 警告 |
+| TSK-807 | 人工见证类验收可复核化（runbook 见证行 / 盲听评分单 / HiDPI 150% 补测） | 测试 | 8 | TSK-505/703 | P1 | M | runbook 表出现人类见证行；盲听原始排序落盘；150% 截图入库 | DEC-002/016 | In-Progress | **工具侧 2026-10-08 已就绪**：`scripts/blind_scores.py`（generate 出盲态评分单 + 仓库外 key；score 计算 Spearman；空表拒评；`--selftest` 三组夹具 ρ=+1.0000/−1.0000/+0.9487 全过）；`scripts/runbook_witness.py`（add 拒绝把"机器/子 Agent"写成人类行；check 当前输出 `human=0 machine=1 empty=1` 并 exit 1）；UI `--scale <f32>` 让 HiDPI 150% 免注销复核（`synthlm-ui --scale 1.5`）。**人类执行部分转 F/B-004** |
+| TSK-808 | 测试诚实化（FFmpeg 显式 SKIP、真 crate 断言可见性、断言计数） | 测试 | 8 | — | P1 | M | 真技术断言的执行/跳过/失败可观测且可计数；静默 skip 不得伪装成绿 | §5 | Done | `scripts/test-realtech.py` + CI（ubuntu job）——逐套件打印 `REALTECH <suite> EXECUTED\|SKIPPED\|FAILED` 与 `REALTECH SUMMARY`：**绿但零测试 = SKIPPED**（专抓"假绿"），构建缺 protoc/ORT 网络 → SKIPPED 并带原因，真失败 → exit 1（`--require` 下 SKIPPED 亦 exit 1）。本机实测 `executed=3 skipped=1 failed=0`（ffmpeg 5 passed；onnx-clap 65 passed；demucs 38 passed；lancedb-real 因缺 protoc SKIPPED）。此前部分：eval 两文件 `FFMPEG-SKIP` token + PATH 探测、`live_tier2.rs` 离线用例去 `#[ignore]`。**遗留（已登记于 TSK-601）**：无测试真正实例化 `OnnxClapEmbedder`，故 onnx-clap EXECUTED 只证明 ort 链接成功、未证明会话可开 |
 
 ## 冻结/阻塞（F/B-nnn，原因 + 解除条件）
 
@@ -131,3 +131,4 @@
 |---|---|---|---|---|---|---|---|---|---|---|
 | F/B-001 | RB/JUCE/权重商用采购与分发 | 合规 | — | — | P3 | S | 不适用（冻结） | DEC-025 | Blocked | 阻塞原因：不购买许可 + 无分发约束；解除条件：人类书面解除约束并立项采购 |
 | F/B-002 | 云端计费声明与预算立项 | 合规 | — | — | P3 | S | 不适用（冻结） | DEC-010 | Blocked | 阻塞原因：人类明确不声明计费；解除条件：人类书面要求立项 |
+| F/B-004 | 人类见证执行（盲听评分单 / runbook 人类行 / HiDPI 150% 截图） | 测试 | — | — | P1 | S | 不适用（冻结） | DEC-002/016 | Blocked | 阻塞原因：Agent 无法代替人类的耳朵与眼睛——TSK-807 的工具已就绪且可复核，但"听感排序、真机见证签字、150% 截图"三项只有人类能产出；`scripts/runbook_witness.py check` 当前如实报 `human=0`（exit 1，故意不进 CI，避免把"该项未做"变成红灯噪音）。解除条件：人类按 `experiments/e2e-runbook.md` 跑一轮并用 `runbook_witness.py add --witness <名字>` 落行；用 `blind_scores.py generate/score` 产出并回填一次真实 ρ；`synthlm-ui --scale 1.5` 截图入库 |
